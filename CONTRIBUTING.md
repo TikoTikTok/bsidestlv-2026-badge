@@ -4,6 +4,7 @@
 
 ```
 index.html, styles.css, src/, stages/, assets/   the published site - MIT
+images/                                          README renders, not published
 hardware/                                        KiCad 9 projects - CERN-OHL-S-2.0
 software/                                        tools, firmware, sources - MIT
 ```
@@ -35,8 +36,8 @@ The site is the repo root: `index.html`, `styles.css`, `src/`, `stages/` and
 `assets/`. Those five paths are what the Pages workflow stages and publishes, so
 keep every path inside them relative — an absolute `/assets/...` works locally
 and breaks under `/<repo>/` on Pages. Anything the page does not load belongs in
-`software/`, not at the root; adding a sixth published path means updating
-`.github/workflows/pages.yml` too.
+`software/` or, for README artwork, `images/` — neither is staged. Adding a
+sixth *published* path means updating `.github/workflows/pages.yml` too.
 
 No dependencies — Node with ES modules and Python 3 standard library only.
 Keep it that way; `package.json` has no `dependencies` block on purpose.

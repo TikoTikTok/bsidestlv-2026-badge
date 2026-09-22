@@ -4,6 +4,10 @@ Everything for the BSidesTLV 2026 badge: two KiCad boards, the RP2040 firmware
 that runs on it, and the online puzzle challenge — *Alice in AI Land* — that the
 badge is used to play.
 
+<p align="center">
+  <img src="images/Controller-Front.jpeg" alt="The badge, front" width="380">
+</p>
+
 ```
 index.html         the challenge - static site, served from the repo root
 styles.css  src/  stages/  assets/
@@ -54,8 +58,19 @@ server exists.
 
 | Board | What | Key parts |
 |---|---|---|
-| [`hardware/badge/`](hardware/badge) | "BSidesTLV2026 Alice Controller" v0.4 — the badge itself, and the controller the challenge is played on. D-pad, A/B/X/Y, Start/Select, reset and BootSel, all on one side. | RP2040, W25Q128JVS, AMS1117-3.3, USB-C |
+| [`hardware/badge/`](hardware/badge) | "BSidesTLV2026 Alice Controller" v0.4 — the badge itself, and the controller the challenge is played on. D-pad, A/B/X/Y, Start/Select, reset and BootSel, all on one side. Cut to the outline of the Caterpillar's mushroom. | RP2040, W25Q128JVS, AMS1117-3.3, USB-C |
 | [`hardware/soldering-kit/`](hardware/soldering-kit) | Through-hole LED chaser for the soldering workshop. Beginner-friendly: DIP, axial, CR2032. | TLC555P, CD4017BE, 4x LED, 500k trimmer |
+
+<table>
+<tr>
+  <td align="center" width="50%"><img src="images/Controller-Back.jpeg" alt="The badge, back" width="300"></td>
+  <td align="center" width="50%"><img src="images/SolderingKit.jpeg" alt="The soldering kit" width="300"></td>
+</tr>
+<tr>
+  <td align="center"><b>badge, back</b> — the RP2040, flash, regulator and the button matrix</td>
+  <td align="center"><b>soldering kit</b> — Alice, the White Rabbit and the looking glass</td>
+</tr>
+</table>
 
 Each project carries its own `production/` directory with the fabrication
 package: BOM, positions, designators and IPC netlist.
