@@ -5,7 +5,7 @@ and everything it needs is beside it.
 
 | Directory | Project | What it is |
 |---|---|---|
-| `badge/` | `PhoneController` / "BSidesTLV2026 Alice Controller v0.4" | The badge, and the controller the online challenge is played on: D-pad, A/B/X/Y, Start/Select, reset and BootSel, USB-C, 16 MB external flash, SWD header. |
+| `badge/` | `PhoneController` / "BSidesTLV2026 Alice Controller" v0.4 | The badge, and the controller the online challenge is played on: D-pad, A/B/X/Y, Start/Select, reset and BootSel, USB-C, 16 MB external flash, SWD header. |
 | `soldering-kit/` | `BSidesTLV26TinyBadge` | The soldering workshop kit: a TLC555 astable clocking a CD4017 decade counter that chases four LEDs. All through-hole — DIP sockets, axial resistors, a 3296W trimmer for the rate and a CR2032 holder — so a first-time solderer can build it. |
 
 The project files inside `badge/` are still named `PhoneController.*` — that

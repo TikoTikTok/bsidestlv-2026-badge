@@ -1,6 +1,6 @@
 # Controller firmware
 
-Firmware for the BSidesTLV 2026 badge - "BSidesTLV2026 Alice Controller v0.4", a USB HID game
+Firmware for the BSidesTLV 2026 badge - the "BSidesTLV2026 Alice Controller" v0.4, a USB HID game
 controller built on the RP2040. It also builds and runs unchanged on a stock
 Raspberry Pi Pico (RP2040 / RP2350), which is the easiest way to try it without
 a badge.

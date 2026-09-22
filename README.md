@@ -54,7 +54,7 @@ server exists.
 
 | Board | What | Key parts |
 |---|---|---|
-| [`hardware/badge/`](hardware/badge) | "BSidesTLV2026 Alice Controller v0.4" — the badge itself, and the controller the challenge is played on. D-pad, A/B/X/Y, Start/Select, reset and BootSel, all on one side. | RP2040, W25Q128JVS, AMS1117-3.3, USB-C |
+| [`hardware/badge/`](hardware/badge) | "BSidesTLV2026 Alice Controller" v0.4 — the badge itself, and the controller the challenge is played on. D-pad, A/B/X/Y, Start/Select, reset and BootSel, all on one side. | RP2040, W25Q128JVS, AMS1117-3.3, USB-C |
 | [`hardware/soldering-kit/`](hardware/soldering-kit) | Through-hole LED chaser for the soldering workshop. Beginner-friendly: DIP, axial, CR2032. | TLC555P, CD4017BE, 4x LED, 500k trimmer |
 
 Each project carries its own `production/` directory with the fabrication
