@@ -1,13 +1,12 @@
 # BSidesTLV 2026 Badge
 
-Everything for the BSidesTLV 2026 badge: three KiCad boards, the RP2040
-firmware that runs on it, and the online puzzle challenge — *Alice in AI Land* —
-that the badge is used to play.
+Everything for the BSidesTLV 2026 badge: two KiCad boards, the RP2040 firmware
+that runs on it, and the online puzzle challenge — *Alice in AI Land* — that the
+badge is used to play.
 
 ```
 hardware/          KiCad projects (CERN-OHL-S-2.0)
   badge/             "BSidesTLV2026 Alice Controller" - RP2040 handheld, 14 buttons, USB-C
-  usb-board/         USB-C receptacle breakout with the CC pulldowns
   soldering-kit/     555 + CD4017 LED chaser, the soldering workshop kit
 software/          the online challenge and the badge firmware (MIT)
   site/              the static site published to GitHub Pages
@@ -48,7 +47,6 @@ server exists.
 | Board | What | Key parts |
 |---|---|---|
 | [`hardware/badge/`](hardware/badge) | "BSidesTLV2026 Alice Controller v0.4" — the badge itself, and the controller the challenge is played on. D-pad, A/B/X/Y, Start/Select, reset and BootSel, all on one side. | RP2040, W25Q128JVS, AMS1117-3.3, USB-C |
-| [`hardware/usb-board/`](hardware/usb-board) | USB-C receptacle breakout that carries the 5.1k CC pulldowns, panelized with mouse bites. | DX07VN24WA2C1568, Molex 52559-0652 |
 | [`hardware/soldering-kit/`](hardware/soldering-kit) | Through-hole LED chaser for the soldering workshop. Beginner-friendly: DIP, axial, CR2032. | TLC555P, CD4017BE, 4x LED, 500k trimmer |
 
 Each project carries its own `production/` directory with the fabrication
@@ -76,7 +74,7 @@ Hold `BootSel` while plugging in USB-C, then copy `controller.uf2` onto the
 `RPI-RP2` drive that appears. It also builds and runs on a stock Raspberry Pi
 Pico, which is the easiest way to try the firmware without a badge.
 
-Full pin map, HID report layout and the 3D-printable enclosure:
+Full pin map and HID report layout:
 [`software/controller/README.md`](software/controller/README.md).
 
 ## Licences

@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="images/front-transparent.png" alt="BSidesTLV2026 Alice Controller" width="420">
-</p>
-
 # Controller firmware
 
 Firmware for the BSidesTLV 2026 badge - "BSidesTLV2026 Alice Controller v0.4", a USB HID game
@@ -10,10 +6,10 @@ Raspberry Pi Pico (RP2040 / RP2350), which is the easiest way to try it without
 a badge.
 
 The board it targets is [`hardware/badge/`](../../hardware/badge); this
-directory is only the firmware. It enumerates as a **wired DualShock 4**, so phones, PCs and emulators
-recognize it with no driver or app - including iPhones. The button layout
-mimics a Game Boy Color: a 4-way D-pad plus `A`, `B`, `X`, `Y`, shoulder
-buttons (`SR`/`SL`), and `START` / `SELECT`.
+directory is only the firmware. It enumerates as a **wired DualShock 4**, so
+phones, PCs and emulators recognize it with no driver or app - including
+iPhones. The button layout mimics a Game Boy Color: a 4-way D-pad plus `A`,
+`B`, `X`, `Y`, shoulder buttons (`SR`/`SL`), and `START` / `SELECT`.
 
 ### Why DualShock 4 and not a generic gamepad
 
@@ -23,20 +19,6 @@ to controllers it recognizes by USB VID/PID (MFi, Xbox Wireless, DualShock 4 /
 DualSense, Switch Pro). A generic gamepad enumerates and is then ignored - no
 app can see it. Presenting the DualShock 4's identity and input report makes an
 iPhone bind a real controller profile, and every other host understands it too.
-
-## Enclosure & PCB
-
-The 3D-printable enclosure is modeled in Onshape - [Controller case](https://cad.onshape.com/documents/5b058211584da6ba94a5f3a2/w/7946df008143afeea2af8019/e/bb1aadbdb91d94f271c1447f) - and the
-printable meshes are in [`stl/`](stl): body, back plate, hinge, D-pad and one
-mesh per button.
-
-| Case front | Case back |
-| ---------- | --------- |
-| ![Case front](images/front.png) | ![Case back](images/back.png) |
-
-| PCB front | PCB back |
-| --------- | -------- |
-| ![PCB front](images/pcb-front.png) | ![PCB back](images/pcb-back.png) |
 
 ## Wiring
 
@@ -150,11 +132,14 @@ emulators, or any app that supports HID controllers.
 - Reports Sony's VID `0x054C` / PID `0x09CC` (DualShock 4 CUH-ZCT2U). That is
   what buys iOS support; it is also not a VID/PID this project owns, so do not
   ship hardware with it.
-- **Hardware:** the USB-C receptacle needs a 5.1k Rd pulldown on **both** CC1
-  and CC2. CC1 has one (R15 on the controller board); CC2 was left floating,
-  which means a USB-C iPhone will not turn on VBUS in one of the two cable
-  orientations. `hardware/usb-board/PhoneControllerUSB.kicad_sch` now carries `R1` (5.1k,
-  CC2 to GND) - the matching `.kicad_pcb` still needs "Update PCB from
-  Schematic" plus placement and routing of that one 0805.
+- **Hardware:** USB-C needs a 5.1k Rd pulldown on **both** CC1 and CC2. On
+  `hardware/badge/`, CC1 is correct — `USB1` pin A5 to `R15` to GND. CC2 is not:
+  `R21` (5.1k) is placed and wired CC2 to GND, but nothing else sits on that
+  net, because the LCSC symbol used for the receptacle
+  (`C3039316_USB-SMD_TC-002_1`) breaks out **CC1 only** — it has no CC2 pin. So
+  the pulldown is there and connected to nothing. A host that only sources VBUS
+  after seeing Rd — a USB-C iPhone, most USB-C laptops — will power the badge in
+  one cable orientation and not the other. Flipping the cable is the workaround;
+  fixing it means a symbol/footprint that exposes CC2 on a future revision.
 - The RP2040 USB enumeration errata fix (RP2040-E5) is enabled in
   `CMakeLists.txt`; it reserves GPIO15 internally on RP2040 boards.

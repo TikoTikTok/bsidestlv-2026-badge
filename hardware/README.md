@@ -1,12 +1,11 @@
 # Hardware
 
-Three KiCad 9 projects. Each is self-contained: open the `.kicad_pro` in KiCad
+Two KiCad 9 projects. Each is self-contained: open the `.kicad_pro` in KiCad
 and everything it needs is beside it.
 
 | Directory | Project | What it is |
 |---|---|---|
 | `badge/` | `PhoneController` / "BSidesTLV2026 Alice Controller v0.4" | The badge, and the controller the online challenge is played on: D-pad, A/B/X/Y, Start/Select, reset and BootSel, USB-C, 16 MB external flash, SWD header. |
-| `usb-board/` | `PhoneControllerUSB` | A small USB-C receptacle breakout: the connector, a Molex 52559-0652 FFC header and the 5.1k CC pulldown, panelized with mouse bites. It exists because the badge's own USB-C has an Rd pulldown on CC1 only — with CC2 floating, a USB-C iPhone will not turn on VBUS in one of the two cable orientations. |
 | `soldering-kit/` | `BSidesTLV26TinyBadge` | The soldering workshop kit: a TLC555 astable clocking a CD4017 decade counter that chases four LEDs. All through-hole — DIP sockets, axial resistors, a 3296W trimmer for the rate and a CR2032 holder — so a first-time solderer can build it. |
 
 The project files inside `badge/` are still named `PhoneController.*` — that
@@ -25,8 +24,7 @@ with project-relative paths, so the project moves without breaking.
 
 ## Fabrication
 
-`badge/` and `soldering-kit/` ship the package they were last ordered with;
-`usb-board/` has none yet — it has never been fabbed.
+Each project ships the package it was last ordered with:
 
 ```
 <project>/production/
@@ -73,6 +71,18 @@ a source of truth — the `.kicad_pcb` is.
 KiCad's own rolling archives (`*-backups/`, `production/backups/`), the
 `fp-info-cache`, `*.kicad_prl` per-user state and editor lock files are all
 ignored — git is the history now. See the root `.gitignore`.
+
+## Known issue: CC2 on the badge's USB-C
+
+`R21` (5.1k) is placed and wired CC2 to GND, but it is the only thing on that
+net: the LCSC symbol used for the receptacle, `C3039316_USB-SMD_TC-002_1`,
+exposes `CC1` and no `CC2` pin, so the pulldown connects to nothing. `CC1` is
+fine — `USB1` pin A5 to `R15` to GND.
+
+The effect is that a host which only sources VBUS once it sees Rd — a USB-C
+iPhone, most USB-C laptops — powers the badge in one cable orientation and not
+the other. Flipping the cable works. A proper fix needs a symbol and footprint
+that break out CC2, on a future board revision.
 
 ## Firmware
 
