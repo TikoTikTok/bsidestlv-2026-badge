@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "The queen sheet is a pose sheet, not a direction x frame grid: the facing",
+    "drifts across each row, so cells are picked by hand. [row, col], 1-based.",
+    "Row 3 cols 1-2 are her side profile (W); row 3 cols 3-4 plus row 1 col 3 are",
+    "the back-turned poses (NW); row 2 cols 1-3 are the front-turned ones (SE).",
+    "E, NE and SW are the mirrors of those."
+  ],
+  "cells": {
+    "n":  [[1, 1], [1, 2], [1, 5]],
+    "nw": [[3, 3], [3, 4], [1, 3]],
+    "w":  [[3, 2], [3, 1], [3, 2]],
+    "s":  [[2, 4], [2, 5], [2, 6]],
+    "se": [[2, 1], [2, 2], [2, 3]]
+  },
+  "mirror": { "ne": "nw", "e": "w", "sw": "se" },
+  "alias":  {}
+}

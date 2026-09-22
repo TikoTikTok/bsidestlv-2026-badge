@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "The mad-hatter sheet is a pose sheet, not a direction x frame grid: row 2 is",
+    "front-facing poses, rows 1 and 3 are back-facing ones, and the facing drifts",
+    "across each row. So the cells are picked by hand. [row, col], 1-based.",
+    "Both diagonal groups in this sheet face RIGHT (row 2 cols 1-3 look toward the",
+    "viewer's right; row 3 cols 1-3 are backs turned right), so SE and NE come from",
+    "the sheet and SW and NW are the mirrors. The sheet has no true profile, so E",
+    "and W reuse the nearest diagonal."
+  ],
+  "cells": {
+    "n":  [[1, 1], [1, 8], [1, 7]],
+    "ne": [[3, 3], [3, 2], [3, 1]],
+    "s":  [[2, 5], [2, 4], [2, 6]],
+    "se": [[2, 3], [2, 2], [2, 1]]
+  },
+  "mirror": { "nw": "ne", "sw": "se" },
+  "alias":  { "e": "se", "w": "sw" }
+}

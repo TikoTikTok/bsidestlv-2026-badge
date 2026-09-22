@@ -1,0 +1,471 @@
+{
+  "size": 48,
+  "sources": [
+    "tiles-reference.png",
+    "assets-reference2.png"
+  ],
+  "tiles": [
+    {
+      "name": "floor_checker",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_checker.png"
+    },
+    {
+      "name": "floor_cobble",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_cobble.png"
+    },
+    {
+      "name": "floor_grass_flowers",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_grass_flowers.png"
+    },
+    {
+      "name": "floor_grass_patch",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_grass_patch.png"
+    },
+    {
+      "name": "floor_marble",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_marble.png"
+    },
+    {
+      "name": "floor_carpet_red",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_carpet_red.png"
+    },
+    {
+      "name": "wall_stone_banners",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_stone_banners.png"
+    },
+    {
+      "name": "wall_stone_blue",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_stone_blue.png"
+    },
+    {
+      "name": "wall_stone_corner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_stone_corner.png"
+    },
+    {
+      "name": "hedge_rail",
+      "category": "wall",
+      "fit": "tile",
+      "file": "hedge_rail.png"
+    },
+    {
+      "name": "hedge_rail_corner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "hedge_rail_corner.png"
+    },
+    {
+      "name": "wall_gold_banner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_banner.png"
+    },
+    {
+      "name": "wall_gold_corner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_corner.png"
+    },
+    {
+      "name": "door_wood_closed",
+      "category": "door",
+      "fit": "prop",
+      "file": "door_wood_closed.png"
+    },
+    {
+      "name": "door_wood_open",
+      "category": "door",
+      "fit": "prop",
+      "file": "door_wood_open.png"
+    },
+    {
+      "name": "door_heart_closed",
+      "category": "door",
+      "fit": "prop",
+      "file": "door_heart_closed.png"
+    },
+    {
+      "name": "door_heart_open",
+      "category": "door",
+      "fit": "prop",
+      "file": "door_heart_open.png"
+    },
+    {
+      "name": "button_heart_up",
+      "category": "button",
+      "fit": "prop",
+      "file": "button_heart_up.png"
+    },
+    {
+      "name": "button_heart_down",
+      "category": "button",
+      "fit": "prop",
+      "file": "button_heart_down.png"
+    },
+    {
+      "name": "button_mushroom_up",
+      "category": "button",
+      "fit": "prop",
+      "file": "button_mushroom_up.png"
+    },
+    {
+      "name": "button_mushroom_down",
+      "category": "button",
+      "fit": "prop",
+      "file": "button_mushroom_down.png"
+    },
+    {
+      "name": "lever_up",
+      "category": "button",
+      "fit": "prop",
+      "file": "lever_up.png"
+    },
+    {
+      "name": "lever_down",
+      "category": "button",
+      "fit": "prop",
+      "file": "lever_down.png"
+    },
+    {
+      "name": "floor_checker_blue",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_checker_blue.png"
+    },
+    {
+      "name": "floor_diamond_blue",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_diamond_blue.png"
+    },
+    {
+      "name": "floor_checker_framed",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_checker_framed.png"
+    },
+    {
+      "name": "floor_cobble_moss",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_cobble_moss.png"
+    },
+    {
+      "name": "floor_cobble_cracked",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_cobble_cracked.png"
+    },
+    {
+      "name": "floor_grass_roses",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_grass_roses.png"
+    },
+    {
+      "name": "floor_dirt_patch",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_dirt_patch.png"
+    },
+    {
+      "name": "floor_dirt_cross",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_dirt_cross.png"
+    },
+    {
+      "name": "floor_grass_clover",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_grass_clover.png"
+    },
+    {
+      "name": "floor_marble_heart",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_marble_heart.png"
+    },
+    {
+      "name": "floor_carpet_heart",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_carpet_heart.png"
+    },
+    {
+      "name": "floor_marble_plain",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_marble_plain.png"
+    },
+    {
+      "name": "floor_marble_cracked",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_marble_cracked.png"
+    },
+    {
+      "name": "floor_marble_veined",
+      "category": "floor",
+      "fit": "tile",
+      "file": "floor_marble_veined.png"
+    },
+    {
+      "name": "trim_blue_corner",
+      "category": "floor",
+      "fit": "tile",
+      "file": "trim_blue_corner.png"
+    },
+    {
+      "name": "trim_blue_corner_heart",
+      "category": "floor",
+      "fit": "tile",
+      "file": "trim_blue_corner_heart.png"
+    },
+    {
+      "name": "trim_blue_straight",
+      "category": "floor",
+      "fit": "tile",
+      "file": "trim_blue_straight.png"
+    },
+    {
+      "name": "trim_blue_elbow",
+      "category": "floor",
+      "fit": "tile",
+      "file": "trim_blue_elbow.png"
+    },
+    {
+      "name": "wall_blue",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue.png"
+    },
+    {
+      "name": "wall_blue_banner_white",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue_banner_white.png"
+    },
+    {
+      "name": "wall_blue_banner_red",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue_banner_red.png"
+    },
+    {
+      "name": "wall_blue_corner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue_corner.png"
+    },
+    {
+      "name": "wall_post_banner_white",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_post_banner_white.png"
+    },
+    {
+      "name": "wall_post_banner_red",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_post_banner_red.png"
+    },
+    {
+      "name": "wall_blue_pillar",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue_pillar.png"
+    },
+    {
+      "name": "wall_blue_post_banner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue_post_banner.png"
+    },
+    {
+      "name": "wall_blue_corner_out",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_blue_corner_out.png"
+    },
+    {
+      "name": "hedge_daisies",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "hedge_daisies.png"
+    },
+    {
+      "name": "hedge_roses",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "hedge_roses.png"
+    },
+    {
+      "name": "hedge_post_left",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "hedge_post_left.png"
+    },
+    {
+      "name": "hedge_post_right",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "hedge_post_right.png"
+    },
+    {
+      "name": "hedge_wide",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "hedge_wide.png"
+    },
+    {
+      "name": "pillar_rose",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "pillar_rose.png"
+    },
+    {
+      "name": "pillar_plain",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "pillar_plain.png"
+    },
+    {
+      "name": "pillar_heart",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "pillar_heart.png"
+    },
+    {
+      "name": "pillar_blue",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "pillar_blue.png"
+    },
+    {
+      "name": "pillar_rose_short",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "pillar_rose_short.png"
+    },
+    {
+      "name": "pillar_blue_short",
+      "category": "hedge",
+      "fit": "tile",
+      "file": "pillar_blue_short.png"
+    },
+    {
+      "name": "wall_gold_banner_red",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_banner_red.png"
+    },
+    {
+      "name": "wall_gold_banner_heart",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_banner_heart.png"
+    },
+    {
+      "name": "wall_gold_banner_tall",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_banner_tall.png"
+    },
+    {
+      "name": "wall_gold_corner_in",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_corner_in.png"
+    },
+    {
+      "name": "wall_gold_medallion",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_medallion.png"
+    },
+    {
+      "name": "wall_gold_banner_plain",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_banner_plain.png"
+    },
+    {
+      "name": "wall_gold_heart",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_heart.png"
+    },
+    {
+      "name": "wall_gold_pennant",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_pennant.png"
+    },
+    {
+      "name": "wall_gold_corner_banner",
+      "category": "wall",
+      "fit": "tile",
+      "file": "wall_gold_corner_banner.png"
+    },
+    {
+      "name": "rail_roses_long",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_long.png"
+    },
+    {
+      "name": "rail_roses_dense",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_dense.png"
+    },
+    {
+      "name": "rail_roses_slope",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_slope.png"
+    },
+    {
+      "name": "rail_roses_post",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_post.png"
+    },
+    {
+      "name": "rail_roses_block",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_block.png"
+    },
+    {
+      "name": "rail_roses_corner",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_corner.png"
+    },
+    {
+      "name": "rail_roses_end",
+      "category": "rail",
+      "fit": "tile",
+      "file": "rail_roses_end.png"
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "name": "alice",
+  "source": "alice-reference3.png",
+  "frameWidth": 113,
+  "frameHeight": 184,
+  "frames": [
+    "stand",
+    "walk1",
+    "walk2"
+  ],
+  "sheet": "alice_walk_sheet.png",
+  "note": "Straight crops - pixels are byte-for-byte from the source. E, NE and SE are horizontal flips of W, NW and SW, already baked into the files.",
+  "directions": {
+    "N": {
+      "files": [
+        "alice_N_stand.png",
+        "alice_N_walk1.png",
+        "alice_N_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 0,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 0,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": false
+    },
+    "NE": {
+      "files": [
+        "alice_NE_stand.png",
+        "alice_NE_walk1.png",
+        "alice_NE_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 184,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 184,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 184,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": true
+    },
+    "E": {
+      "files": [
+        "alice_E_stand.png",
+        "alice_E_walk1.png",
+        "alice_E_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 368,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 368,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 368,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": true
+    },
+    "SE": {
+      "files": [
+        "alice_SE_stand.png",
+        "alice_SE_walk1.png",
+        "alice_SE_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 552,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 552,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 552,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": true
+    },
+    "S": {
+      "files": [
+        "alice_S_stand.png",
+        "alice_S_walk1.png",
+        "alice_S_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 736,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 736,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 736,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": false
+    },
+    "SW": {
+      "files": [
+        "alice_SW_stand.png",
+        "alice_SW_walk1.png",
+        "alice_SW_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 920,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 920,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 920,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": false
+    },
+    "W": {
+      "files": [
+        "alice_W_stand.png",
+        "alice_W_walk1.png",
+        "alice_W_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 1104,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 1104,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 1104,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": false
+    },
+    "NW": {
+      "files": [
+        "alice_NW_stand.png",
+        "alice_NW_walk1.png",
+        "alice_NW_walk2.png"
+      ],
+      "cells": [
+        {
+          "x": 0,
+          "y": 1288,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 113,
+          "y": 1288,
+          "w": 113,
+          "h": 184
+        },
+        {
+          "x": 226,
+          "y": 1288,
+          "w": 113,
+          "h": 184
+        }
+      ],
+      "mirrored": false
+    }
+  }
+}

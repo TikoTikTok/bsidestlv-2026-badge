@@ -1,0 +1,314 @@
+{
+  "size": 48,
+  "source": "assets-reference.png",
+  "items": [
+    {
+      "name": "rock_small",
+      "category": "scenery",
+      "file": "rock_small.png",
+      "width": 27,
+      "height": 23
+    },
+    {
+      "name": "rock_pair",
+      "category": "scenery",
+      "file": "rock_pair.png",
+      "width": 40,
+      "height": 28
+    },
+    {
+      "name": "rock_pile",
+      "category": "scenery",
+      "file": "rock_pile.png",
+      "width": 48,
+      "height": 35
+    },
+    {
+      "name": "rock_daisies",
+      "category": "scenery",
+      "file": "rock_daisies.png",
+      "width": 37,
+      "height": 29
+    },
+    {
+      "name": "rock_bluebells",
+      "category": "scenery",
+      "file": "rock_bluebells.png",
+      "width": 39,
+      "height": 38
+    },
+    {
+      "name": "rock_mossy",
+      "category": "scenery",
+      "file": "rock_mossy.png",
+      "width": 42,
+      "height": 37
+    },
+    {
+      "name": "mushroom_red_small",
+      "category": "scenery",
+      "file": "mushroom_red_small.png",
+      "width": 22,
+      "height": 24
+    },
+    {
+      "name": "mushroom_red",
+      "category": "scenery",
+      "file": "mushroom_red.png",
+      "width": 33,
+      "height": 31
+    },
+    {
+      "name": "mushroom_red_trio",
+      "category": "scenery",
+      "file": "mushroom_red_trio.png",
+      "width": 36,
+      "height": 33
+    },
+    {
+      "name": "mushroom_blue",
+      "category": "scenery",
+      "file": "mushroom_blue.png",
+      "width": 28,
+      "height": 29
+    },
+    {
+      "name": "mushroom_blue_trio",
+      "category": "scenery",
+      "file": "mushroom_blue_trio.png",
+      "width": 33,
+      "height": 30
+    },
+    {
+      "name": "mushroom_mixed",
+      "category": "scenery",
+      "file": "mushroom_mixed.png",
+      "width": 42,
+      "height": 32
+    },
+    {
+      "name": "book_heart",
+      "category": "book",
+      "file": "book_heart.png",
+      "width": 36,
+      "height": 32
+    },
+    {
+      "name": "book_spade",
+      "category": "book",
+      "file": "book_spade.png",
+      "width": 37,
+      "height": 33
+    },
+    {
+      "name": "book_club",
+      "category": "book",
+      "file": "book_club.png",
+      "width": 36,
+      "height": 32
+    },
+    {
+      "name": "book_diamond",
+      "category": "book",
+      "file": "book_diamond.png",
+      "width": 36,
+      "height": 31
+    },
+    {
+      "name": "book_open",
+      "category": "book",
+      "file": "book_open.png",
+      "width": 45,
+      "height": 30
+    },
+    {
+      "name": "book_stack",
+      "category": "book",
+      "file": "book_stack.png",
+      "width": 41,
+      "height": 32
+    },
+    {
+      "name": "teapot_heart_blue",
+      "category": "teapot",
+      "file": "teapot_heart_blue.png",
+      "width": 42,
+      "height": 37
+    },
+    {
+      "name": "teapot_diamond",
+      "category": "teapot",
+      "file": "teapot_diamond.png",
+      "width": 43,
+      "height": 37
+    },
+    {
+      "name": "teapot_club",
+      "category": "teapot",
+      "file": "teapot_club.png",
+      "width": 44,
+      "height": 37
+    },
+    {
+      "name": "teapot_heart_red",
+      "category": "teapot",
+      "file": "teapot_heart_red.png",
+      "width": 43,
+      "height": 37
+    },
+    {
+      "name": "teapot_striped",
+      "category": "teapot",
+      "file": "teapot_striped.png",
+      "width": 44,
+      "height": 37
+    },
+    {
+      "name": "teapot_bow",
+      "category": "teapot",
+      "file": "teapot_bow.png",
+      "width": 46,
+      "height": 37
+    },
+    {
+      "name": "teacup_heart_blue",
+      "category": "teacup",
+      "file": "teacup_heart_blue.png",
+      "width": 35,
+      "height": 25
+    },
+    {
+      "name": "teacup_diamond",
+      "category": "teacup",
+      "file": "teacup_diamond.png",
+      "width": 34,
+      "height": 25
+    },
+    {
+      "name": "teacup_club",
+      "category": "teacup",
+      "file": "teacup_club.png",
+      "width": 35,
+      "height": 24
+    },
+    {
+      "name": "teacup_heart_red",
+      "category": "teacup",
+      "file": "teacup_heart_red.png",
+      "width": 35,
+      "height": 25
+    },
+    {
+      "name": "teacup_striped",
+      "category": "teacup",
+      "file": "teacup_striped.png",
+      "width": 36,
+      "height": 25
+    },
+    {
+      "name": "teacup_stack",
+      "category": "teacup",
+      "file": "teacup_stack.png",
+      "width": 32,
+      "height": 34
+    },
+    {
+      "name": "potion_red",
+      "category": "potion",
+      "file": "potion_red.png",
+      "width": 31,
+      "height": 35
+    },
+    {
+      "name": "potion_blue",
+      "category": "potion",
+      "file": "potion_blue.png",
+      "width": 29,
+      "height": 35
+    },
+    {
+      "name": "potion_yellow",
+      "category": "potion",
+      "file": "potion_yellow.png",
+      "width": 19,
+      "height": 36
+    },
+    {
+      "name": "potion_heart",
+      "category": "potion",
+      "file": "potion_heart.png",
+      "width": 28,
+      "height": 35
+    },
+    {
+      "name": "potion_star",
+      "category": "potion",
+      "file": "potion_star.png",
+      "width": 28,
+      "height": 35
+    },
+    {
+      "name": "potion_purple",
+      "category": "potion",
+      "file": "potion_purple.png",
+      "width": 28,
+      "height": 35
+    },
+    {
+      "name": "key_heart",
+      "category": "token",
+      "file": "key_heart.png",
+      "width": 19,
+      "height": 32
+    },
+    {
+      "name": "key_club",
+      "category": "token",
+      "file": "key_club.png",
+      "width": 20,
+      "height": 35
+    },
+    {
+      "name": "key_diamond",
+      "category": "token",
+      "file": "key_diamond.png",
+      "width": 19,
+      "height": 33
+    },
+    {
+      "name": "key_spade",
+      "category": "token",
+      "file": "key_spade.png",
+      "width": 19,
+      "height": 34
+    },
+    {
+      "name": "card_hearts",
+      "category": "token",
+      "file": "card_hearts.png",
+      "width": 24,
+      "height": 31
+    },
+    {
+      "name": "card_clubs",
+      "category": "token",
+      "file": "card_clubs.png",
+      "width": 24,
+      "height": 31
+    },
+    {
+      "name": "card_diamonds",
+      "category": "token",
+      "file": "card_diamonds.png",
+      "width": 24,
+      "height": 31
+    },
+    {
+      "name": "card_spades",
+      "category": "token",
+      "file": "card_spades.png",
+      "width": 24,
+      "height": 30
+    }
+  ]
+}

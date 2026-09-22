@@ -1,0 +1,11 @@
+﻿Designator,Footprint,Quantity,Value,LCSC Part #
+BAT1,BS-02-A1AJ010,1,CR2032,C5239862
+C1,C_Disc_D5.0mm_W2.5mm_P5.00mm,1,1u,
+C2,C_Disc_D5.0mm_W2.5mm_P5.00mm,1,10n,
+C3,C_Disc_D5.0mm_W2.5mm_P5.00mm,1,100n,
+"D1, D2, D3, D4",LED_D4.0mm,4,LED,
+R1,R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,1,10k,
+"R2, R3, R4, R5",R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal,4,470R,
+RV1,Potentiometer_Bourns_3296W_Vertical,1,500k,
+U1,DIP-8_W7.62mm,1,TLC555P,
+U2,DIP-16_W7.62mm,1,CD4017BE,

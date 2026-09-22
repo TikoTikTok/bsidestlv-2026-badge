@@ -1,0 +1,53 @@
+{
+  "name": "cheshire",
+  "frameWidth": 48,
+  "frameHeight": 48,
+  "cycle": [
+    0,
+    1,
+    0,
+    2
+  ],
+  "directions": {
+    "N": [
+      "n1.png",
+      "n2.png",
+      "n3.png"
+    ],
+    "NE": [
+      "ne1.png",
+      "ne2.png",
+      "ne3.png"
+    ],
+    "E": [
+      "e1.png",
+      "e2.png",
+      "e3.png"
+    ],
+    "SE": [
+      "se1.png",
+      "se2.png",
+      "se3.png"
+    ],
+    "S": [
+      "s1.png",
+      "s2.png",
+      "s3.png"
+    ],
+    "SW": [
+      "sw1.png",
+      "sw2.png",
+      "sw3.png"
+    ],
+    "W": [
+      "w1.png",
+      "w2.png",
+      "w3.png"
+    ],
+    "NW": [
+      "nw1.png",
+      "nw2.png",
+      "nw3.png"
+    ]
+  }
+}

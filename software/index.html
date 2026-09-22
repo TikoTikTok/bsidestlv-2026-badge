@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alice in AI Land — Asset Sheet</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>characters &amp; items · 48×48</small>
+    </span>
+  </div>
+
+  <div class="controls">
+    <label>Item zoom
+      <input id="zoom" type="range" min="1" max="6" step="1" value="2">
+      <output id="zoomOut">2×</output>
+    </label>
+    <label class="check"><input id="animate" type="checkbox" checked> animate</label>
+    <label>Backdrop
+      <select id="backdrop">
+        <option value="checker">checker</option>
+        <option value="dark">dark</option>
+        <option value="light">light</option>
+      </select>
+    </label>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Stage — A Mad Tea Party</h2>
+    <p class="note">One wall splits the room and the only way through is the gate, shut until
+      Alice steps on the lever. Every rock starts on the wrong side, so each has to be lined up
+      on the gate's row and shoved through a one-tile corridor — the order is the puzzle. The
+      door opens once all three buttons are held.</p>
+    <p class="note">Arrow keys or WASD to move, <b>R</b> to reset. <b>Solve</b> runs a real
+      search over the stage and plays back what it finds — it is not a recorded answer.</p>
+
+    <div class="stage-wrap"><canvas id="stage"></canvas></div>
+
+    <div class="stage-bar">
+      <button id="solveBtn" class="btn">Solve</button>
+      <button id="resetBtn" class="btn ghost">Reset</button>
+      <label>Playback
+        <input id="playSpeed" type="range" min="40" max="400" step="20" value="120">
+        <output id="playSpeedOut">120ms</output>
+      </label>
+      <span id="stageStatus" class="status">3 buttons to hold</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Stage — The Queen's Gauntlet</h2>
+    <p class="note">This room runs on a clock. Every tick the cast advances one cell along a fixed
+      loop, so a plan is a <em>schedule</em>: one corridor joins the two halves, the Queen walks it
+      looking three cells ahead, and both rocks plus Alice have to cross it several times over.
+      Standing still is a move — the shortest solution waits five times.</p>
+    <p class="note">Arrow keys or WASD to move, <b>space</b> to wait, <b>R</b> to restart. Miss a
+      window and the Queen sees you, which ends the run. Par is <b>64 ticks</b>; an empty room is 41,
+      so the cast costs 23.</p>
+
+    <div class="stage-wrap"><canvas id="chase"></canvas></div>
+
+    <div class="stage-bar">
+      <button id="chaseSolve" class="btn">Solve</button>
+      <button id="chaseReset" class="btn ghost">Restart</button>
+      <label>Tick
+        <input id="chaseSpeed" type="range" min="120" max="700" step="20" value="320">
+        <output id="chaseSpeedOut">320ms</output>
+      </label>
+      <label class="check"><input id="chaseRun" type="checkbox" checked> clock running</label>
+      <span id="chaseStatus" class="status">tick 0 · par 64</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>8-way walk cycles</h2>
+    <p class="note">24 frames per character — 8 directions × 3 frames (stand, step, step),
+      indexed by <code>tools/build-walk-manifest.mjs</code>. Click a direction, or use the arrow
+      keys / WASD (two keys for a diagonal), to drive the big one.</p>
+
+    <div id="walkTabs" class="tabs"></div>
+
+    <div class="walk-stage">
+      <div id="compass" class="compass"></div>
+      <div class="walk-hero">
+        <canvas id="heroCanvas"></canvas>
+        <div class="hero-meta">
+          <b id="heroDir">S</b>
+          <span id="heroFrame">stand</span>
+          <label>Frame rate
+            <input id="walkSpeed" type="range" min="60" max="400" step="10" value="160">
+            <output id="walkSpeedOut">160ms</output>
+          </label>
+          <label class="check"><input id="walkPlay" type="checkbox" checked> play</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Tiles</h2>
+    <p class="note">Cut from <code>references/tiles-reference.png</code> by
+      <code>tools/slice-tile-sheet.py</code>. Floors and walls fill the whole 48×48 cell — they
+      are the grid. Doors, buttons and levers keep their aspect and sit on the cell floor, sharing
+      one scale factor so a button stays smaller than a door.</p>
+    <div id="tileFilters" class="tabs"></div>
+    <div id="tiles" class="items"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Items</h2>
+    <p class="note">Cut from <code>references/assets-reference.png</code> by
+      <code>tools/slice-item-sheet.py</code> — one PNG each, 48×48, transparent. They share a
+      single scale factor, so a key stays small next to a boulder. Click a name to copy it.</p>
+    <div id="itemFilters" class="tabs"></div>
+    <div id="items" class="items"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Using these</h2>
+<pre><code>// characters: assets/characters/&lt;name&gt;/&lt;dir&gt;&lt;frame&gt;.png  + &lt;name&gt;.json
+const meta  = await (await fetch('assets/characters/queen/queen.json')).json();
+const frame = meta.cycle[beat % meta.cycle.length];      // stand, step, stand, step
+ctx.drawImage(images[dir][frame], x, y, 48, 48);
+
+// items and tiles: assets/&lt;items|tiles&gt;/&lt;name&gt;.png + the folder's .json
+ctx.drawImage(tiles.floor_checker, x, y, 48, 48);     // fills the cell
+ctx.drawImage(items.teapot_heart_red, x, y, 48, 48);  // sits on it</code></pre>
+    <p class="note">Rebuild everything:
+      <code>python3 tools/slice-walk-grid.py &lt;sheet&gt; &lt;name&gt;</code>,
+      <code>python3 tools/slice-item-sheet.py</code>,
+      <code>python3 tools/slice-tile-sheet.py</code>,
+      <code>node tools/build-walk-manifest.mjs assets/characters/&lt;name&gt; &lt;name&gt;</code>.</p>
+  </section>
+</main>
+
+<script type="module" src="src/gallery.js"></script>
+</body>
+</html>
