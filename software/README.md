@@ -21,10 +21,14 @@ tools/        slicing and generation, writes into site/assets/
 references/   the source sheets the art was cut from (15MB, not published)
 docs/         design doc
 legacy/       the generated-sprite pass the page no longer loads
+controller/   RP2040 firmware for the badge - a separate CMake project
 ```
 
-Nothing outside `site/` is uploaded, so the reference sheets and the toolchain
-cost the deploy nothing.
+Nothing outside `site/` is uploaded, so the reference sheets, the toolchain and
+the firmware cost the deploy nothing.
+
+`controller/` is the firmware the badge runs — a Pico SDK CMake project with its
+own [README](controller/README.md), unrelated to this project's npm scripts.
 
 Deployment is [`.github/workflows/pages.yml`](../.github/workflows/pages.yml):
 it verifies both stages solve, then uploads `software/site/`. Set

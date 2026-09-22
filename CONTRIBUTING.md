@@ -42,6 +42,19 @@ Assets are cut from the sheets in `software/references/` by the tools in
 `software/tools/`, which write into `software/site/assets/`. If you change a slice, re-run its tool and commit the
 regenerated PNGs with it — never hand-edit an output.
 
+## Firmware
+
+```
+cd software/controller
+mkdir build && cd build
+cmake -DPICO_SDK_PATH=/path/to/pico-sdk ..
+make -j
+```
+
+`build/` is ignored. The USB descriptors deliberately report Sony's VID/PID so
+iOS binds a controller profile — do not "fix" that without reading the note at
+the end of `software/controller/README.md`, and do not ship hardware with it.
+
 ## Commits
 
 Describe the change, not the file list. One concern per commit; a board revision

@@ -12,6 +12,9 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 
+# --- Pico firmware (CMake) ---
+software/controller/build/
+
 # --- Node ---
 node_modules/
 npm-debug.log*
