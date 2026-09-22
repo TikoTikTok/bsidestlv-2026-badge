@@ -72,18 +72,6 @@ KiCad's own rolling archives (`*-backups/`, `production/backups/`), the
 `fp-info-cache`, `*.kicad_prl` per-user state and editor lock files are all
 ignored — git is the history now. See the root `.gitignore`.
 
-## Known issue: CC2 on the badge's USB-C
-
-`R21` (5.1k) is placed and wired CC2 to GND, but it is the only thing on that
-net: the LCSC symbol used for the receptacle, `C3039316_USB-SMD_TC-002_1`,
-exposes `CC1` and no `CC2` pin, so the pulldown connects to nothing. `CC1` is
-fine — `USB1` pin A5 to `R15` to GND.
-
-The effect is that a host which only sources VBUS once it sees Rd — a USB-C
-iPhone, most USB-C laptops — powers the badge in one cable orientation and not
-the other. Flipping the cable works. A proper fix needs a symbol and footprint
-that break out CC2, on a future board revision.
-
 ## Firmware
 
 The badge's firmware is not here — it is a Pico SDK project at
