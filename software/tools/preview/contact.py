@@ -2,7 +2,7 @@
 
 The fastest way to see whether a slice came out right.
 
-    python3 tools/preview/contact.py site/assets/characters/queen out.png [scale]
+    python3 tools/preview/contact.py assets/characters/queen out.png [scale]
     python3 tools/preview/contact.py assets/items out.png 2
 """
 import os, sys, json, struct, zlib

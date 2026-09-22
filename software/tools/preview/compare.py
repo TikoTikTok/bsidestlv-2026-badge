@@ -3,7 +3,7 @@
 For settling which way a sprite faces - the question that got the queen's
 mapping wrong three times.
 
-    python3 tools/preview/compare.py site/assets/characters/queen out.png w1,e1,sw1,se1 [scale]
+    python3 tools/preview/compare.py assets/characters/queen out.png w1,e1,sw1,se1 [scale]
 """
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))

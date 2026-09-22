@@ -3,12 +3,12 @@
 // This is the acceptance test from docs/GAME_DESIGN.md: a stage that the
 // reference solver cannot clear does not ship.
 //
-//   node tools/verify-stage.mjs site/stages/tea-party.js
+//   node tools/verify-stage.mjs stages/tea-party.js
 
-import { parse, solve, replay, isGoal } from '../site/src/puzzle.js';
+import { parse, solve, replay, isGoal } from '../../src/puzzle.js';
 
-const path = process.argv[2] ?? 'site/stages/tea-party.js';
-const mod = await import(`../${path}`);
+const path = process.argv[2] ?? 'stages/tea-party.js';
+const mod = await import(new URL(`../../${path}`, import.meta.url));
 const stage = Object.values(mod)[0];
 const map = parse(stage.rows);
 

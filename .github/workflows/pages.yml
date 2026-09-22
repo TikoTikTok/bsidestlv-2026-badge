@@ -1,5 +1,10 @@
-# Publishes software/site/ to GitHub Pages. The site is plain static files -
-# no build step, no bundler - so this only uploads and deploys.
+# Publishes the site to GitHub Pages. The site is plain static files at the
+# repository root - no build step, no bundler - so this stages the pages the
+# site actually needs and uploads them.
+#
+# Staging rather than uploading the whole repo keeps the artifact ~4MB instead
+# of ~34MB: hardware/, software/ and the reference sheets are not part of the
+# site and do not need publishing.
 #
 # One-time setup: Settings -> Pages -> Source: "GitHub Actions".
 name: Pages
@@ -8,7 +13,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'software/site/**'
+      - 'index.html'
+      - 'styles.css'
+      - 'src/**'
+      - 'stages/**'
+      - 'assets/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -32,16 +41,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Verify both stages are solvable before publishing
+        run: npm run verify
+
+      - name: Stage the site
         run: |
-          cd software
-          node tools/verify-stage.mjs
-          node tools/verify-chase.mjs
+          mkdir _site
+          cp -r index.html styles.css src stages assets .nojekyll _site/
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: software/site
+          path: _site
 
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -3,11 +3,12 @@
 ## Layout
 
 ```
-hardware/    KiCad 9 projects - CERN-OHL-S-2.0
-software/    the Alice in AI Land challenge - MIT
+index.html, styles.css, src/, stages/, assets/   the published site - MIT
+hardware/                                        KiCad 9 projects - CERN-OHL-S-2.0
+software/                                        tools, firmware, sources - MIT
 ```
 
-Anything you add lands in one of the two and inherits that licence. If it is
+Anything you add lands under one of those and inherits its licence. If it is
 genuinely both (a tool that reads board files, say), say so in its header.
 
 ## Hardware
@@ -25,22 +26,25 @@ genuinely both (a tool that reads board files, say), say so in its header.
 ## Software
 
 ```
-cd software
-./serve.sh              # http://localhost:8080, serves site/
+./serve.sh              # http://localhost:8080, serves the repo root
 npm run verify          # both stages still solvable
 npm run validate        # legacy sprite/frame integrity
 ```
 
-`site/` is what GitHub Pages publishes. Keep every path inside it relative — an
-absolute `/assets/...` works locally and breaks under `/<repo>/` on Pages. Keep
-anything the page does not load out of `site/`, so the deploy stays the site.
+The site is the repo root: `index.html`, `styles.css`, `src/`, `stages/` and
+`assets/`. Those five paths are what the Pages workflow stages and publishes, so
+keep every path inside them relative — an absolute `/assets/...` works locally
+and breaks under `/<repo>/` on Pages. Anything the page does not load belongs in
+`software/`, not at the root; adding a sixth published path means updating
+`.github/workflows/pages.yml` too.
 
 No dependencies — Node with ES modules and Python 3 standard library only.
 Keep it that way; `package.json` has no `dependencies` block on purpose.
 
 Assets are cut from the sheets in `software/references/` by the tools in
-`software/tools/`, which write into `software/site/assets/`. If you change a slice, re-run its tool and commit the
-regenerated PNGs with it — never hand-edit an output.
+`software/tools/`, which write into `assets/` at the root. Run them from the
+repo root, where `package.json` lives. If you change a slice, re-run its tool
+and commit the regenerated PNGs with it — never hand-edit an output.
 
 ## Firmware
 

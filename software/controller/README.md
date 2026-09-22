@@ -124,7 +124,7 @@ On the badge, BOOTSEL is the button silkscreened `BootSel`; hold it while
 plugging in USB-C.
 
 After flashing, plug it into a phone (via USB-OTG / USB-C). It should appear as
-a connected gamepad, ready for the challenge in [`../site/`](../site), for
+a connected gamepad, ready for the challenge at the repository root, for
 emulators, or any app that supports HID controllers.
 
 ## Notes

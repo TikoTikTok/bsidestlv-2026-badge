@@ -5,12 +5,16 @@ that runs on it, and the online puzzle challenge — *Alice in AI Land* — that
 badge is used to play.
 
 ```
+index.html         the challenge - static site, served from the repo root
+styles.css  src/  stages/  assets/
 hardware/          KiCad projects (CERN-OHL-S-2.0)
   badge/             "BSidesTLV2026 Alice Controller" - RP2040 handheld, 14 buttons, USB-C
   soldering-kit/     555 + CD4017 LED chaser, the soldering workshop kit
-software/          the online challenge and the badge firmware (MIT)
-  site/              the static site published to GitHub Pages
+software/          everything that builds the above, but is not served (MIT)
   controller/        RP2040 firmware - enumerates as a DualShock 4
+  tools/             slicing and generation, writes into ../assets/
+  references/        the source sheets the art was cut from
+  legacy/  docs/
 ```
 
 ## The challenge
@@ -25,16 +29,20 @@ The simulation is deterministic — 60 ticks/second, one input bitmask per tick,
 same seed plus same input trace gives the same outcome byte for byte — which is
 what makes it scriptable, replayable and verifiable.
 
-It is a static site — no server, no build step, every path relative. Published
-to GitHub Pages from `software/site/` by
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml); set
-Settings -> Pages -> Source to "GitHub Actions" once and it deploys itself.
+It lives at the repository root — `index.html`, `styles.css`, `src/`, `stages/`
+and `assets/` — as plain static files. No server, no build step, every path
+relative, so it works at a domain root or under `/<repo>/` unchanged.
 
 ```
-cd software
 ./serve.sh          # http://localhost:8080, the same files Pages serves
 npm run verify      # proves both stages are solvable
 ```
+
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those five
+paths and publishes them; set Settings -> Pages -> Source to "GitHub Actions"
+once and pushes to `main` that touch the site deploy themselves. It stages
+rather than uploading the repo so the artifact stays ~4MB instead of ~34MB —
+`hardware/` and `software/` are not part of the site.
 
 ES modules need `http://`, not `file://`. That is the only reason a local
 server exists.

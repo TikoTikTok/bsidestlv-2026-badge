@@ -90,7 +90,7 @@ def main(src, name, layout='wide'):
     scale = min((TARGET - BOTTOM_PAD) / tallest, TARGET / widest)
     print(f'source figures up to {widest}x{tallest}px -> scale {scale:.3f}')
 
-    out_dir = os.path.join(os.path.dirname(__file__), '..', 'site', 'assets', 'characters', name)
+    out_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'assets', 'characters', name)
     os.makedirs(out_dir, exist_ok=True)
 
     # group the cells by the direction they belong to

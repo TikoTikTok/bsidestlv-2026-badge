@@ -1,11 +1,11 @@
 // Proves a timed stage is solvable, and reports its par in ticks.
 //
-//   node tools/verify-chase.mjs site/stages/queens-gauntlet.js
+//   node tools/verify-chase.mjs stages/queens-gauntlet.js
 
-import { parse, solve, replay, isGoal, hazardCells } from '../site/src/chase.js';
+import { parse, solve, replay, isGoal, hazardCells } from '../../src/chase.js';
 
-const path = process.argv[2] ?? 'site/stages/queens-gauntlet.js';
-const mod = await import(`../${path}`);
+const path = process.argv[2] ?? 'stages/queens-gauntlet.js';
+const mod = await import(new URL(`../../${path}`, import.meta.url));
 const stage = Object.values(mod)[0];
 const map = parse(stage);
 

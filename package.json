@@ -1,0 +1,15 @@
+{
+  "name": "alice-in-ai-land",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Alice in AI Land - a boulder-pushing puzzle game served as static files, plus the tools that cut its art.",
+  "scripts": {
+    "gen": "node software/tools/gen-world.mjs && node software/tools/gen-cards.mjs && node software/tools/gen-bosses.mjs",
+    "validate": "node software/tools/validate.mjs",
+    "verify": "node software/tools/verify-stage.mjs && node software/tools/verify-chase.mjs",
+    "export": "node software/tools/export-png.mjs",
+    "build": "npm run gen && npm run validate && npm run export",
+    "serve": "python3 -m http.server 8080"
+  }
+}

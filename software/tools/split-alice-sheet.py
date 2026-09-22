@@ -13,7 +13,7 @@ import os, struct, zlib
 from collections import deque
 
 SRC = os.path.join(os.path.dirname(__file__), '..', 'references', 'alice-reference3.png')
-OUT = os.path.join(os.path.dirname(__file__), '..', 'site', 'assets', 'characters', 'alice')
+OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'assets', 'characters', 'alice')
 PAD = 6            # pixels of source background kept around each figure
 
 
