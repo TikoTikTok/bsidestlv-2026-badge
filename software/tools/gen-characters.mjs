@@ -370,5 +370,5 @@ ${Object.entries(CHARACTERS).map(([id, c]) =>
   emit(id, { ...c, frames: c.pre ? c.frames : c.frames.map(g => shade(g, SPEC)) })).join('\n')}
 };
 `;
-writeFileSync(new URL('../assets/sprites.characters.js', import.meta.url), out);
+writeFileSync(new URL('../legacy/assets/sprites.characters.js', import.meta.url), out);
 console.log(`characters: ${Object.keys(CHARACTERS).length}`);

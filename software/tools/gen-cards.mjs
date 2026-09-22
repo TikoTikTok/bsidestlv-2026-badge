@@ -108,5 +108,5 @@ ${c.frames.map(f => `      [\n${fmt(f.rows())}\n      ],`).join('\n')}
   },`).join('\n')}
 };
 `;
-writeFileSync(new URL('../assets/sprites.cards.js', import.meta.url), out);
+writeFileSync(new URL('../legacy/assets/sprites.cards.js', import.meta.url), out);
 console.log(`cards: ${Object.keys(CARDS).length}`);

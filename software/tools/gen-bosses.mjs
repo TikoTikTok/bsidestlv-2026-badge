@@ -127,5 +127,5 @@ ${b.frames.map(f => `      [\n${fmt(f)}\n      ],`).join('\n')}
   },`).join('\n')}
 };
 `;
-writeFileSync(new URL('../assets/sprites.bosses.js', import.meta.url), out);
+writeFileSync(new URL('../legacy/assets/sprites.bosses.js', import.meta.url), out);
 console.log(`bosses: ${Object.keys(BOSSES).length}`);

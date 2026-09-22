@@ -1,7 +1,7 @@
 // Sanity-check every sprite: rectangular rows, known palette chars.
 // Run: node tools/validate.mjs
-import { PALETTE } from '../assets/palette.js';
-import { SPRITES } from '../assets/sprites.js';
+import { PALETTE } from '../legacy/assets/palette.js';
+import { SPRITES } from '../legacy/assets/sprites.js';
 
 let errors = 0, frames = 0, sprites = 0;
 const known = new Set(Object.keys(PALETTE));

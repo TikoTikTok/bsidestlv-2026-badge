@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pnglib import read_png, write_png, key_black
 
 HERE = os.path.dirname(__file__)
-OUT = os.path.join(HERE, '..', 'assets', 'tiles')
+OUT = os.path.join(HERE, '..', 'site', 'assets', 'tiles')
 TARGET = 48
 MIN_AREA = 40 * 40
 

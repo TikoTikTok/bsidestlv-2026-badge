@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pnglib import read_png, write_png, key_black
 
 SRC = os.path.join(os.path.dirname(__file__), '..', 'references', 'assets-reference.png')
-OUT = os.path.join(os.path.dirname(__file__), '..', 'assets', 'items')
+OUT = os.path.join(os.path.dirname(__file__), '..', 'site', 'assets', 'items')
 TARGET = 48
 BOTTOM_PAD = 1
 

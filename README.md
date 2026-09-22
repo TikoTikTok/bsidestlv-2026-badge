@@ -8,6 +8,7 @@ hardware/          KiCad projects (CERN-OHL-S-2.0)
   badge/             "BSidesTLV2026 Alice Controller" - RP2040 handheld, 14 buttons, USB-C
   soldering-kit/     555 + CD4017 LED chaser, the soldering workshop kit
 software/          the online challenge (MIT)
+  site/              the static site published to GitHub Pages
 ```
 
 ## The challenge
@@ -22,12 +23,19 @@ The simulation is deterministic — 60 ticks/second, one input bitmask per tick,
 same seed plus same input trace gives the same outcome byte for byte — which is
 what makes it scriptable, replayable and verifiable.
 
+It is a static site — no server, no build step, every path relative. Published
+to GitHub Pages from `software/site/` by
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml); set
+Settings -> Pages -> Source to "GitHub Actions" once and it deploys itself.
+
 ```
 cd software
-./serve.sh          # http://localhost:8080
+./serve.sh          # http://localhost:8080, the same files Pages serves
+npm run verify      # proves both stages are solvable
 ```
 
-ES modules need `http://`, not `file://`. That is the whole build system.
+ES modules need `http://`, not `file://`. That is the only reason a local
+server exists.
 
 - [`software/README.md`](software/README.md) — asset set, slicing tools, how every sprite was cut
 - [`software/docs/GAME_DESIGN.md`](software/docs/GAME_DESIGN.md) — stages, tick model, protocol

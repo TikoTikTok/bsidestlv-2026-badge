@@ -4,18 +4,40 @@ Characters and items for a boulder-pushing puzzle game, cut from the supplied
 reference sheets. Everything on the page is real art: nothing is generated.
 
 ```
-./serve.sh        # http://localhost:8080 - the asset sheet
+./serve.sh        # http://localhost:8080
 ```
 
 ES modules need `http://`, not `file://`. That is the whole build system.
+
+## Layout
+
+`site/` is the deployable half: static files, no build step, every path inside
+it relative, so it works at a domain root or under `/<repo>/` on GitHub Pages
+without changes. Everything beside it is the workshop and never ships.
+
+```
+site/         index.html, styles.css, src/, stages/, assets/  <- published, 3.8MB
+tools/        slicing and generation, writes into site/assets/
+references/   the source sheets the art was cut from (15MB, not published)
+docs/         design doc
+legacy/       the generated-sprite pass the page no longer loads
+```
+
+Nothing outside `site/` is uploaded, so the reference sheets and the toolchain
+cost the deploy nothing.
+
+Deployment is [`.github/workflows/pages.yml`](../.github/workflows/pages.yml):
+it verifies both stages solve, then uploads `software/site/`. Set
+Settings -> Pages -> Source to "GitHub Actions" once and pushes to `main` that
+touch `site/` publish themselves.
 
 ## What's here
 
 | Path | What |
 |---|---|
-| `assets/characters/<name>/` | 24 walk frames (8 directions x 3), 48x48 RGBA, + `<name>.json` |
-| `assets/items/` | 44 item PNGs, 48x48 RGBA, + `items.json` |
-| `assets/tiles/` | 77 floor, wall, hedge, rail, door and button PNGs, 48x48 RGBA, + `tiles.json` |
+| `site/assets/characters/<name>/` | 24 walk frames (8 directions x 3), 48x48 RGBA, + `<name>.json` |
+| `site/assets/items/` | 44 item PNGs, 48x48 RGBA, + `items.json` |
+| `site/assets/tiles/` | 77 floor, wall, hedge, rail, door and button PNGs, 48x48 RGBA, + `tiles.json` |
 | `references/` | The supplied reference sheets every asset was cut from |
 | `tools/slice-walk-grid.py` | Cuts a character sheet into walk frames |
 | `tools/slice-item-sheet.py` | Cuts `references/assets-reference.png` into items |
@@ -24,7 +46,7 @@ ES modules need `http://`, not `file://`. That is the whole build system.
 | `tools/sheet-maps/` | Hand-picked cell maps for sheets that are not clean grids |
 | `tools/pnglib.py` | Dependency-free PNG read/write + black-background keying |
 | `tools/preview/` | Look at what a slice produced: contact sheets, sheet cells, side-by-side frames |
-| `index.html`, `src/gallery.js`, `styles.css` | The asset sheet page |
+| `site/index.html`, `site/src/`, `site/styles.css` | The page: two playable stages, walk cycles, tile and item sheets |
 
 ## Characters
 
@@ -42,7 +64,7 @@ them as stand → step → stand → other step.
 
 ```
 python3 tools/slice-walk-grid.py references/white-rabbit-reference.png rabbit
-node tools/build-walk-manifest.mjs assets/characters/rabbit rabbit
+node tools/build-walk-manifest.mjs site/assets/characters/rabbit rabbit
 ```
 
 **Layouts.** `--layout wide` (default) is 8 columns x 3 rows, one column per
@@ -79,7 +101,7 @@ python3 tools/slice-tile-sheet.py
 ```
 
 Cuts both tile sheets - `references/tiles-reference.png` and `references/assets-reference2.png` - into
-77 assets under `assets/tiles/`, with one merged manifest and two fit policies,
+77 assets under `site/assets/tiles/`, with one merged manifest and two fit policies,
 because these are two kinds of art:
 
 - **tile** (`floor`, `wall`) fills the whole 48x48 cell — these *are* the grid,
@@ -113,16 +135,16 @@ of a 48x48 frame, the same size as a character frame, so items and characters
 drop onto the same grid with no per-asset fiddling.
 
 Categories: `scenery` (rocks, mushrooms), `book`, `teapot`, `teacup`, `potion`,
-`token` (keys and cards). Names are in `assets/items/items.json`.
+`token` (keys and cards). Names are in `site/assets/items/items.json`.
 
 ## The stage and the solver
 
-`stages/tea-party.js` is a playable Sokoban-with-extras room. `src/puzzle.js`
+`site/stages/tea-party.js` is a playable Sokoban-with-extras room. `site/src/puzzle.js`
 holds the rules and the solver; `tools/verify-stage.mjs` runs the same solver
 from the command line.
 
 ```
-node tools/verify-stage.mjs stages/tea-party.js
+node tools/verify-stage.mjs site/stages/tea-party.js
 ```
 
 ```
@@ -168,12 +190,12 @@ near-optimal rather than provably optimal. Worth two orders of magnitude.
 
 ## The timed stage
 
-`stages/queens-gauntlet.js` adds the thing the first stage is missing: a clock.
+`site/stages/queens-gauntlet.js` adds the thing the first stage is missing: a clock.
 Every tick the cast advances one cell along a fixed loop, so a plan is not a
 route but a schedule.
 
 ```
-node tools/verify-chase.mjs stages/queens-gauntlet.js
+node tools/verify-chase.mjs site/stages/queens-gauntlet.js
 ```
 
 ```
@@ -185,7 +207,7 @@ par 64 ticks (5 of them waiting) - 20.5s at 320ms/tick
 hazards: cost 23 extra ticks over an empty room (par 41)
 ```
 
-`src/chase.js` holds the rules. What makes it searchable is that the hazards
+`site/src/chase.js` holds the rules. What makes it searchable is that the hazards
 are deterministic and periodic: the world's entire future is
 `phase mod period`, so a state is `(Alice, rocks, lever, phase)` and plain
 breadth-first search returns the fewest ticks — which is also the stage's par,
@@ -224,9 +246,9 @@ is a walled garden, the gauntlet is the Queen's hall.
 - **Tiles** and **Items** — every asset, filterable by category, click a name
   to copy it.
 
-Adding a character: drop 24 frames in `assets/characters/<name>/`, run the
+Adding a character: drop 24 frames in `site/assets/characters/<name>/`, run the
 manifest tool, add `{ id: '<name>', label: '<Name>' }` to `WALK_CHARACTERS` in
-`src/gallery.js`.
+`site/src/gallery.js`.
 
 ## Looking at a slice
 
@@ -234,9 +256,9 @@ Slicing is guesswork until you look at the result, so the review tools are in
 the repo rather than improvised each time:
 
 ```
-python3 tools/preview/contact.py assets/characters/queen out.png 3
+python3 tools/preview/contact.py site/assets/characters/queen out.png 3
 python3 tools/preview/cells.py   references/queen-reference.png       out.png
-python3 tools/preview/compare.py assets/characters/queen   out.png w1,e1,sw1,se1
+python3 tools/preview/compare.py site/assets/characters/queen   out.png w1,e1,sw1,se1
 ```
 
 - **contact** renders a whole folder as one sheet — 8x3 for a character,
@@ -250,10 +272,11 @@ python3 tools/preview/compare.py assets/characters/queen   out.png w1,e1,sw1,se1
 
 ## Legacy
 
-An earlier pass generated placeholder sprites in code (`assets/sprites.*.js`,
-`src/pixel.js`, `tools/gen-*.mjs`, `tools/export-png.mjs`, `tools/validate.mjs`,
-`dist/`). The page no longer loads any of it. Kept only so nothing is deleted
-without asking — safe to remove.
+An earlier pass generated placeholder sprites in code. It lives in `legacy/`
+(`legacy/assets/sprites.*.js`, `legacy/src/pixel.js`, `legacy/dist/`) and is
+driven by `tools/gen-*.mjs`, `tools/export-png.mjs` and `tools/validate.mjs`.
+The page no longer loads any of it, and it is outside `site/` so none of it is
+published. Kept only so nothing is deleted without asking — safe to remove.
 
 ## Licence
 

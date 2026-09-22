@@ -3,8 +3,8 @@
 // Pure node - hand-rolled PNG encoder, no dependencies.
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
-import { PALETTE } from '../assets/palette.js';
-import { SPRITES, GROUPS } from '../assets/sprites.js';
+import { PALETTE } from '../legacy/assets/palette.js';
+import { SPRITES, GROUPS } from '../legacy/assets/sprites.js';
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
@@ -66,7 +66,7 @@ function stamp(surface, rows, ox, oy, scale = 1) {
   }));
 }
 
-const out = new URL('../dist/', import.meta.url);
+const out = new URL('../legacy/dist/', import.meta.url);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(new URL('./frames/', out), { recursive: true });
 

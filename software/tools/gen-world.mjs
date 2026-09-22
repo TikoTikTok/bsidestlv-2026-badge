@@ -510,9 +510,9 @@ const header = (name, desc) =>
 export const ${name} = {
 `;
 
-writeFileSync(new URL('../assets/sprites.tiles.js', import.meta.url),
+writeFileSync(new URL('../legacy/assets/sprites.tiles.js', import.meta.url),
   header('TILES', 'terrain tiles (16x16)') + Object.entries(TILES).map(([k, v]) => entry(k, v)).join('\n') + '\n};\n');
-writeFileSync(new URL('../assets/sprites.objects.js', import.meta.url),
+writeFileSync(new URL('../legacy/assets/sprites.objects.js', import.meta.url),
   header('OBJECTS', 'interactive objects (16x16)') + Object.entries(OBJECTS).map(([k, v]) => entry(k, v)).join('\n') + '\n};\n');
 
 console.log(`tiles: ${Object.keys(TILES).length}, objects: ${Object.keys(OBJECTS).length}`);

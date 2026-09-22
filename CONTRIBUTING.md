@@ -26,16 +26,20 @@ genuinely both (a tool that reads board files, say), say so in its header.
 
 ```
 cd software
-./serve.sh              # http://localhost:8080
-npm run validate        # sprite/frame integrity
-npm run build           # generate, validate, export
+./serve.sh              # http://localhost:8080, serves site/
+npm run verify          # both stages still solvable
+npm run validate        # legacy sprite/frame integrity
 ```
+
+`site/` is what GitHub Pages publishes. Keep every path inside it relative — an
+absolute `/assets/...` works locally and breaks under `/<repo>/` on Pages. Keep
+anything the page does not load out of `site/`, so the deploy stays the site.
 
 No dependencies — Node with ES modules and Python 3 standard library only.
 Keep it that way; `package.json` has no `dependencies` block on purpose.
 
 Assets are cut from the sheets in `software/references/` by the tools in
-`software/tools/`. If you change a slice, re-run its tool and commit the
+`software/tools/`, which write into `software/site/assets/`. If you change a slice, re-run its tool and commit the
 regenerated PNGs with it — never hand-edit an output.
 
 ## Commits

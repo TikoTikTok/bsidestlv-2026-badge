@@ -4,12 +4,12 @@
 // Direction is the longest matching prefix, frame is the trailing number.
 // Frame 1 is the standing pose; 2 and 3 are the walk pair.
 //
-//   node tools/build-walk-manifest.mjs assets/characters/alice2 alice2
+//   node tools/build-walk-manifest.mjs site/assets/characters/alice2 alice2
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, basename } from 'node:path';
 
-const dir = process.argv[2] ?? 'assets/characters/alice2';
+const dir = process.argv[2] ?? 'site/assets/characters/alice2';
 const name = process.argv[3] ?? basename(dir);
 
 const DIRECTIONS = ['nw', 'ne', 'sw', 'se', 'n', 'e', 's', 'w'];   // longest first

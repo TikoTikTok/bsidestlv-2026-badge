@@ -8,7 +8,7 @@
 //   - everything else is base tone.
 // So a face is round without anyone hand-picking 300 pixels.
 
-import { RAMP_KEYS } from '../assets/palette.js';
+import { RAMP_KEYS } from '../legacy/assets/palette.js';
 
 /** mats({ H: 'hair' }) -> { H: auto hair, h: hair forced to shadow } */
 export function mats(spec) {

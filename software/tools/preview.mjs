@@ -2,8 +2,8 @@
 // Usage: node tools/preview.mjs out.png 6 alice rabbit queen
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
-import { PALETTE } from '../assets/palette.js';
-import { SPRITES } from '../assets/sprites.js';
+import { PALETTE } from '../legacy/assets/palette.js';
+import { SPRITES } from '../legacy/assets/sprites.js';
 
 const [, , outPath = 'preview.png', scaleArg = '6', ...ids] = process.argv;
 const SC = +scaleArg;
