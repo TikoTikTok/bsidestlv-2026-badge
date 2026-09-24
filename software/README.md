@@ -11,8 +11,9 @@ ES modules need `http://`, not `file://`. That is the whole build system.
 
 ## Layout
 
-The site itself is at the repository root — `index.html`, `styles.css`, `src/`,
-`stages/`, `assets/` — because that is what GitHub Pages serves. This directory
+The site itself is at the repository root — `index.html`, `glitch.html`,
+`styles.css`, `src/`, `stages/`, `assets/` — because that is what GitHub Pages
+serves. This directory
 is everything that produces it and is never published:
 
 ```
@@ -26,7 +27,7 @@ controller/   RP2040 firmware for the badge - a separate CMake project
 Run the tools from the repository root, where `package.json` lives:
 
 ```
-npm run verify      # both stages solvable
+npm run verify      # both stages solvable, the glitch range's levels honest
 npm run validate    # legacy sprite/frame integrity
 ./serve.sh          # http://localhost:8080
 ```
@@ -52,6 +53,8 @@ Deployment is [`.github/workflows/pages.yml`](../.github/workflows/pages.yml).
 | `tools/pnglib.py` | Dependency-free PNG read/write + black-background keying |
 | `tools/preview/` | Look at what a slice produced: contact sheets, sheet cells, side-by-side frames |
 | `index.html`, `src/`, `styles.css` | The page: two playable stages, walk cycles, tile and item sheets |
+| `glitch.html`, `src/glitch.js`, `src/pad.js`, `src/range.js` | The glitch range: gamepad/keyboard input, two practice games for the badge's quick-glitch layer |
+| `tools/verify-range.mjs` | Proves the range's hand levels fit a hand, its badge levels do not, and all are winnable |
 
 ## Characters
 

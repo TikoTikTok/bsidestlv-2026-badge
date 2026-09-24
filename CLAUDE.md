@@ -22,11 +22,15 @@ One repo, three things:
 ## Layout
 
 ```
-index.html styles.css src/ stages/ assets/   the published site (MIT)
+index.html glitch.html styles.css src/ stages/ assets/   the published site (MIT)
   src/puzzle.js      untimed rules + push-based Dijkstra solver
   src/chase.js       timed rules (periodic hazards) + BFS solver over (Alice, rocks, lever, phase)
   src/gallery.js     the page: both stages, walk-cycle viewer, tile/item sheets
-  stages/            one ES module per stage, ASCII map + hazards
+  src/range.js       glitch range rules: combo state machine, guard-routine interpreter, pulse landing
+  src/pad.js         input: DS4 gamepad (standard mapping, 4 ms poll) or keyboard -> timestamped edges
+  src/glitch.js      the glitch range page (glitch.html)
+  stages/            one ES module per stage, ASCII map + hazards; rabbit-watch.js and
+                     looking-glass.js are the range's levels
   assets/characters/ 5 characters x 24 frames (8 dirs x 3), 48x48 + <name>.json
   assets/items/      44 items + items.json      assets/tiles/ 77 tiles + tiles.json
 images/              README photos only, not published
@@ -34,29 +38,35 @@ hardware/            CERN-OHL-S-2.0
   badge/             "BSidesTLV2026 Alice Controller" v0.4 (KiCad files still named PhoneController.*)
   soldering-kit/     BSidesTLV26TinyBadge: 555 + CD4017 LED chaser, all through-hole
 software/            MIT, never published
-  controller/        Pico SDK CMake project, ~900 lines of C
+  controller/        Pico SDK CMake project; src/glitch.c is the quick-glitch record/replay
+                     engine (no SDK deps), test/ builds it on the host with plain cc
   tools/             slicers (Python, stdlib only) and generators/verifiers (Node ESM)
   references/        source art sheets (15 MB) every asset was cut from
   docs/GAME_DESIGN.md  the five-stage design, tick model, Looking Glass protocol
   legacy/            old generated-sprite pass, unused by the page, safe to delete
-.github/workflows/pages.yml  runs `npm run verify`, stages the five site paths, deploys
+.github/workflows/pages.yml     runs `npm run verify`, stages the six site paths, deploys
+.github/workflows/firmware.yml  host test of the glitch engine + cross-build of controller.uf2
 ```
 
 ## Commands
 
 ```
 ./serve.sh          # http://localhost:8080 - ES modules need http://, not file://
-npm run verify      # solves both stages from the CLI; CI gate before every deploy
+npm run verify      # solves both stages + checks the range's levels; CI gate before every deploy
 npm run validate    # legacy sprite integrity only
+make -C software/controller/test   # quick-glitch engine tests, plain C
 ```
 
-Firmware: see `software/controller/README.md` (needs pico-sdk + arm-none-eabi).
+Firmware: see `software/controller/README.md` (needs pico-sdk + arm-none-eabi;
+`apt install gcc-arm-none-eabi libnewlib-arm-none-eabi` and a shallow clone of
+pico-sdk 2.3.1 with `lib/tinyusb` is enough, that is what firmware.yml does).
 
 ## Rules that matter
 
-- Only `index.html`, `styles.css`, `src/`, `stages/`, `assets/` are published.
-  Every path inside them must be relative (site lives under `/<repo>/` on
-  Pages). Adding a sixth published path means editing `pages.yml` too.
+- Only `index.html`, `glitch.html`, `styles.css`, `src/`, `stages/`, `assets/`
+  are published. Every path inside them must be relative (site lives under
+  `/<repo>/` on Pages). Adding a seventh published path means editing
+  `pages.yml` too.
 - No npm dependencies. Node ESM + Python 3 stdlib only. `package.json` has no
   `dependencies` block on purpose.
 - Assets are generated: re-run the slicer in `software/tools/` and commit the
@@ -67,7 +77,7 @@ Firmware: see `software/controller/README.md` (needs pico-sdk + arm-none-eabi).
   deliberate and must not ship on hardware. Do not "fix" it.
 - Commits: one concern each; describe the change, not the file list.
 
-## Status (as of 2026-09-23)
+## Status (as of 2026-09-24)
 
 Built and live:
 
@@ -79,8 +89,9 @@ Built and live:
 | Page | asset sheet + both stages, Solve buttons run the real solver in-browser. `?autosolve=tea|chase`, `?walk=<id>`. |
 | Badge board | v0.4, fab package in `hardware/badge/production/`. |
 | Soldering kit | schematic generated from `build_badge_sch.py`, fab package present. |
-| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~41 KB UF2. |
-| CI | Pages workflow verifies both stages before deploy. |
+| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~45 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
+| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback. Driven headless in Chromium during development via `window.__pad.inject`. |
+| CI | Pages workflow verifies both stages and the range before deploy; Firmware workflow runs the engine test and cross-builds the UF2. |
 
 Designed but not built (see `software/docs/GAME_DESIGN.md`):
 
@@ -93,13 +104,21 @@ Designed but not built (see `software/docs/GAME_DESIGN.md`):
 - The Looking Glass WebSocket protocol (`ws://localhost:7777/looking-glass`),
   server-side simulation, HMAC flag, practice mode, leaderboard.
 - Reference solvers for stages 3–5 (design rule: must clear in < 60% of budget).
-- Gamepad input on the page. The firmware presents a DS4 but `src/gallery.js`
-  only reads the keyboard today; the Gamepad API is the missing link between
-  the badge and the challenge.
+- Gamepad input on the *stages*. `src/pad.js` reads the DS4 for the range;
+  `src/gallery.js` still only reads the keyboard. Wiring pad.js into the two
+  stages is the obvious next step.
 - Books/mushrooms/teacups/potions/keys/cards exist as art only; no mechanics
   use them yet. Only rocks, buttons, gate, lever and door are implemented.
 
 Known loose ends:
+
+- The quick-glitch firmware has never run on real hardware: it is verified by
+  the host test and by a clean cross-build only. First thing to check on a
+  badge: that the 1 ms endpoint interval still binds on iOS, and the LED
+  patterns. The macro is not persisted across power cycles.
+- Browsers sample gamepads at ~16 ms, so the range's timing floor is the
+  host, not the badge. Chrome's `Gamepad.timestamp` is used when it looks
+  sane; Firefox/raw-mapping support is a best guess (hat on axis 9).
 
 - `software/controller/README.md` notes the USB-C CC2 pin needs a 5.1k Rd
   pulldown and references an `hw/usb/...` schematic path that does not exist
