@@ -28,16 +28,16 @@ genuinely both (a tool that reads board files, say), say so in its header.
 
 ```
 ./serve.sh              # http://localhost:8080, serves the repo root
-npm run verify          # both stages still solvable
+npm run verify          # both stages still solvable, the glitch range still honest
 npm run validate        # legacy sprite/frame integrity
 ```
 
-The site is the repo root: `index.html`, `styles.css`, `src/`, `stages/` and
-`assets/`. Those five paths are what the Pages workflow stages and publishes, so
+The site is the repo root: `index.html`, `glitch.html`, `styles.css`, `src/`,
+`stages/` and `assets/`. Those six paths are what the Pages workflow stages and publishes, so
 keep every path inside them relative — an absolute `/assets/...` works locally
 and breaks under `/<repo>/` on Pages. Anything the page does not load belongs in
 `software/` or, for README artwork, `images/` — neither is staged. Adding a
-sixth *published* path means updating `.github/workflows/pages.yml` too.
+seventh *published* path means updating `.github/workflows/pages.yml` too.
 
 No dependencies — Node with ES modules and Python 3 standard library only.
 Keep it that way; `package.json` has no `dependencies` block on purpose.
@@ -56,7 +56,11 @@ cmake -DPICO_SDK_PATH=/path/to/pico-sdk ..
 make -j
 ```
 
-`build/` is ignored. The USB descriptors deliberately report Sony's VID/PID so
+`build/` is ignored. The quick-glitch engine has a host test that needs only a
+C compiler — `make -C software/controller/test` — and CI runs it plus a full
+cross-build on every change under `software/controller/`.
+
+The USB descriptors deliberately report Sony's VID/PID so
 iOS binds a controller profile — do not "fix" that without reading the note at
 the end of `software/controller/README.md`, and do not ship hardware with it.
 

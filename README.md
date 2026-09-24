@@ -10,6 +10,7 @@ badge is used to play.
 
 ```
 index.html         the challenge - static site, served from the repo root
+glitch.html        the glitch range - two practice rooms for the badge's quick-glitch layer
 styles.css  src/  stages/  assets/
 hardware/          KiCad projects (CERN-OHL-S-2.0)
   badge/             "BSidesTLV2026 Alice Controller" - RP2040 handheld, 14 buttons, USB-C
@@ -33,14 +34,33 @@ The simulation is deterministic — 60 ticks/second, one input bitmask per tick,
 same seed plus same input trace gives the same outcome byte for byte — which is
 what makes it scriptable, replayable and verifiable.
 
-It lives at the repository root — `index.html`, `styles.css`, `src/`, `stages/`
-and `assets/` — as plain static files. No server, no build step, every path
+It lives at the repository root — `index.html`, `glitch.html`, `styles.css`,
+`src/`, `stages/` and `assets/` — as plain static files. No server, no build step, every path
 relative, so it works at a domain root or under `/<repo>/` unchanged.
 
 ```
 ./serve.sh          # http://localhost:8080, the same files Pages serves
-npm run verify      # proves both stages are solvable
+npm run verify      # proves both stages are solvable and the range is honest
 ```
+
+### The glitch range
+
+`glitch.html` is the training ground for the badge as a *fault-injection* tool.
+Two rooms, each with levels that start hand-playable and end badge-only:
+
+- **The Rabbit's Pocket Watch** — a fixed tune of buttons to enter inside a
+  window. Level 1 is 4 presses in 2 s; level 4 is 12 presses in 600 ms, three
+  times what a hand sustains. Record the tune slowly on the badge, speed it up.
+- **The Looking-Glass Glitch** — the Queen's guard runs a routine one line per
+  tick and one line is the check that turns Alice away. A pulse on `X` whose
+  rising edge lands on that line skips it: the door opens and Alice jumps to
+  the treasure. Every other landing is reported as a measurement — which line,
+  how many lines and milliseconds off — and the last level hides the source so
+  the only way in is to sweep the offset and read the guard's reactions.
+
+The page works from the keyboard too, which is how you find out that level 3 of
+each cannot be done that way. `software/tools/verify-range.mjs` checks exactly
+that: hand levels fit a hand, badge levels do not, and every level is winnable.
 
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those five
 paths and publishes them; set Settings -> Pages -> Source to "GitHub Actions"
@@ -97,7 +117,14 @@ Hold `BootSel` while plugging in USB-C, then copy `controller.uf2` onto the
 `RPI-RP2` drive that appears. It also builds and runs on a stock Raspberry Pi
 Pico, which is the easiest way to try the firmware without a badge.
 
-Full pin map and HID report layout:
+**Quick glitch.** `SELECT` is a shift key. `SELECT+SL` records a take of button
+presses with microsecond timestamps; `SELECT+SR` fires it — a `START` tap as
+the trigger, a wait of `offset`, then the take at `speed`. `UP`/`DOWN` scale
+the speed from 1/4× to 32×, `LEFT`/`RIGHT` step the offset in milliseconds,
+`B` forgets it all. It is what the glitch range is played with. The engine is
+plain C with a host test: `make -C software/controller/test`.
+
+Full pin map, chord table and HID report layout:
 [`software/controller/README.md`](software/controller/README.md).
 
 ## Licences
