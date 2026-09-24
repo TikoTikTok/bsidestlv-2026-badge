@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alice in AI Land — Glitch Range</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>glitch range · <a href="index.html">back to the stages</a></small>
+    </span>
+  </div>
+
+  <div class="controls pad-status">
+    <span id="padDevice" class="pad-device">keyboard</span>
+    <span id="padLeds" class="pad-leds"></span>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>The range</h2>
+    <p class="note">Two practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
+      in and press anything — the header lights up when the browser sees it. Without one, the
+      keyboard stands in: arrows, <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for
+      A B X Y, <kbd>Q</kbd> <kbd>E</kbd> for the shoulders, <kbd>Enter</kbd> for START.</p>
+    <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
+      of each is meant for a hand; the last is not, and that is the lesson.</p>
+  </section>
+
+  <section class="panel range" id="watchPanel">
+    <h2>Range 1 — The Rabbit's Pocket Watch <span class="armed-mark">● armed</span></h2>
+    <p class="note">The Rabbit chimes a tune of buttons. Play it back, in order, inside the window
+      — measured from your first press to your last. A wrong button or a slow finish ends the
+      attempt; the next press starts a fresh one. The tune is fixed per level, so a take recorded
+      once on the badge keeps working: record it slowly, then <b>SELECT+UP</b> until it fits.</p>
+
+    <div id="watchTabs" class="tabs"></div>
+
+    <div class="watch">
+      <canvas id="rabbit" width="96" height="96"></canvas>
+      <div>
+        <div id="comboSeq" class="combo"></div>
+        <div class="stage-bar">
+          <span id="watchStatus" class="status">press the first button to start the clock</span>
+          <button id="watchShuffle" class="btn ghost">New tune</button>
+        </div>
+      </div>
+    </div>
+    <ol id="watchLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel range" id="glassPanel">
+    <h2>Range 2 — The Looking-Glass Glitch <span class="armed-mark">● armed</span></h2>
+    <p class="note">The Queen's guard runs a routine at the treasure room door, one line per tick.
+      One of those lines is the check that turns Alice away. A pulse on <b>X</b> whose rising edge
+      lands while that line executes skips it — the routine falls through, the door opens, and
+      Alice jumps to the treasure. <b>START</b> is the trigger: the routine starts the instant the
+      browser sees it. Land anywhere else and the log says where you hit and by how much.</p>
+    <p class="note">A pulse is measured from its rising edge to its falling edge. Every line under
+      it is corrupted, some lines crash the guard, and a pulse wider than the guard survives
+      browns it out. Width is the badge's <b>speed</b>; offset is <b>SELECT+LEFT/RIGHT</b>.</p>
+
+    <div id="glassTabs" class="tabs"></div>
+    <p id="glassBlurb" class="note"></p>
+
+    <div class="glass">
+      <div class="stage-wrap"><canvas id="glass"></canvas></div>
+      <ol id="listing" class="listing"></ol>
+    </div>
+
+    <div class="stage-bar">
+      <button id="glassRun" class="btn">Run (START)</button>
+      <button id="glassClear" class="btn ghost">Clear log</button>
+      <span id="glassStatus" class="status">press START to run the guard's routine</span>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>offset</small><b id="roOffset">—</b><small>trigger → rising edge</small></div>
+      <div class="tile"><small>width</small><b id="roWidth">—</b><small>rising → falling edge</small></div>
+      <div class="tile"><small>landed</small><b id="roLanded">—</b><small>step · line</small></div>
+      <div class="tile"><small>from target</small><b id="roDelta">—</b><small>lines · ms</small></div>
+      <div class="tile"><small>verdict</small><b id="roVerdict">—</b><small id="roHint">&nbsp;</small></div>
+    </div>
+    <ol id="glassLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel">
+    <h2>Using the badge</h2>
+    <p class="note"><b>SELECT</b> is the shift key. While it is held nothing you press reaches the
+      browser, and every other button is a command. A plain SELECT still arrives as a tap when you
+      let go.</p>
+    <table class="chords">
+      <tr><th>SELECT + SL</th><td>record a take; again to stop. Silence before and after is trimmed.</td></tr>
+      <tr><th>SELECT + SR</th><td><b>fire</b>: tap START, wait the offset, replay the take at the speed. Hold the chord to fire again every ~600 ms.</td></tr>
+      <tr><th>SELECT + UP / DOWN</th><td>speed ×2 / ÷2, from 1/4× to 32×. Scales gaps and hold times alike.</td></tr>
+      <tr><th>SELECT + LEFT / RIGHT</th><td>offset −/+ 1 ms; hold to repeat, and the step grows to 10 ms after twenty.</td></tr>
+      <tr><th>SELECT + B</th><td>forget the take, offset 0, speed 1×.</td></tr>
+    </table>
+    <p class="note"><b>Range 1:</b> record the tune at a comfortable pace, stop, then fire. Too slow?
+      SELECT+UP and fire again. Too fast and the browser starts dropping presses — it samples the
+      pad every ~16 ms, so a press needs to be held about 20 ms to be seen. The log shows the
+      rate you achieved and the gap between each press.</p>
+    <p class="note"><b>Range 2:</b> record a single X tap, stop. Read the target's tick off the
+      listing, multiply by the tick length, add half a tick: that is the offset. SELECT+RIGHT until
+      the log's <em>offset</em> readout says so, then fire. Nudge and fire again; or hold the chord
+      and tap RIGHT between shots to sweep. SELECT+UP shortens the pulse if it is crashing on the
+      line after the check.</p>
+    <p class="note">Firmware, engine tests and the chord table:
+      <code>software/controller/README.md</code>.</p>
+  </section>
+</main>
+
+<script type="module" src="src/glitch.js"></script>
+</body>
+</html>
