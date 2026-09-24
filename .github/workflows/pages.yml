@@ -14,6 +14,7 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'glitch.html'
       - 'styles.css'
       - 'src/**'
       - 'stages/**'
@@ -40,13 +41,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify both stages are solvable before publishing
+      - name: Verify both stages are solvable, and the range is honest, before publishing
         run: npm run verify
 
       - name: Stage the site
         run: |
           mkdir _site
-          cp -r index.html styles.css src stages assets .nojekyll _site/
+          cp -r index.html glitch.html styles.css src stages assets .nojekyll _site/
 
       - uses: actions/configure-pages@v5
 
