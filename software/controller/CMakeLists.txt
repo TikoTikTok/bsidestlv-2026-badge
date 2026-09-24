@@ -19,6 +19,7 @@ pico_sdk_init()
 
 add_executable(controller
         src/main.c
+        src/glitch.c
         src/usb_descriptors.c
         )
 

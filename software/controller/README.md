@@ -46,12 +46,65 @@ The status LED (GPIO8, active-high through a current-limiting resistor):
 
 - **Blinks @ 250 ms** — USB not mounted (waiting for host).
 - **Blinks @ 1 s** — USB suspended.
+- **Blinks @ 100 ms** — quick glitch is recording a take.
+- **Solid** — quick glitch is replaying one.
 - **Solid while pressed** — mounted and running; lights up whenever any button
   is held, as live input feedback.
 
+## Quick glitch
+
+The badge doubles as a fault-injection trainer for the glitch range on the
+challenge site (`glitch.html`): the levels there need an input to land inside
+a window a hand cannot hit, so the firmware carries a record / replay layer
+that speaks the vocabulary of real glitching gear — **trigger**, **offset**,
+**width**, **repeat**.
+
+`SELECT` is the shift key. While it is held nothing you press reaches the host,
+and each other button is a command:
+
+| Chord | Does |
+| ----- | ---- |
+| `SELECT` + `SL` | Start recording a take. Press again to stop. Leading and trailing silence are trimmed; the take always ends with everything released. |
+| `SELECT` + `SR` | **Fire**: tap `START` (the trigger the host measures from), wait `offset`, replay the take at `speed`. Keep the chord held and it fires again every ~600 ms after the replay ends — a repeat, for sweeping. |
+| `SELECT` + `UP` / `DOWN` | Playback speed ×2 / ÷2: 1/4×, 1/2×, 1×, 2×, 4×, 8×, 16×, 32×. Scales the whole take, gaps and hold times alike, so an 80 ms tap at 8× is a 10 ms pulse. |
+| `SELECT` + `LEFT` / `RIGHT` | Offset −/+ 1 ms. Hold to auto-repeat; after twenty steps the step becomes 10 ms. Floors at 0, caps at 10 s. |
+| `SELECT` + `B` | Forget the take, offset 0, speed 1×. |
+
+A plain `SELECT` press with no command still reaches the host, as a 40 ms tap
+when you let go, so the button keeps working as Share / Select in anything
+else. Recording passes everything through, so you record against the live
+game. Up to 127 button changes fit in a take; it stops itself when full.
+
+A worked example, level 3 of the range (40 lines at 20 ms, target line 23):
+
+1. `SELECT`+`SL`, tap `X` once, `SELECT`+`SL`. The take is one press.
+2. `SELECT`+`UP` ×2 → 4×. A ~150 ms human tap becomes a ~40 ms pulse, two lines wide.
+3. Hold `SELECT`+`RIGHT` until the site's offset readout says ~460 ms.
+4. `SELECT`+`SR`. The site starts the guard's routine on `START` and reports
+   which line the pulse landed on, and how far from the target. Nudge the
+   offset, fire again — or hold the chord and tap `RIGHT` between fires to
+   sweep.
+
+Timing: the engine runs in the main loop, several hundred times a millisecond,
+and every button that was down at any instant since the previous report is
+latched into the next one, so a replayed pulse shorter than one report still
+shows up. Reports go out every **1 ms** (the real controller's endpoint asks
+for 5 ms; `DS4_REPORT_INTERVAL_MS` in `ds4.h` sets both the descriptor and the
+loop), so the offset resolution the host actually sees is 1 ms — provided the
+host reads that fast. Browsers sample gamepads at ~16 ms; the range is tuned
+for that, see `software/docs/GAME_DESIGN.md`.
+
+The layer is plain C with no SDK dependency, `src/glitch.c`, and has a host
+test that scripts a fake clock through record, fire, repeat and the 32-bit
+wrap:
+
+```bash
+make -C software/controller/test
+```
+
 ## HID mapping
 
-The device sends DualShock 4 input report `0x01` (64 bytes) every 5 ms:
+The device sends DualShock 4 input report `0x01` (64 bytes) every 1 ms:
 
 | Physical button | DualShock 4 control |
 | --------------- | ------------------- |
@@ -110,7 +163,7 @@ configure time:
 cmake -DPICO_BOARD=pico2 -DPICO_SDK_PATH=/path/to/pico-sdk ..
 ```
 
-The build produces `build/controller.uf2`, about 41KB.
+The build produces `build/controller.uf2`, about 45KB.
 
 ## Flashing
 
