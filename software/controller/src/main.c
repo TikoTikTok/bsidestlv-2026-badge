@@ -26,6 +26,10 @@
  *   GPIO23 -> START
  *   GPIO24 -> SELECT
  *   GPIO8  -> status LED (active-high)
+ *
+ * Between the buttons and the USB report sits the quick-glitch layer
+ * (glitch.c): SELECT is a shift key that records a take of button presses
+ * and replays it, scaled and delayed, on command. See glitch.h.
  */
 
 #include <string.h>
@@ -35,6 +39,7 @@
 
 #include "usb_descriptors.h"
 #include "ds4.h"
+#include "glitch.h"
 
 //--------------------------------------------------------------------+
 // Pin configuration
@@ -67,6 +72,44 @@ static inline bool button_pressed(uint8_t pin)
   return !gpio_get(pin);
 }
 
+// Every button as one glitch_t mask, read in a single pass.
+static uint16_t read_buttons(void)
+{
+  uint16_t m = 0;
+  if (button_pressed(PIN_UP))     m |= GLITCH_BTN_UP;
+  if (button_pressed(PIN_DOWN))   m |= GLITCH_BTN_DOWN;
+  if (button_pressed(PIN_LEFT))   m |= GLITCH_BTN_LEFT;
+  if (button_pressed(PIN_RIGHT))  m |= GLITCH_BTN_RIGHT;
+  if (button_pressed(PIN_A))      m |= GLITCH_BTN_A;
+  if (button_pressed(PIN_B))      m |= GLITCH_BTN_B;
+  if (button_pressed(PIN_X))      m |= GLITCH_BTN_X;
+  if (button_pressed(PIN_Y))      m |= GLITCH_BTN_Y;
+  if (button_pressed(PIN_SL))     m |= GLITCH_BTN_SL;
+  if (button_pressed(PIN_SR))     m |= GLITCH_BTN_SR;
+  if (button_pressed(PIN_START))  m |= GLITCH_BTN_START;
+  if (button_pressed(PIN_SELECT)) m |= GLITCH_BTN_SELECT;
+  return m;
+}
+
+//--------------------------------------------------------------------+
+// Quick glitch
+//--------------------------------------------------------------------+
+
+static glitch_t glitch;
+
+// What the host should see. The engine runs every loop iteration, far faster
+// than reports go out, so a replayed press shorter than one report interval
+// would fall between two reports and vanish. Instead every button that was
+// down at any moment since the last report is latched into the next one: a
+// 300 us pulse still shows up as one report's worth of "pressed".
+static uint16_t latched_buttons = 0;
+
+static void glitch_task(void)
+{
+  uint16_t out = glitch_update(&glitch, time_us_32(), read_buttons());
+  latched_buttons |= out;
+}
+
 //--------------------------------------------------------------------+
 // Status LED
 //--------------------------------------------------------------------+
@@ -75,6 +118,7 @@ static inline bool button_pressed(uint8_t pin)
 enum {
   BLINK_NOT_MOUNTED = 250,
   BLINK_SUSPENDED   = 1000,
+  BLINK_RECORDING   = 100,   // quick glitch: a take is being recorded
 };
 
 // 0 means "don't blink, let the application drive the LED directly".
@@ -146,7 +190,8 @@ static uint8_t compute_hat(bool up, bool down, bool left, bool right)
   return DS4_HAT_NONE;
 }
 
-static void build_report(ds4_input_report_t *report, uint8_t counter, uint16_t timestamp)
+static void build_report(ds4_input_report_t *report, uint16_t buttons,
+                         uint8_t counter, uint16_t timestamp)
 {
   memset(report, 0, sizeof(*report));
 
@@ -155,21 +200,21 @@ static void build_report(ds4_input_report_t *report, uint8_t counter, uint16_t t
   report->rx = report->ry = DS4_STICK_CENTER;
 
   report->buttons0 = compute_hat(
-      button_pressed(PIN_UP),
-      button_pressed(PIN_DOWN),
-      button_pressed(PIN_LEFT),
-      button_pressed(PIN_RIGHT));
+      buttons & GLITCH_BTN_UP,
+      buttons & GLITCH_BTN_DOWN,
+      buttons & GLITCH_BTN_LEFT,
+      buttons & GLITCH_BTN_RIGHT);
 
   // Game Boy face buttons map onto the DualShock diamond in the same positions.
-  if (button_pressed(PIN_A))      report->buttons0 |= DS4_BTN_CROSS;
-  if (button_pressed(PIN_B))      report->buttons0 |= DS4_BTN_CIRCLE;
-  if (button_pressed(PIN_X))      report->buttons0 |= DS4_BTN_SQUARE;
-  if (button_pressed(PIN_Y))      report->buttons0 |= DS4_BTN_TRIANGLE;
+  if (buttons & GLITCH_BTN_A)      report->buttons0 |= DS4_BTN_CROSS;
+  if (buttons & GLITCH_BTN_B)      report->buttons0 |= DS4_BTN_CIRCLE;
+  if (buttons & GLITCH_BTN_X)      report->buttons0 |= DS4_BTN_SQUARE;
+  if (buttons & GLITCH_BTN_Y)      report->buttons0 |= DS4_BTN_TRIANGLE;
 
-  if (button_pressed(PIN_SL))     report->buttons1 |= DS4_BTN_L1;
-  if (button_pressed(PIN_SR))     report->buttons1 |= DS4_BTN_R1;
-  if (button_pressed(PIN_START))  report->buttons1 |= DS4_BTN_OPTIONS;
-  if (button_pressed(PIN_SELECT)) report->buttons1 |= DS4_BTN_SHARE;
+  if (buttons & GLITCH_BTN_SL)     report->buttons1 |= DS4_BTN_L1;
+  if (buttons & GLITCH_BTN_SR)     report->buttons1 |= DS4_BTN_R1;
+  if (buttons & GLITCH_BTN_START)  report->buttons1 |= DS4_BTN_OPTIONS;
+  if (buttons & GLITCH_BTN_SELECT) report->buttons1 |= DS4_BTN_SHARE;
 
   // The low two bits of buttons2 are PS and touchpad-click; the counter lives
   // in the upper six and must advance on every report.
@@ -180,41 +225,47 @@ static void build_report(ds4_input_report_t *report, uint8_t counter, uint16_t t
   report->touch_count = 0;
 }
 
-// Poll buttons and stream a report to the host. Unlike a generic HID gamepad
-// we send on every interval rather than only on change: the real controller
-// streams continuously, and the report counter has to keep moving for drivers
-// that use it to detect a stalled device.
+// Stream a report to the host. Unlike a generic HID gamepad we send on every
+// interval rather than only on change: the real controller streams
+// continuously, and the report counter has to keep moving for drivers that
+// use it to detect a stalled device.
+//
+// The interval is 1 ms, the fastest a full-speed interrupt endpoint goes,
+// because the glitch offset is set in 1 ms steps and a 5 ms report clock
+// would round it to the nearest 5.
 static void hid_task(void)
 {
-  const uint32_t poll_interval_ms = 5;
   static uint32_t last_poll_ms = 0;
   static uint8_t counter = 0;
   static uint16_t timestamp = 0;
 
-  if ( now_ms() - last_poll_ms < poll_interval_ms ) return;
-  last_poll_ms = now_ms();
+  if ( now_ms() - last_poll_ms < DS4_REPORT_INTERVAL_MS ) return;
 
-  ds4_input_report_t report;
-  build_report(&report, counter, timestamp);
-
-  // Wake the host if we are suspended and the user presses something.
+  // Wake the host if we are suspended and the user presses something. The
+  // latch is left alone so the press is still in the first report after.
   if ( tud_suspended() )
   {
-    if ( (report.buttons0 & 0xF0) || report.buttons1 ||
-         (report.buttons0 & 0x0F) != DS4_HAT_NONE )
-    {
-      tud_remote_wakeup();
-    }
+    if ( latched_buttons ) tud_remote_wakeup();
     return;
   }
 
+  // Not ready means the previous report is still in flight; keep latching
+  // into the next one rather than dropping what was pressed meanwhile.
   if ( !tud_hid_ready() ) return;
+  last_poll_ms = now_ms();
+
+  // take the latch; whatever is down right now seeds the next one
+  uint16_t buttons = latched_buttons;
+  latched_buttons = glitch_update(&glitch, time_us_32(), read_buttons());
+
+  ds4_input_report_t report;
+  build_report(&report, buttons, counter, timestamp);
 
   if ( tud_hid_report(DS4_REPORT_ID_INPUT, &report, sizeof(report)) )
   {
     counter = (uint8_t) ((counter + 1) & 0x3F);
-    // 5.33 us ticks, so a 5 ms interval advances the stamp by ~938.
-    timestamp = (uint16_t) (timestamp + 938);
+    // the stamp counts 5.33 us (16/3 us) ticks: 187.5 per millisecond
+    timestamp = (uint16_t) (timestamp + (DS4_REPORT_INTERVAL_MS * 1000u * 3u) / 16u);
   }
 }
 
@@ -224,10 +275,20 @@ static void hid_task(void)
 
 static void led_task(void)
 {
+  // The quick-glitch layer owns the LED while it is doing something: a fast
+  // blink while recording, solid while a replay is running.
+  if ( glitch.mode == GLITCH_FIRING )
+  {
+    gpio_put(PIN_LED, 1);
+    return;
+  }
+  const uint32_t interval_ms = glitch.mode == GLITCH_RECORDING ? BLINK_RECORDING
+                                                                : blink_interval_ms;
+
   // When mounted (blink_interval_ms == 0) light the LED while any input is
   // active, giving immediate tactile feedback. Otherwise blink to signal the
   // current USB state.
-  if ( blink_interval_ms == 0 )
+  if ( interval_ms == 0 )
   {
     bool any = false;
 
@@ -243,7 +304,7 @@ static void led_task(void)
   static uint32_t last_toggle_ms = 0;
   static bool led_on = false;
 
-  if ( now_ms() - last_toggle_ms < blink_interval_ms ) return;
+  if ( now_ms() - last_toggle_ms < interval_ms ) return;
   last_toggle_ms = now_ms();
 
   led_on = !led_on;
@@ -257,13 +318,15 @@ static void led_task(void)
 int main(void)
 {
   board_setup();
+  glitch_init(&glitch);
 
   tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
-    tud_task();   // service the USB device stack
-    hid_task();   // read buttons and send reports
-    led_task();   // status / activity LED
+    tud_task();      // service the USB device stack
+    glitch_task();   // read buttons through the record / replay layer
+    hid_task();      // send what the layer produced
+    led_task();      // status / activity LED
   }
 }
