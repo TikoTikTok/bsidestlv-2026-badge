@@ -6,8 +6,9 @@
 # of ~34MB: hardware/, software/ and the reference sheets are not part of the
 # site and do not need publishing.
 #
-# No setup: the first run enables Pages on the repository itself (the
-# `enablement` input below), with "GitHub Actions" as the source.
+# One-time setup: Settings -> Pages -> Source: "GitHub Actions". The
+# workflow token cannot switch Pages on by itself (configure-pages'
+# `enablement` needs a personal token with admin rights), so this is a click.
 name: Pages
 
 on:
@@ -53,8 +54,6 @@ jobs:
           cp -r index.html glitch.html styles.css src stages assets .nojekyll _site/
 
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
