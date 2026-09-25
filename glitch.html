@@ -92,6 +92,19 @@
   </section>
 
   <section class="panel">
+    <h2>Bench</h2>
+    <p class="note">Every edge the browser sees, timed from the last <b>START</b> press, whichever
+      range is armed. Fire the badge and read the offset and width straight off it. The browser
+      samples the pad every ~16 ms, so expect that much rounding; for microseconds use
+      <code>software/tools/hid-trace.py</code> on the raw HID reports.</p>
+    <div class="stage-bar">
+      <button id="benchClear" class="btn ghost">Clear</button>
+      <span id="benchStatus" class="status">no edges yet</span>
+    </div>
+    <ol id="benchLog" class="log bench" reversed></ol>
+  </section>
+
+  <section class="panel">
     <h2>Using the badge</h2>
     <p class="note"><b>SELECT</b> is the shift key. While it is held nothing you press reaches the
       browser, and every other button is a command. A plain SELECT still arrives as a tap when you

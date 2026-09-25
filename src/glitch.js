@@ -88,6 +88,19 @@ $('#watchPanel').addEventListener('pointerdown', () => arm('watch'));
 $('#glassPanel').addEventListener('pointerdown', () => arm('glass'));
 arm('watch');
 
+// the bench log: raw edges, timed from the last START, for checking the badge
+let benchT0 = null, benchCount = 0;
+pad.on(({ button, down, t, source }) => {
+  if (button === 'START' && down) benchT0 = t;
+  const rel = benchT0 === null ? null : t - benchT0;
+  benchCount++;
+  const li = logTo('#benchLog', `${button.padEnd(6)} ${down ? '▼' : '▲'}  ${rel === null ? '   —   ' : rel.toFixed(1).padStart(8)} ms  ${source}`,
+                   button === 'START' && down ? 'win' : '');
+  li.style.whiteSpace = 'pre';
+  $('#benchStatus').textContent = `${benchCount} edges · ${pad.device ? pad.device.id.slice(0, 32) : 'keyboard'}`;
+});
+$('#benchClear').addEventListener('click', () => { $('#benchLog').textContent = ''; benchCount = 0; benchT0 = null; $('#benchStatus').textContent = 'no edges yet'; });
+
 pad.on((edge) => {
   refreshPad();
   if (armed === 'watch') watchEdge(edge);

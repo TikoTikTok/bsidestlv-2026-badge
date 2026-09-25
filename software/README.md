@@ -55,6 +55,7 @@ Deployment is [`.github/workflows/pages.yml`](../.github/workflows/pages.yml).
 | `index.html`, `src/`, `styles.css` | The page: two playable stages, walk cycles, tile and item sheets |
 | `glitch.html`, `src/glitch.js`, `src/pad.js`, `src/range.js` | The glitch range: gamepad/keyboard input, two practice games for the badge's quick-glitch layer |
 | `tools/verify-range.mjs` | Proves the range's hand levels fit a hand, its badge levels do not, and all are winnable |
+| `tools/hid-trace.py` | Bench tool: prints the badge's button edges off the raw HID reports with µs timestamps, relative to the last START (Linux) |
 
 ## Characters
 
