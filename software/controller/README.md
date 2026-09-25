@@ -102,6 +102,18 @@ wrap:
 make -C software/controller/test
 ```
 
+On a real badge, two bench tools show what the host receives. The **Bench**
+panel on `glitch.html` prints every edge the browser sees, timed from the last
+START, at the browser's ~16 ms sampling. For the real numbers, on Linux:
+
+```bash
+sudo python3 software/tools/hid-trace.py     # raw reports, 1 ms rate, µs stamps
+```
+
+A fire with offset 460 ms and a 40 ms take at 1x should print START down at
+0, START up at ~30, X down at ~460, X up at ~500, and the counter-gap stat
+should stay at 0.
+
 ## HID mapping
 
 The device sends DualShock 4 input report `0x01` (64 bytes) every 1 ms:
