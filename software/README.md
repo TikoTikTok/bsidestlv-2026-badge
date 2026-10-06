@@ -56,6 +56,8 @@ Deployment is [`.github/workflows/pages.yml`](../.github/workflows/pages.yml).
 | `glitch.html`, `src/glitch.js`, `src/pad.js`, `src/range.js` | The glitch range: gamepad/keyboard input, two practice games for the badge's quick-glitch layer |
 | `tools/verify-range.mjs` | Proves the range's hand levels fit a hand, its badge levels do not, and all are winnable |
 | `tools/hid-trace.py` | Bench tool: prints the badge's button edges off the raw HID reports with µs timestamps, relative to the last START (Linux) |
+| `tools/flash-badge.py` | Puts a UF2 on the badge over USB: waits for the `RPI-RP2` drive, copies, confirms the controller re-enumerated; `--fetch` takes the newest CI build |
+| `tools/setup-pico-toolchain.ps1`, `tools/build-firmware.ps1` | Windows: install CMake, Ninja, Arm GCC, pico-sdk and a prebuilt picotool, then build `controller.uf2` |
 
 ## Characters
 

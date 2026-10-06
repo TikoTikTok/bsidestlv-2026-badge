@@ -114,8 +114,12 @@ make -j                              # -> build/controller.uf2
 ```
 
 Hold `BootSel` while plugging in USB-C, then copy `controller.uf2` onto the
-`RPI-RP2` drive that appears. It also builds and runs on a stock Raspberry Pi
-Pico, which is the easiest way to try the firmware without a badge.
+`RPI-RP2` drive that appears - or let `python3 software/tools/flash-badge.py`
+wait for the drive, copy, and confirm the controller came back (`--fetch`
+takes the newest CI build, so no toolchain is needed). On this firmware,
+`SELECT+START` held for two seconds reaches the bootloader without the button.
+It also builds and runs on a stock Raspberry Pi Pico, which is the easiest way
+to try the firmware without a badge.
 
 **Quick glitch.** `SELECT` is a shift key. `SELECT+SL` records a take of button
 presses with microsecond timestamps; `SELECT+SR` fires it — a `START` tap as
