@@ -14,12 +14,16 @@ const TILE = 48;
 
 // ------------------------------------------------------------------ assets ----
 
-const loadImage = async (src) => {
+// Wait for `load`, not `decode()`: in a hidden tab Chrome settles decode()
+// promises only when it next paints a frame, so a page opened in the
+// background never came up until it was looked at. drawImage decodes a
+// 48 px sprite on first use in well under a millisecond anyway.
+const loadImage = (src) => new Promise((resolve, reject) => {
   const img = new Image();
+  img.onload = () => resolve(img);
+  img.onerror = () => reject(new Error(`could not load ${src}`));
   img.src = src;
-  await img.decode();
-  return img;
-};
+});
 
 async function loadCharacter(id) {
   const dir = `assets/characters/${id}`;
