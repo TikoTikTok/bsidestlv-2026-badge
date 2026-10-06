@@ -11,6 +11,7 @@ badge is used to play.
 ```
 index.html         the challenge - static site, served from the repo root
 glitch.html        the glitch range - two practice rooms for the badge's quick-glitch layer
+flash.html         flash the badge from the browser - WebUSB to the RP2040's bootloader
 styles.css  src/  stages/  assets/
 hardware/          KiCad projects (CERN-OHL-S-2.0)
   badge/             "BSidesTLV2026 Alice Controller" - RP2040 handheld, 14 buttons, USB-C
@@ -34,8 +35,8 @@ The simulation is deterministic — 60 ticks/second, one input bitmask per tick,
 same seed plus same input trace gives the same outcome byte for byte — which is
 what makes it scriptable, replayable and verifiable.
 
-It lives at the repository root — `index.html`, `glitch.html`, `styles.css`,
-`src/`, `stages/` and `assets/` — as plain static files. No server, no build step, every path
+It lives at the repository root — `index.html`, `glitch.html`, `flash.html`,
+`styles.css`, `src/`, `stages/` and `assets/` — as plain static files. No server, no build step, every path
 relative, so it works at a domain root or under `/<repo>/` unchanged.
 
 ```
@@ -62,10 +63,12 @@ The page works from the keyboard too, which is how you find out that level 3 of
 each cannot be done that way. `software/tools/verify-range.mjs` checks exactly
 that: hand levels fit a hand, badge levels do not, and every level is winnable.
 
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those five
-paths and publishes them; set Settings -> Pages -> Source to "GitHub Actions"
-once and pushes to `main` that touch the site deploy themselves. It stages
-rather than uploading the repo so the artifact stays ~4MB instead of ~34MB —
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those
+paths, cross-builds the firmware into `firmware/` beside them (so `flash.html`
+always offers the image built from the commit it was deployed with), and
+publishes the lot; set Settings -> Pages -> Source to "GitHub Actions" once
+and pushes to `main` that touch the site deploy themselves. It stages rather
+than uploading the repo so the artifact stays ~4MB instead of ~34MB —
 `hardware/` and `software/` are not part of the site.
 
 ES modules need `http://`, not `file://`. That is the only reason a local
@@ -120,6 +123,13 @@ takes the newest CI build, so no toolchain is needed). On this firmware,
 `SELECT+START` held for two seconds reaches the bootloader without the button.
 It also builds and runs on a stock Raspberry Pi Pico, which is the easiest way
 to try the firmware without a badge.
+
+Or from a browser: [`flash.html`](flash.html) on the site talks to the
+bootloader over **WebUSB** — Chrome or Edge on a PC, a Mac, a Linux box or an
+Android phone, nothing to install — and writes the image the deploy built.
+It speaks PICOBOOT, the protocol `picotool` uses (`src/picoboot.js`), reads
+the flash back before rebooting, and is tested against a model of the ROM by
+`software/tools/verify-flash.mjs`.
 
 **Quick glitch.** `SELECT` is a shift key. `SELECT+SL` records a take of button
 presses with microsecond timestamps; `SELECT+SR` fires it — a `START` tap as

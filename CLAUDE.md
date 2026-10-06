@@ -5,11 +5,14 @@ session does not have to rediscover it. Keep it current when the layout or the
 status below changes.
 
 Live site: https://bsidestlv.github.io/bsidestlv-2026-badge/
-Fork's site (the glitch branch, deployed by `pages.yml`, Pages source set to
-"GitHub Actions"): https://tikotiktok.github.io/bsidestlv-2026-badge/glitch.html
+Fork's site (deployed by `pages.yml` from the fork's `main`, plus whichever
+branch `pages.yml` lists while it is in progress; Pages source set to
+"GitHub Actions"): https://tikotiktok.github.io/bsidestlv-2026-badge/
 Upstream: `bsidestlv/bsidestlv-2026-badge` (this checkout is the `TikoTikTok`
-fork; `upstream` remote; pull requests go upstream). Fork `main` tracks
-upstream `main` exactly - sync it before branching, never commit to it.
+fork; `upstream` remote). The glitch labs merged into the fork's `main` on
+2026-10-06 (fork PR #1), so fork `main` is ahead of upstream `main` and no
+upstream PR exists yet. Branch from `origin/main`; never commit to `main`
+directly, land work there through a PR on the fork.
 
 ## What this is
 
@@ -25,13 +28,17 @@ One repo, three things:
 ## Layout
 
 ```
-index.html glitch.html styles.css src/ stages/ assets/   the published site (MIT)
+index.html glitch.html flash.html styles.css src/ stages/ assets/   the published site (MIT)
+firmware/          NOT in the repo: pages.yml builds glitch.uf2 + index.json there at deploy time
   src/puzzle.js      untimed rules + push-based Dijkstra solver
   src/chase.js       timed rules (periodic hazards) + BFS solver over (Alice, rocks, lever, phase)
   src/gallery.js     the page: both stages, walk-cycle viewer, tile/item sheets
   src/range.js       glitch range rules: combo state machine, guard-routine interpreter, pulse landing
   src/pad.js         input: DS4 gamepad (standard mapping, 4 ms poll) or keyboard -> timestamped edges
   src/glitch.js      the glitch range page (glitch.html)
+  src/uf2.js         UF2 parser + folding into 4 KB sectors; mirrors flash-badge.py's checks
+  src/picoboot.js    PICOBOOT over WebUSB (the RP2040 ROM bootloader's protocol, as picotool speaks it)
+  src/flash.js       the flash page (flash.html): firmware cards from firmware/index.json, progress, log
   stages/            one ES module per stage, ASCII map + hazards; rabbit-watch.js and
                      looking-glass.js are the range's levels
   assets/characters/ 5 characters x 24 frames (8 dirs x 3), 48x48 + <name>.json
@@ -45,21 +52,25 @@ software/            MIT, never published
                      engine (no SDK deps), test/ builds it on the host with plain cc;
                      main.c also watches SELECT+START (2 s) -> reset_usb_boot
   tools/             slicers (Python, stdlib only) and generators/verifiers (Node ESM);
+                     verify-flash.mjs + fake-bootloader.mjs (a model of the ROM; the page can
+                     be driven against it via window.__flash.useDevice),
                      flash-badge.py (UF2 over USB, --fetch takes the CI build, --status),
                      hid-trace.py (Linux HID bench), setup-pico-toolchain.ps1 +
                      build-firmware.ps1 (Windows cross-build)
   references/        source art sheets (15 MB) every asset was cut from
   docs/GAME_DESIGN.md  the five-stage design, tick model, Looking Glass protocol
   legacy/            old generated-sprite pass, unused by the page, safe to delete
-.github/workflows/pages.yml     runs `npm run verify`, stages the six site paths, deploys
-.github/workflows/firmware.yml  host test of the glitch engine + cross-build of controller.uf2
+.github/workflows/pages.yml     builds the UF2 (build-uf2.yml), runs `npm run verify`, stages the
+                                seven site paths + firmware/, deploys
+.github/workflows/firmware.yml  host test of the glitch engine + cross-build via build-uf2.yml
+.github/workflows/build-uf2.yml the one place the ARM toolchain and pico-sdk version live (reusable)
 ```
 
 ## Commands
 
 ```
 ./serve.sh          # http://localhost:8080 - ES modules need http://, not file://
-npm run verify      # solves both stages + checks the range's levels; CI gate before every deploy
+npm run verify      # solves both stages, checks the range's levels, flashes the fake ROM; CI gate before every deploy
 npm run validate    # legacy sprite integrity only
 make -C software/controller/test   # quick-glitch engine tests, plain C
 python3 software/tools/flash-badge.py --fetch   # newest green CI UF2 -> badge, no toolchain needed
@@ -75,10 +86,11 @@ from CI there; `flash-badge.py --fetch` closes that gap.
 
 ## Rules that matter
 
-- Only `index.html`, `glitch.html`, `styles.css`, `src/`, `stages/`, `assets/`
-  are published. Every path inside them must be relative (site lives under
-  `/<repo>/` on Pages). Adding a seventh published path means editing
-  `pages.yml` too.
+- Only `index.html`, `glitch.html`, `flash.html`, `styles.css`, `src/`,
+  `stages/`, `assets/` are published, plus `firmware/`, which `pages.yml`
+  builds at deploy time and is never committed (`.gitignore`d). Every path
+  inside them must be relative (site lives under `/<repo>/` on Pages). Adding
+  another published path means editing `pages.yml` too.
 - No npm dependencies. Node ESM + Python 3 stdlib only. `package.json` has no
   `dependencies` block on purpose.
 - Assets are generated: re-run the slicer in `software/tools/` and commit the
@@ -104,7 +116,8 @@ Built and live:
 | Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~45 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
 | Flashing | `software/tools/flash-badge.py`: waits for `RPI-RP2`, checks the UF2 family, copies, confirms 054c:09cc came back; `--fetch` pulls the newest green Firmware-workflow artifact. No picotool route (no reset interface, on purpose). SWD header `J1` + openocd is the fallback, documented, untried. |
 | Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback, and an on-screen pad (`#touchPad`, fixed at the bottom, open by default on coarse pointers) feeding `pad.inject` as source `ui`. Map scales to the phone's width. Driven headless in Chromium during development via `window.__pad.inject`. |
-| CI | Pages workflow verifies both stages and the range before deploy; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). On the fork, Pages is on "GitHub Actions" and deploys the glitch branch. |
+| Browser flashing | `flash.html`: WebUSB to the ROM bootloader (2e8a:0003), PICOBOOT exactly as picotool does it - exclusive access, EXIT_XIP, erase + write per 4 KB sector, read back, REBOOT(0, SRAM_END, 500 ms). One firmware on offer (the quick-glitch build) plus a local `.uf2`; the download link and `flash-badge.py` are the no-WebUSB route. Tested only against `fake-bootloader.mjs`; never run against a board. |
+| CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
 
 Designed but not built (see `software/docs/GAME_DESIGN.md`):
 
@@ -134,6 +147,12 @@ Known loose ends:
   Windows with no board attached).
 - The badge the user holds may be running the upstream firmware (no quick
   glitch, no chord): the first flash goes through BootSel.
+- The WebUSB flasher has never seen a real bootloader: the protocol is
+  transcribed from picotool and the ROM source and proven against a model.
+  First things to check on a board: Chrome's chooser lists "RP2 Boot" on
+  Windows without Zadig (the ROM's MS OS descriptors should bind WinUSB), the
+  one-byte OUT ack after READ is accepted, and the gamepad shows up after the
+  reboot.
 - `main.c` leaves the internal pull-ups and the LED's "any button" feedback
   commented out; both came from upstream that way (commit 69d933c). The board
   has its own pull-ups (R3..R9, R14, R18 in the BOM), a bare Pico does not.
