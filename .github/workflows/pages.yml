@@ -18,9 +18,9 @@ name: Pages
 
 on:
   push:
-    # main, plus the branch the flash page is being developed on, so the
-    # fork publishes the work in progress. Drop the second entry on merge.
-    branches: [main, claude/flash-from-browser]
+    # To publish a branch in progress from the fork, add it here and to the
+    # github-pages environment's branch policy; drop both on merge.
+    branches: [main]
     paths:
       - 'index.html'
       - 'glitch.html'
