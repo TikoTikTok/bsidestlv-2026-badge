@@ -1,0 +1,319 @@
+/* Alice in AI Land - the glitch range's looks.
+
+   styles.css is the shared chrome and, on its own, the classic look. This
+   file adds what the range page has on top of it: a mode bar (one thing on
+   screen at a time), two timing traces, and three phone-first looks picked
+   by <html data-theme>: bench, handheld, scope. In the classic look all of
+   that stays switched off, so index.html and flash.html are untouched.
+
+   The three looks share one DOM. They differ in CSS only: the range panels
+   turn into flex columns and reorder, the pad's three clusters flatten into
+   one grid (display: contents) and take a grid-template-areas per look, and
+   the scope swaps the palette through the variables styles.css already uses. */
+
+:root { --amber: #f3b23f; }   /* a landing that was neither a win nor a crash */
+
+/* ------------------------------------------------------ in every look -- */
+
+.controls .look { text-transform: none; }
+.controls .look select { font-size: 11px; }
+
+.modes { display: none; }
+.mode {
+  flex: 1; font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--dim); background: transparent; border: 0; border-radius: 6px; height: 32px; cursor: pointer;
+}
+.mode.on { background: var(--accent); color: var(--ink); }
+.mode.help { flex: 0 0 2.6rem; font-size: 13px; text-transform: none; }
+
+/* the prose folds on a phone; the classic look keeps it open (glitch.js sets `open`) */
+details.how > summary { display: none; }
+details.how > summary::-webkit-details-marker { display: none; }
+
+.tab .short { display: none; }
+
+/* the traces: where the pulse landed against the routine, and the tune inside its window */
+.trace { display: none; }
+.trace-head, .trace-axis {
+  display: flex; justify-content: space-between; gap: .5rem;
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+}
+.trace-axis { text-transform: none; letter-spacing: 0; margin-top: 3px; }
+.trace-band { position: relative; height: 10px; margin-top: 4px; }
+.trace-pulse {
+  position: absolute; top: 2px; height: 6px; min-width: 4px; border-radius: 1px;
+  background: var(--accent); box-shadow: 0 0 6px rgba(111, 176, 240, .7);
+}
+.trace-pulse.win { background: var(--accent-2); box-shadow: 0 0 6px rgba(63, 214, 163, .7); }
+.trace-pulse.hot { background: var(--hot); box-shadow: 0 0 6px rgba(244, 121, 141, .7); }
+.trace-pulse.nop { background: var(--amber); box-shadow: 0 0 6px rgba(243, 178, 63, .7); }
+.trace-ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
+.trace-ticks span { position: relative; height: 22px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2); }
+.trace-ticks span.target { background: rgba(63, 214, 163, .3); border-color: var(--accent-2); }
+.trace-ticks span.crash { border-color: var(--hot); }
+.trace-ticks span.crash::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+  border-radius: 50%; background: var(--hot);
+}
+.trace-ticks span.hit { background: rgba(111, 176, 240, .35); border-color: var(--accent); }
+.trace-ticks span.hit.win { background: rgba(63, 214, 163, .5); border-color: var(--accent-2); }
+.trace-ticks span.hit.hot { background: rgba(244, 121, 141, .4); border-color: var(--hot); }
+.trace-ticks span.hit.nop { background: rgba(243, 178, 63, .4); border-color: var(--amber); }
+.trace-ticks span.pc { background: var(--accent); border-color: var(--accent); }
+.trace-bar {
+  position: relative; height: 22px; margin-top: 4px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2);
+}
+.trace-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(111, 176, 240, .2); }
+.trace-fill.win { background: rgba(63, 214, 163, .25); }
+.trace-fill.hot { background: rgba(244, 121, 141, .25); }
+.trace-mark { position: absolute; top: 3px; width: 2px; height: 16px; background: var(--accent-2); box-shadow: 0 0 4px rgba(63, 214, 163, .8); }
+
+/* ------------------------------------------- the phone looks, shared part -- */
+
+html:not([data-theme=classic]) body {
+  display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; padding-bottom: 0;
+}
+html:not([data-theme=classic]) .bar { position: static; flex: none; }
+html:not([data-theme=classic]) .brand small { font-size: 10px; }
+html:not([data-theme=classic]) .pad-status {
+  display: grid; grid-template-columns: auto auto; grid-template-areas: 'dev look' 'leds look';
+  gap: 4px 10px; align-items: center; justify-items: end;
+}
+html:not([data-theme=classic]) .pad-device { grid-area: dev; font-size: 10px; }
+html:not([data-theme=classic]) .pad-leds { grid-area: leds; gap: 3px; flex-wrap: nowrap; }
+html:not([data-theme=classic]) .look { grid-area: look; }
+html:not([data-theme=classic]) .look select { font-size: 10px; padding: .15rem .3rem; }
+html:not([data-theme=classic]) .led { font-size: 0; width: 7px; height: 7px; min-width: 0; padding: 0; border-radius: 2px; }
+
+html:not([data-theme=classic]) .modes {
+  display: flex; flex: none; width: calc(100% - 28px); max-width: 532px; margin: 10px auto 0; padding: 2px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+}
+html:not([data-theme=classic]) main {
+  flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 0 14px;
+}
+html:not([data-theme=classic]) main > .panel { margin: 12px 0; padding: 14px; }
+html:not([data-theme=classic]) main > .panel > h2 { font-size: 11px; }
+/* one thing on screen: the panels the mode did not pick go away */
+html:not([data-theme=classic])[data-mode=watch] main > .panel:not([data-mode=watch]),
+html:not([data-theme=classic])[data-mode=glass] main > .panel:not([data-mode=glass]),
+html:not([data-theme=classic])[data-mode=bench] main > .panel:not([data-mode=bench]),
+html:not([data-theme=classic])[data-mode=help] main > .panel:not([data-mode=help]) { display: none; }
+html:not([data-theme=classic]) .armed-mark { display: none; }
+html:not([data-theme=classic]) .range.armed { border-color: var(--line); box-shadow: none; }
+
+html:not([data-theme=classic]) details.how > summary {
+  display: block; cursor: pointer; list-style: none; font-size: 10px; color: var(--dim); letter-spacing: .04em;
+}
+html:not([data-theme=classic]) details.how > summary::after { content: ' ▸'; }
+html:not([data-theme=classic]) details.how[open] > summary::after { content: ' ▾'; }
+html:not([data-theme=classic]) details.how .note { margin-top: .5rem; }
+
+html:not([data-theme=classic]) .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 0; }
+html:not([data-theme=classic]) .tabs::-webkit-scrollbar { display: none; }
+html:not([data-theme=classic]) .tab { white-space: nowrap; font-size: 10px; padding: 5px 9px; }
+html:not([data-theme=classic]) .tab .long { display: none; }
+html:not([data-theme=classic]) .tab .short { display: inline; }
+
+html:not([data-theme=classic]) .trace { display: block; }
+
+/* the range panels become a column and reorder: the thing to look at comes first */
+html:not([data-theme=classic]) .range { display: flex; flex-direction: column; }
+/* a height-bound panel (the handheld's screen) scrolls; its items never squash */
+html:not([data-theme=classic]) .range > *, html:not([data-theme=classic]) .range > .glass > * { flex-shrink: 0; }
+html:not([data-theme=classic]) .range > h2 { order: 0; margin: 0; }
+html:not([data-theme=classic]) .range > details.how { order: 1; margin-top: 4px; }
+html:not([data-theme=classic]) .range > .tabs { order: 2; }
+html:not([data-theme=classic]) .range > .note { order: 3; margin: 8px 0 0; font-size: 11px; }
+html:not([data-theme=classic]) .glass { display: contents; }
+html:not([data-theme=classic]) .glass > .stage-wrap { order: 4; display: flex; justify-content: center; margin-top: 8px; padding: 0; overflow: hidden; }
+html:not([data-theme=classic]) .glass .stage-wrap canvas { width: min(100%, 432px); }
+html:not([data-theme=classic]) .range > .stage-bar { order: 5; margin-top: 8px; gap: 8px; }
+html:not([data-theme=classic]) .range > .stage-bar .status { order: -1; flex: 1 1 100%; }
+html:not([data-theme=classic]) .range > .readout { order: 6; margin-top: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+html:not([data-theme=classic]) .readout .tile { padding: 6px 8px; }
+html:not([data-theme=classic]) .readout .tile b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html:not([data-theme=classic]) .readout .tile small:last-child { display: none; }
+html:not([data-theme=classic]) .readout .tile:last-child { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; }
+html:not([data-theme=classic]) .readout .tile:last-child b { flex: none; overflow: visible; }
+html:not([data-theme=classic]) .readout .tile:last-child small:last-child { display: inline; flex: 1; min-width: 0; margin-left: auto; text-align: right; }
+html:not([data-theme=classic]) .range > .trace { order: 7; margin-top: 8px; }
+html:not([data-theme=classic]) .glass > .listing { order: 8; margin-top: 8px; max-height: 170px; }
+html:not([data-theme=classic]) .range > .log { order: 9; max-height: 150px; }
+html:not([data-theme=classic]) .log:empty { display: none; }
+
+html:not([data-theme=classic]) .watch { order: 4; margin-top: 10px; align-items: flex-start; flex-wrap: nowrap; }
+html:not([data-theme=classic]) .watch canvas { width: 72px; height: 72px; }
+html:not([data-theme=classic]) .watch-side { flex: 1; min-width: 0; }
+html:not([data-theme=classic]) .glyph { width: min(3rem, 11vw); height: min(3rem, 11vw); font-size: 18px; }
+html:not([data-theme=classic]) .watch-side .trace { margin-top: 8px; }
+html:not([data-theme=classic]) .watch-side .stage-bar { margin-top: 8px; gap: 8px; }
+html:not([data-theme=classic]) .watch-side .stage-bar .status { order: -1; flex: 1 1 6rem; }
+
+/* the pad sits in the flow at the bottom, no longer fixed over the page */
+html:not([data-theme=classic]) .touchpad { position: static; flex: none; padding: 0 14px; }
+html:not([data-theme=classic]) body.touchpad-open { padding-bottom: 0; }
+html:not([data-theme=classic]) .touchpad summary {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 6px 0; font-size: 10px;
+}
+html:not([data-theme=classic]) .touchpad summary::before { content: none; }
+html:not([data-theme=classic]) .touchpad summary::after {
+  content: ''; order: 1; width: 36px; height: 4px; border-radius: 2px; background: var(--line);
+}
+html:not([data-theme=classic]) .touchpad .tp-label { order: 0; }
+html:not([data-theme=classic]) .touchpad .tp-hint { order: 2; }
+html:not([data-theme=classic]) .touchpad summary small { margin: 0; font-size: 9px; }
+html:not([data-theme=classic]) .tp-dpad,
+html:not([data-theme=classic]) .tp-mid,
+html:not([data-theme=classic]) .tp-face { display: contents; }
+.tp [data-btn=SELECT] { grid-area: sel; }
+.tp [data-btn=START] { grid-area: sta; }
+
+/* the bench and the handheld share the pad's shape: d-pad left, diamond right,
+   shoulders above each, select/start between */
+html[data-theme=bench] .tp, html[data-theme=handheld] .tp {
+  display: grid; justify-content: space-between; align-items: center; justify-items: center;
+  grid-template-columns: repeat(3, var(--key)) minmax(3.2rem, 1fr) repeat(3, var(--key));
+  grid-template-rows: auto repeat(3, var(--key));
+  grid-template-areas: 'sl sl . . . sr sr' '. u . . . y .' 'l . r sel x . b' '. d . sta . a .';
+  gap: 4px; padding: 4px 0 12px; max-width: 480px; margin: 0 auto;
+}
+html[data-theme=bench] .tp [data-btn=SL], html[data-theme=bench] .tp [data-btn=SR],
+html[data-theme=handheld] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SR] { width: calc(2 * var(--key) + 4px); height: 24px; }
+html[data-theme=bench] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SL] { justify-self: start; }
+html[data-theme=bench] .tp [data-btn=SR], html[data-theme=handheld] .tp [data-btn=SR] { justify-self: end; }
+html[data-theme=bench] .tp-mid button, html[data-theme=handheld] .tp-mid button { width: 100%; max-width: 64px; height: 24px; }
+
+/* ------------------------------------------------------------ tidy bench -- */
+
+html[data-theme=bench] .bar { padding: 8px 14px; gap: .5rem 1rem; }
+html[data-theme=bench] .brand b { font-size: 12px; }
+html[data-theme=bench] .tp { --key: min(40px, 10vw); }
+
+/* -------------------------------------------------------------- handheld -- */
+
+html[data-theme=handheld] {
+  --body: #142036; --bezel: #0a1120; --screen: #060a12;
+  --plastic: #1b2a47; --plastic-line: #2b3f66; --plastic-edge: #0b1322;
+}
+html[data-theme=handheld] body { background: var(--body); padding-bottom: 14px; }
+html[data-theme=handheld] .bar {
+  background: transparent; border-bottom: 0; backdrop-filter: none;
+  width: 100%; max-width: 560px; margin: 0 auto; padding: 6px 16px 0; min-height: 0;
+}
+html[data-theme=handheld] .brand .mark { font-size: 12px; text-shadow: none; }
+html[data-theme=handheld] .brand b { font-size: 10px; color: var(--dim); font-weight: 400; }
+html[data-theme=handheld] .brand small { display: none; }
+html[data-theme=handheld] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
+html[data-theme=handheld] .pad-device { font-size: 9px; }
+html[data-theme=handheld] .led { width: 6px; height: 6px; border-radius: 50%; border-color: var(--plastic-line); background: var(--plastic-edge); }
+html[data-theme=handheld] .led.on { background: var(--accent); box-shadow: 0 0 6px rgba(111, 176, 240, .8); }
+
+/* the screen in its bezel */
+html[data-theme=handheld] main {
+  order: 1; display: flex; width: calc(100% - 28px); max-width: 532px; margin: 4px auto 0; padding: 0; overflow: hidden;
+}
+html[data-theme=handheld] main > .panel {
+  flex: 1; min-height: 0; margin: 0; padding: 10px; overflow: auto;
+  background: var(--screen); border: 10px solid var(--bezel); border-radius: 18px;
+  box-shadow: 0 0 0 1px var(--plastic-edge), inset 0 0 0 1px #1a2742;
+}
+html[data-theme=handheld] main > .panel > h2 { font-size: 9px; letter-spacing: .16em; }
+html[data-theme=handheld] .glass > .listing { max-height: 76px; }
+html[data-theme=handheld] .readout .tile { padding: 5px 7px; }
+html[data-theme=handheld] .readout .tile b { font-size: 12px; }
+html[data-theme=handheld] .range > .log { max-height: 70px; }
+
+/* device buttons under the screen */
+html[data-theme=handheld] .modes { order: 2; margin: 12px auto 0; padding: 0; border: 0; background: transparent; gap: 8px; }
+html[data-theme=handheld] .mode {
+  flex: 0 0 auto; height: 34px; padding: 0 12px; font-size: 9px; border-radius: 8px; color: var(--text);
+  background: #1e2d4a; border: 1px solid var(--plastic-line); border-bottom: 3px solid var(--plastic-edge);
+}
+html[data-theme=handheld] .mode.on { background: var(--accent); color: var(--ink); border-color: var(--accent); border-bottom-color: #3b78b8; }
+html[data-theme=handheld] .mode.help { margin-left: auto; width: 34px; padding: 0; font-size: 12px; }
+
+/* the pad, moulded into the body: always out, shoulders at the top corners, a grille below */
+html[data-theme=handheld] .touchpad {
+  order: 3; width: 100%; max-width: 560px; margin: 10px auto 0; padding: 0 6px;
+  background: transparent; border-top: 0; backdrop-filter: none;
+}
+html[data-theme=handheld] .touchpad summary { display: none; }
+html[data-theme=handheld] .tp {
+  --key: min(52px, 12vw); padding: 0 0 4px; max-width: none;
+  grid-template-rows: auto repeat(3, var(--key)) auto;
+  grid-template-areas: 'sl sl . . . sr sr' '. u . . . y .' 'l . r sel x . b' '. d . sta . a .' 'g g g g g g g';
+}
+html[data-theme=handheld] .tp::after {
+  content: ''; grid-area: g; width: 60px; height: 14px; justify-self: center;
+  background: repeating-linear-gradient(90deg, var(--plastic-edge) 0 3px, transparent 3px 9px);
+}
+html[data-theme=handheld] .tp button {
+  background: var(--plastic); border: 1px solid var(--plastic-line); border-bottom: 3px solid var(--plastic-edge);
+  border-radius: 12px; font-size: 14px;
+}
+html[data-theme=handheld] .tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); border-bottom-color: #3b78b8; }
+html[data-theme=handheld] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SR] { height: 28px; border-radius: 14px 14px 6px 6px; font-size: 10px; }
+html[data-theme=handheld] .tp [data-btn=SL] { margin-left: 10px; }
+html[data-theme=handheld] .tp [data-btn=SR] { margin-right: 10px; }
+html[data-theme=handheld] .tp-mid button { width: 48px; height: 22px; border-radius: 99px; border-bottom-width: 2px; font-size: 8px; }
+
+/* ----------------------------------------------------------------- scope -- */
+
+html[data-theme=scope] {
+  --ink: #050806; --panel: #0b120d; --panel-2: #0f1a12; --line: #1b2e22;
+  --text: #c9f5d3; --dim: #6f9b7c; --accent: #5cf29a; --accent-2: #e8ff7a; --hot: #ff6b6b;
+}
+html[data-theme=scope] body {
+  background: radial-gradient(1200px 600px at 50% -10%, #0a160e 0%, transparent 60%), var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme=scope] .bar { background: var(--ink); padding: 8px 14px; }
+html[data-theme=scope] .brand .mark { display: none; }
+html[data-theme=scope] .brand b { font-size: 10px; letter-spacing: .18em; font-weight: 400; color: var(--dim); }
+html[data-theme=scope] .brand small { display: none; }
+html[data-theme=scope] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
+html[data-theme=scope] .pad-device { font-size: 9px; letter-spacing: .08em; }
+html[data-theme=scope] .pad-device.on { color: var(--accent); }
+html[data-theme=scope] .pad-leds { align-items: flex-end; gap: 2px; }
+html[data-theme=scope] .led { width: 3px; height: 10px; border: 0; border-radius: 1px; background: var(--line); }
+html[data-theme=scope] .led.on { background: var(--accent); box-shadow: 0 0 6px rgba(92, 242, 154, .8); }
+
+/* mode keys like an instrument's: flat, the lit one underlined */
+html[data-theme=scope] .modes { padding: 0; border: 0; background: transparent; gap: 6px; }
+html[data-theme=scope] .mode { height: 36px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); letter-spacing: .16em; }
+html[data-theme=scope] .mode.on { background: var(--panel); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* no panel box: each block is its own instrument window on the black */
+html[data-theme=scope] main > .panel { background: transparent; border: 0; padding: 0; margin: 12px 0; }
+html[data-theme=scope] .stage-wrap, html[data-theme=scope] .listing, html[data-theme=scope] .tile,
+html[data-theme=scope] .glyph, html[data-theme=scope] .watch canvas, html[data-theme=scope] .log { background: var(--panel); border-radius: 6px; }
+html[data-theme=scope] .log { border: 1px solid var(--line); padding: 6px 10px 6px 1.6rem; }
+html[data-theme=scope] .listing li.pc { background: rgba(92, 242, 154, .18); }
+html[data-theme=scope] .glyph.next { box-shadow: 0 0 10px rgba(92, 242, 154, .35); }
+html[data-theme=scope] .tab.on { color: var(--ink); }
+html[data-theme=scope] .btn { border-radius: 4px; letter-spacing: .16em; }
+html[data-theme=scope] .trace-ticks span.pc { box-shadow: 0 0 6px rgba(92, 242, 154, .8); }
+
+/* the measurement first: offset and width as big numerals, the verdict as a band */
+html[data-theme=scope] .range > .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html[data-theme=scope] .readout .tile:nth-child(-n+2) { padding: 8px 12px; }
+html[data-theme=scope] .readout .tile:nth-child(-n+2) b { order: -1; font-size: 36px; line-height: 1; letter-spacing: -.02em; }
+html[data-theme=scope] .readout .tile:nth-child(-n+2) small:first-child { margin-top: 6px; letter-spacing: .14em; }
+html[data-theme=scope] .readout .tile:last-child b { font-size: 16px; letter-spacing: .16em; }
+
+/* the pad as a dock of soft keys, two rows of six */
+html[data-theme=scope] .touchpad { background: #070b08; }
+html[data-theme=scope] .tp {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 8px 0 12px; max-width: 480px;
+  grid-template-areas: 'l u d r sel sta' 'sl sr y x b a';
+}
+html[data-theme=scope] .tp button {
+  width: auto; height: 44px; padding: 0; border-radius: 4px; font-size: 12px; letter-spacing: .06em;
+  background: var(--panel); border: 1px solid var(--line);
+}
+html[data-theme=scope] .tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+html[data-theme=scope] .tp-mid button { font-size: 9px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
+html[data-theme=scope] .tp [data-btn=SL], html[data-theme=scope] .tp [data-btn=SR] { font-size: 10px; }
+html[data-theme=scope] .tp [data-btn=X] { color: var(--accent); border-color: #2f7a52; }

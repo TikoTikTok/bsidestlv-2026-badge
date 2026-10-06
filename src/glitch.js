@@ -10,6 +10,8 @@ import { RABBIT_WATCH } from '../stages/rabbit-watch.js';
 import { LOOKING_GLASS } from '../stages/looking-glass.js';
 
 const $ = (sel) => document.querySelector(sel);
+const span = (cls, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
+const fmtSeconds = (ms) => `${+(ms / 1000).toFixed(1)} s`;
 const TILE = 48;
 
 // ------------------------------------------------------------------ assets ----
@@ -109,6 +111,35 @@ for (const b of touchPad.querySelectorAll('button[data-btn]')) {
   b.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
+// The look. The <head> script already set data-theme before first paint;
+// this gives it a menu and a memory, and does the two things CSS cannot:
+// fold or unfold the prose, and keep the handheld's pad out, since there it
+// is part of the body rather than a sheet.
+const LOOKS = ['classic', 'bench', 'handheld', 'scope'];
+const lookSel = $('#look');
+function setLook(look, { remember = true } = {}) {
+  if (!LOOKS.includes(look)) look = 'classic';
+  document.documentElement.dataset.theme = look;
+  lookSel.value = look;
+  if (remember) try { localStorage.setItem('glitch.look', look); } catch { /* storage may be off */ }
+  for (const d of document.querySelectorAll('details.how')) d.open = look === 'classic';
+  if (look === 'handheld') touchPad.open = true;
+  padOpen();
+}
+setLook(document.documentElement.dataset.theme, { remember: false });
+lookSel.addEventListener('change', () => setLook(lookSel.value));
+
+// The phone looks show one thing at a time: a range (which also arms it),
+// the bench, or the help. The classic look ignores the mode and shows all.
+const modeButtons = [...document.querySelectorAll('#modes .mode')];
+function setMode(mode) {
+  document.documentElement.dataset.mode = mode;
+  for (const b of modeButtons) b.classList.toggle('on', b.dataset.mode === mode);
+  if (mode === 'watch' || mode === 'glass') arm(mode);
+  $('main').scrollTop = 0;
+}
+for (const b of modeButtons) b.addEventListener('click', () => setMode(b.dataset.mode));
+
 // Only one range listens at a time. Firing the badge taps START and then
 // replays the take; if both ranges heard it, a combo replayed for range 1
 // would also land as a stray pulse in range 2's log.
@@ -121,6 +152,7 @@ function arm(which) {
 $('#watchPanel').addEventListener('pointerdown', () => arm('watch'));
 $('#glassPanel').addEventListener('pointerdown', () => arm('glass'));
 arm('watch');
+setMode('watch');
 
 // the bench log: raw edges, timed from the last START, for checking the badge
 let benchT0 = null, benchCount = 0;
@@ -155,7 +187,8 @@ const setWatchStatus = (text, kind = '') => { watchStatus.textContent = text; wa
 const watchTabs = RABBIT_WATCH.levels.map((level, i) => {
   const b = document.createElement('button');
   b.className = 'tab';
-  b.textContent = `${i + 1} · ${level.name} · ${level.length} in ${level.windowMs} ms`;
+  b.append(span('long', `${i + 1} · ${level.name} · ${level.length} in ${level.windowMs} ms`),
+           span('short', `${level.length} in ${fmtSeconds(level.windowMs)}`));
   b.addEventListener('click', () => setWatchLevel(level));
   $('#watchTabs').append(b);
   return { level, b };
@@ -169,6 +202,10 @@ function setWatchLevel(level, seed = 0) {
   for (const t of watchTabs) t.b.classList.toggle('on', t.level === level);
   drawCombo();
   const rate = ((level.length - 1) / (level.windowMs / 1000)).toFixed(1);
+  $('#wtHead').textContent = `window · ${level.windowMs} ms · ${level.length} presses`;
+  $('#wtMid').textContent = `${rate} presses/s to fit`;
+  $('#wtEnd').textContent = `${level.windowMs} ms`;
+  $('#wtGaps').textContent = '';
   setWatchStatus(`${level.length} presses in ${level.windowMs} ms is ${rate}/s` +
                  (level.hand ? ' — a hand can do this' : ' — a hand cannot; record it, speed it up'));
 }
@@ -188,7 +225,7 @@ function drawCombo() {
 
 function watchEdge({ button, down, t }) {
   if (!down) return;
-  if (button === 'START') { combo.reset(); drawCombo(); setWatchStatus('clock reset'); return; }
+  if (button === 'START') { combo.reset(); drawCombo(); setWatchStatus('clock reset'); $('#wtGaps').textContent = ''; return; }
   if (!combo.open) {
     // the tail of a replay that already lost must not start the next attempt:
     // every press while closed pushes the quiet period out again
@@ -199,11 +236,13 @@ function watchEdge({ button, down, t }) {
   drawCombo();
   if (!r) {
     if (combo.at) setWatchStatus(`${combo.at} of ${watchSeq.length} · ${Math.round(t - combo.t0)} ms`, 'busy');
+    $('#wtGaps').textContent = combo.at ? `${combo.at} of ${watchSeq.length}` : '';
     return;
   }
   watchQuietUntil = t + 400;
   watchAttempt++;
   const gaps = r.gaps.map(g => Math.round(g)).join(' ');
+  $('#wtGaps').textContent = r.gaps.length ? `gaps ${gaps} ms` : '';
   if (r.win) {
     setWatchStatus(`the watch chimes — ${Math.round(r.ms)} ms, ${r.rate.toFixed(1)} presses/s`, 'win');
     logTo('#watchLog', `#${watchAttempt} ✓ ${watchLevel.name}: ${Math.round(r.ms)} ms of ${watchLevel.windowMs} · ${r.rate.toFixed(1)}/s · gaps ${gaps} ms`, 'win');
@@ -219,6 +258,29 @@ function watchEdge({ button, down, t }) {
 
 $('#watchShuffle').addEventListener('click', () => setWatchLevel(
   RABBIT_WATCH.levels.find(l => l.id === watchLevel.id), watchSeed + 1));
+
+// the window as a bar: it fills while the attempt runs, and every accepted
+// press leaves a mark where it landed (the phone looks show it; see glitch.css)
+let watchMarksKey = '';
+function drawWatchTrace(now) {
+  if (!combo) return;
+  const W = watchLevel.windowMs;
+  const fill = combo.t0 === null ? 0 : Math.min(combo.open ? now - combo.t0 : combo.result.ms, W);
+  const fillEl = $('#wtFill');
+  fillEl.style.width = `${fill / W * 100}%`;
+  fillEl.className = 'trace-fill' + (combo.result ? (combo.result.win ? ' win' : ' hot') : '');
+  const key = combo.presses.join();
+  if (key !== watchMarksKey) {
+    watchMarksKey = key;
+    const marks = $('#wtMarks');
+    marks.textContent = '';
+    for (const p of combo.presses) {
+      const m = span('trace-mark', '');
+      m.style.left = `${Math.min((p - combo.t0) / W, 1) * 100}%`;
+      marks.append(m);
+    }
+  }
+}
 
 // the rabbit paces at the level's required rate: that is the tempo to record at
 const rabbitCtx = $('#rabbit').getContext('2d');
@@ -252,7 +314,8 @@ const setGlassStatus = (text, kind = '') => { glassStatus.textContent = text; gl
 const glassTabs = LOOKING_GLASS.levels.map((lv, i) => {
   const b = document.createElement('button');
   b.className = 'tab';
-  b.textContent = `${i + 1} · ${lv.name} · ${lv.lineMs} ms/tick`;
+  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.lineMs} ms/tick`),
+           span('short', `${i + 1} ${lv.short ?? lv.name} · ${lv.lineMs}ms`));
   b.addEventListener('click', () => setGlassLevel(lv));
   $('#glassTabs').append(b);
   return { lv, b };
@@ -298,6 +361,7 @@ function setGlassLevel(lv) {
   const ticks = level.totalTicks;
   setGlassStatus(`${ticks} ticks × ${lv.lineMs} ms = ${level.totalMs} ms per run` +
                  (lv.hidden ? '' : ` · the check is at tick ${level.honest[level.targetStep].tick}`));
+  buildTrace();
   resetReadout();
 }
 
@@ -305,6 +369,57 @@ function resetReadout() {
   for (const id of ['roOffset', 'roWidth', 'roLanded', 'roDelta', 'roVerdict']) $(`#${id}`).textContent = '—';
   $('#roHint').innerHTML = '&nbsp;';
   $('#roVerdict').className = '';
+  resetTrace();
+}
+
+// The trace: the routine as one cell per tick, and where the pulse landed on
+// it. A hidden level marks nothing but the player's own pulse and the crash
+// lines already found - the check's position is what the level withholds.
+const stepTicks = (i) => { const s = level.honest[i]; return Array.from({ length: s.ticks }, (_, k) => s.tick + k); };
+
+function buildTrace() {
+  const ticks = $('#traceTicks');
+  ticks.textContent = '';
+  for (let t = 0; t < level.totalTicks; t++) ticks.append(span('', ''));
+  if (!level.hidden) for (const t of stepTicks(level.targetStep)) ticks.children[t].classList.add('target');
+  for (const line of revealedCrash.get(level.id) ?? []) markCrashTick(line);
+  $('#traceHead').textContent = `routine · ${level.totalTicks} ticks × ${level.lineMs} ms`;
+  $('#traceMid').textContent = level.hidden ? 'the check is in here somewhere'
+    : `check · tick ${level.honest[level.targetStep].tick} · ${level.targetStartMs}–${level.targetEndMs} ms`;
+  $('#traceEnd').textContent = `${level.totalMs} ms`;
+}
+
+function markCrashTick(line) {
+  const step = level.honest.findIndex(s => s.line === line);
+  if (step >= 0) for (const t of stepTicks(step)) $('#traceTicks').children[t]?.classList.add('crash');
+}
+
+function resetTrace() {
+  $('#tracePulse').hidden = true;
+  $('#traceLanded').textContent = '';
+  for (const el of $('#traceTicks').querySelectorAll('.hit, .pc')) el.classList.remove('hit', 'win', 'hot', 'nop', 'pc');
+}
+
+/** Draw a landing: the pulse as a band over the routine, the ticks it covered lit in the verdict's colour. */
+function paintTrace(r, kind) {
+  const tone = kind || (r.verdict === 'nop' ? 'nop' : '');
+  const pulse = $('#tracePulse');
+  if (r.startMs === null) pulse.hidden = true;
+  else {
+    const left = Math.max(0, Math.min(r.startMs / level.totalMs, 1));
+    const right = Math.max(left, Math.min((r.startMs + r.widthMs) / level.totalMs, 1));
+    pulse.hidden = false;
+    pulse.style.left = `${left * 100}%`;
+    pulse.style.width = `${(right - left) * 100}%`;
+    pulse.className = `trace-pulse ${tone}`;
+  }
+  const ticks = $('#traceTicks');
+  for (const i of r.covered) for (const t of stepTicks(i)) {
+    const el = ticks.children[t];
+    if (el) { el.classList.add('hit'); if (tone) el.classList.add(tone); }
+  }
+  $('#traceLanded').textContent = r.covered.length ? `landed tick ${level.honest[r.covered[0]].tick} · L${r.lines[0] + 1}`
+    : r.verdict === 'denied' ? 'no pulse' : 'outside the routine';
 }
 
 const fmtMs = (ms) => `${ms < 0 ? '−' : '+'}${Math.abs(Math.round(ms))} ms`;
@@ -331,8 +446,8 @@ function finishRun(r) {
   const { text, kind } = describe(r);
   setGlassStatus(text, kind);
 
-  $('#roOffset').textContent = r.startMs === null ? '—' : `${Math.round(r.startMs)} ms`;
-  $('#roWidth').textContent = r.startMs === null ? '—' : `${Math.round(r.widthMs)} ms`;
+  $('#roOffset').textContent = r.startMs === null ? '—' : `${Math.round(r.startMs)}`;
+  $('#roWidth').textContent = r.startMs === null ? '—' : `${Math.round(r.widthMs)}`;
   $('#roLanded').textContent = r.covered.length
     ? `${r.covered[0]}${r.covered.length > 1 ? `–${r.covered.at(-1)}` : ''} · L${r.lines[0] + 1}${r.lines.length > 1 ? `–${r.lines.at(-1) + 1}` : ''}`
     : '—';
@@ -351,7 +466,9 @@ function finishRun(r) {
   if (r.verdict === 'crash') {
     (revealedCrash.get(level.id) ?? revealedCrash.set(level.id, new Set()).get(level.id)).add(r.crashLine);
     $(`#listing li[data-line="${r.crashLine}"]`)?.classList.add('crash');
+    markCrashTick(r.crashLine);
   }
+  paintTrace(r, kind);
   scene = { kind: r.verdict, since: performance.now() };
 }
 
@@ -437,17 +554,32 @@ function drawGlass(now) {
   gctx.drawImage(frameOf(alice, dir, now, period), ax * TILE, (ay - hop) * TILE, TILE, TILE);
 }
 
-let cursorLine = null;
+let cursorLine = null, cursorTick = null;
 function drawListing(now) {
-  let want = null;
+  let want = null, tickNow = null;
   if (scene.kind === 'running' && run?.open) {
     const e = run.elapsed(now);
     const step = level.honest.findIndex(s => (s.tick + s.ticks) * level.lineMs > e);
     want = step >= 0 ? level.honest[step].line : null;
+    tickNow = e < level.totalMs ? Math.floor(e / level.lineMs) : null;
+  }
+  if (tickNow !== cursorTick) {
+    const ticks = $('#traceTicks');
+    if (cursorTick !== null) ticks.children[cursorTick]?.classList.remove('pc');
+    if (tickNow !== null) ticks.children[tickNow]?.classList.add('pc');
+    cursorTick = tickNow;
   }
   if (want === cursorLine) return;
   $(`#listing li.pc`)?.classList.remove('pc');
-  if (want !== null) $(`#listing li[data-line="${want}"]`)?.classList.add('pc');
+  if (want !== null) {
+    const li = $(`#listing li[data-line="${want}"]`);
+    if (li) {
+      li.classList.add('pc');
+      // a short listing (the phone looks) keeps the executing line in view
+      const ol = $('#listing');
+      if (ol.scrollHeight > ol.clientHeight) ol.scrollTop = (li.offsetTop - ol.offsetTop) - ol.clientHeight / 2 + li.offsetHeight / 2;
+    }
+  }
   cursorLine = want;
 }
 
@@ -469,6 +601,7 @@ setGlassLevel(LOOKING_GLASS.levels[0]);
 function tick(now) {
   if (run?.open) { const r = run.tick(now); if (r) finishRun(r); }
   drawRabbit(now);
+  drawWatchTrace(now);
   drawGlass(now);
   drawListing(now);
   requestAnimationFrame(tick);
