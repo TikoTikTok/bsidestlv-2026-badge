@@ -75,6 +75,36 @@ function refreshPad() {
 }
 setInterval(refreshPad, 100);
 
+// The on-screen pad. A phone has no keyboard and the badge is not always
+// plugged in, so these feed the same edge stream as source 'ui', stamped
+// with the pointer event's own time. They carry the screen's latency and the
+// Bench says so; they are for driving the page, not for beating a level.
+const touchPad = $('#touchPad');
+touchPad.open = matchMedia('(pointer: coarse)').matches;
+const padOpen = () => document.body.classList.toggle('touchpad-open', touchPad.open);
+touchPad.addEventListener('toggle', padOpen);
+padOpen();
+for (const b of touchPad.querySelectorAll('button[data-btn]')) {
+  const name = b.dataset.btn;
+  const stamp = (e) => (e.timeStamp > 0 && e.timeStamp <= performance.now()) ? e.timeStamp : performance.now();
+  const release = (e) => {
+    if (!b.classList.contains('down')) return;
+    b.classList.remove('down');
+    pad.inject(name, false, stamp(e));
+  };
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (e.button !== 0) return;
+    try { b.setPointerCapture(e.pointerId); } catch { /* not every pointer can be captured */ }
+    b.classList.add('down');
+    pad.inject(name, true, stamp(e));
+  });
+  b.addEventListener('pointerup', release);
+  b.addEventListener('pointercancel', release);
+  b.addEventListener('lostpointercapture', release);
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
 // Only one range listens at a time. Firing the badge taps START and then
 // replays the take; if both ranges heard it, a combo replayed for range 1
 // would also land as a stray pulse in range 2's log.

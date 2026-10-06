@@ -204,6 +204,8 @@ kbd {
 
 .glass { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1rem; align-items: start; }
 @media (max-width: 860px) { .glass { grid-template-columns: 1fr; } }
+/* the room is 9 tiles = 432 px; on a phone let it shrink rather than scroll */
+.glass .stage-wrap canvas { max-width: 100%; height: auto; }
 .listing {
   margin: 0; padding: .5rem 0; list-style: none; max-height: 420px; overflow: auto;
   background: #070c16; border: 1px solid var(--line); border-radius: 8px;
@@ -242,3 +244,58 @@ kbd {
 .chords th { text-align: left; color: var(--accent); white-space: nowrap; padding: .3rem .9rem .3rem 0; vertical-align: top; font-weight: 600; }
 .chords td { color: var(--dim); padding: .3rem 0; border-top: 1px solid var(--line); }
 .chords tr:first-child td { border-top: 0; }
+
+/* a phone: the sticky header must not eat the screen */
+@media (max-width: 480px) {
+  .bar { gap: .4rem .75rem; padding-top: calc(.5rem + env(safe-area-inset-top, 0px)); padding-bottom: .5rem; }
+  .led { font-size: 8px; min-width: 2em; padding: 0 .2rem; }
+  .chords th { white-space: normal; }
+}
+
+/* ------------------------------------------------------------ on-screen pad -- */
+
+.touchpad {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
+  background: rgba(8, 13, 24, .95); backdrop-filter: blur(6px);
+  border-top: 1px solid var(--line);
+  padding: 0 clamp(.75rem, 3vw, 2rem) env(safe-area-inset-bottom, 0px);
+}
+.touchpad summary {
+  cursor: pointer; list-style: none; padding: .5rem 0; font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent);
+}
+.touchpad summary::-webkit-details-marker { display: none; }
+.touchpad summary::before { content: '▲ '; }
+.touchpad[open] summary::before { content: '▼ '; }
+.touchpad summary small { text-transform: none; letter-spacing: 0; color: var(--dim); margin-left: .5rem; }
+.touchpad summary small code { color: var(--accent-2); }
+body.touchpad-open { padding-bottom: 16rem; }
+
+.tp {
+  --key: min(2.6rem, 10vw);     /* three keys and two gaps per cluster, two clusters, must fit a 320 px phone */
+  display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+  padding: .25rem 0 .75rem; max-width: 480px; margin: 0 auto;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.tp button {
+  font: inherit; font-size: 13px; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 10px; width: var(--key); height: var(--key);
+  touch-action: none; -webkit-tap-highlight-color: transparent; cursor: pointer; padding: 0;
+}
+.tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+.tp-dpad { display: grid; grid-template-areas: '. u .' 'l . r' '. d .'; gap: .2rem; }
+.tp-dpad [data-btn=UP] { grid-area: u; }
+.tp-dpad [data-btn=LEFT] { grid-area: l; }
+.tp-dpad [data-btn=RIGHT] { grid-area: r; }
+.tp-dpad [data-btn=DOWN] { grid-area: d; }
+.tp-mid { display: flex; flex-direction: column; gap: .5rem; }
+.tp-mid button { width: auto; height: 1.8rem; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; border-radius: 99px; padding: 0 .7rem; }
+.tp-face { display: grid; grid-template-areas: 'sl . sr' '. y .' 'x . b' '. a .'; gap: .2rem; }
+.tp-face [data-btn=SL] { grid-area: sl; }
+.tp-face [data-btn=SR] { grid-area: sr; }
+.tp-face [data-btn=Y] { grid-area: y; }
+.tp-face [data-btn=X] { grid-area: x; }
+.tp-face [data-btn=B] { grid-area: b; }
+.tp-face [data-btn=A] { grid-area: a; }
+.tp-face [data-btn=SL], .tp-face [data-btn=SR] { height: 1.8rem; font-size: 10px; letter-spacing: .1em; }
+.tp-face [data-btn=Y], .tp-face [data-btn=X], .tp-face [data-btn=B], .tp-face [data-btn=A] { border-radius: 50%; }
