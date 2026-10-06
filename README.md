@@ -63,6 +63,14 @@ The page works from the keyboard too, which is how you find out that level 3 of
 each cannot be done that way. `software/tools/verify-range.mjs` checks exactly
 that: hand levels fit a hand, badge levels do not, and every level is winnable.
 
+On a phone the page has three looks besides the classic one — the **Look** menu
+in the header, or `?look=bench`, `handheld`, `scope`. Each shows one range at a
+time, folds the prose behind *how it works*, and reshapes the on-screen pad: a
+bottom sheet, a handheld's body with the screen in a bezel, or a dock of soft
+keys under big offset/width numerals. All three draw the guard's routine as a
+tick trace with the pulse's landing on it, so a miss says how far off it was at
+a glance.
+
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those
 paths, cross-builds the firmware into `firmware/` beside them (so `flash.html`
 always offers the image built from the commit it was deployed with), and
