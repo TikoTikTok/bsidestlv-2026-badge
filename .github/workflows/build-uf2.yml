@@ -1,0 +1,44 @@
+# Cross-builds software/controller into controller.uf2 and keeps it as a run
+# artifact named `controller.uf2`.
+#
+# Reusable, so the toolchain and the Pico SDK version live in one place:
+# firmware.yml calls it on every push that touches the firmware, and pages.yml
+# calls it so the site can publish the image flash.html offers, built from the
+# very commit being deployed.
+name: Build controller.uf2
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  uf2:
+    name: controller.uf2 (rp2040)
+    runs-on: ubuntu-latest
+    env:
+      PICO_SDK_VERSION: 2.3.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the ARM toolchain
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+      - name: Fetch the Pico SDK (with TinyUSB)
+        run: |
+          git clone -q --depth 1 --branch "$PICO_SDK_VERSION" https://github.com/raspberrypi/pico-sdk "$RUNNER_TEMP/pico-sdk"
+          git -C "$RUNNER_TEMP/pico-sdk" submodule update -q --init --depth 1 lib/tinyusb
+
+      - name: Build
+        run: |
+          cmake -S software/controller -B software/controller/build -DPICO_SDK_PATH="$RUNNER_TEMP/pico-sdk"
+          cmake --build software/controller/build -j
+          ls -l software/controller/build/controller.uf2
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: controller.uf2
+          path: software/controller/build/controller.uf2
