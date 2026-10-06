@@ -30,11 +30,16 @@
  * Between the buttons and the USB report sits the quick-glitch layer
  * (glitch.c): SELECT is a shift key that records a take of button presses
  * and replays it, scaled and delayed, on command. See glitch.h.
+ *
+ * Holding SELECT + START for two seconds reboots into the RP2040's UF2
+ * bootloader (the RPI-RP2 drive), so new firmware goes on over USB without
+ * reaching the BootSel button. software/tools/flash-badge.py does the copy.
  */
 
 #include <string.h>
 
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
 #include "tusb.h"
 
 #include "usb_descriptors.h"
@@ -91,6 +96,36 @@ static uint16_t read_buttons(void)
   return m;
 }
 
+static inline uint32_t now_ms(void)
+{
+  return to_ms_since_boot(get_absolute_time());
+}
+
+//--------------------------------------------------------------------+
+// Reboot to the UF2 bootloader
+//--------------------------------------------------------------------+
+
+// Hold SELECT + START for two seconds and the badge reboots into the RP2040
+// ROM bootloader, which mounts as the RPI-RP2 drive: copy a UF2 onto it and
+// the board comes back running it. That is what BootSel + Reset do, without
+// having to reach either button. Under SELECT nothing reaches the host
+// anyway and START is not a quick-glitch command, so the chord is free.
+#define BOOTSEL_CHORD    (GLITCH_BTN_SELECT | GLITCH_BTN_START)
+#define BOOTSEL_HOLD_MS  2000u
+
+static void bootsel_task(uint16_t physical)
+{
+  static bool     holding = false;
+  static uint32_t since_ms = 0;
+
+  if ( (physical & BOOTSEL_CHORD) != BOOTSEL_CHORD ) { holding = false; return; }
+  if ( !holding ) { holding = true; since_ms = now_ms(); return; }
+  if ( now_ms() - since_ms < BOOTSEL_HOLD_MS ) return;
+
+  gpio_put(PIN_LED, 0);
+  reset_usb_boot(0, 0);   // does not return
+}
+
 //--------------------------------------------------------------------+
 // Quick glitch
 //--------------------------------------------------------------------+
@@ -106,8 +141,9 @@ static uint16_t latched_buttons = 0;
 
 static void glitch_task(void)
 {
-  uint16_t out = glitch_update(&glitch, time_us_32(), read_buttons());
-  latched_buttons |= out;
+  uint16_t physical = read_buttons();
+  bootsel_task(physical);
+  latched_buttons |= glitch_update(&glitch, time_us_32(), physical);
 }
 
 //--------------------------------------------------------------------+
@@ -123,11 +159,6 @@ enum {
 
 // 0 means "don't blink, let the application drive the LED directly".
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-
-static inline uint32_t now_ms(void)
-{
-  return to_ms_since_boot(get_absolute_time());
-}
 
 static void board_setup(void)
 {

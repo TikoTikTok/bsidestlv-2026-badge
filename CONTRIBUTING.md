@@ -58,7 +58,9 @@ make -j
 
 `build/` is ignored. The quick-glitch engine has a host test that needs only a
 C compiler — `make -C software/controller/test` — and CI runs it plus a full
-cross-build on every change under `software/controller/`.
+cross-build on every change under `software/controller/`. On Windows,
+`software/tools/setup-pico-toolchain.ps1` then `build-firmware.ps1` do the
+cross-build; `software/tools/flash-badge.py` puts the result on a badge.
 
 The USB descriptors deliberately report Sony's VID/PID so
 iOS binds a controller profile — do not "fix" that without reading the note at

@@ -27,6 +27,9 @@
  *   SELECT + LEFT/RIGHT  offset -/+ 1 ms; hold to auto-repeat, and after
  *                     twenty steps the step grows to 10 ms
  *   SELECT + B        forget the recording, offset 0, speed 1x
+ *   SELECT + START    held two seconds: reboot into the UF2 bootloader. Not
+ *                     this module's (main.c watches it), listed so the whole
+ *                     SELECT vocabulary is in one place.
  *
  * A plain SELECT press - held and released with no command - still reaches
  * the host as a short tap on release, so the button keeps working as Share.

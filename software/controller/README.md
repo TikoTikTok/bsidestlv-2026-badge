@@ -69,6 +69,7 @@ and each other button is a command:
 | `SELECT` + `UP` / `DOWN` | Playback speed ×2 / ÷2: 1/4×, 1/2×, 1×, 2×, 4×, 8×, 16×, 32×. Scales the whole take, gaps and hold times alike, so an 80 ms tap at 8× is a 10 ms pulse. |
 | `SELECT` + `LEFT` / `RIGHT` | Offset −/+ 1 ms. Hold to auto-repeat; after twenty steps the step becomes 10 ms. Floors at 0, caps at 10 s. |
 | `SELECT` + `B` | Forget the take, offset 0, speed 1×. |
+| `SELECT` + `START`, held 2 s | Reboot into the UF2 bootloader to take a new firmware - see [Flashing](#flashing). |
 
 A plain `SELECT` press with no command still reaches the host, as a 40 ms tap
 when you let go, so the button keeps working as Share / Select in anything
@@ -179,18 +180,58 @@ The build produces `build/controller.uf2`, about 45KB.
 
 ## Flashing
 
-1. Hold the **BOOTSEL** button while plugging the Pico into USB; it mounts as a
-   mass-storage drive (`RPI-RP2`).
-2. Copy `controller.uf2` onto it. The board reboots and re-enumerates as a
-   "Wireless Controller" by "Sony Interactive Entertainment" - see the VID/PID
-   note below.
+The RP2040's ROM bootloader takes firmware over USB; there is nothing to
+install on the host. Get the badge into the bootloader, any of:
 
-On the badge, BOOTSEL is the button silkscreened `BootSel`; hold it while
-plugging in USB-C.
+- hold **BootSel** (silkscreened on the badge; `BOOTSEL` on a Pico) while
+  plugging in USB-C;
+- already plugged in: hold **BootSel**, tap **Reset**;
+- running this firmware: hold **SELECT + START** for two seconds. The LED
+  goes dark and the board drops off the host.
+
+It mounts as a small drive called `RPI-RP2`. Copy `controller.uf2` onto it; the
+board reboots and re-enumerates as a "Wireless Controller" by "Sony Interactive
+Entertainment" - see the VID/PID note below. The tool does the waiting, the
+copy, and the check that the controller came back:
+
+```bash
+python3 software/tools/flash-badge.py                 # build/controller.uf2
+python3 software/tools/flash-badge.py --fetch         # the newest green CI build, via gh
+python3 software/tools/flash-badge.py --status        # what is plugged in right now
+```
+
+`--fetch` is the no-toolchain route: the Firmware workflow builds
+`controller.uf2` on every push under `software/controller/` and keeps it as a
+run artifact for 90 days. Windows, macOS and Linux, standard library only.
+
+`picotool reboot` cannot do this: the firmware has no reset interface, and
+adding one would change the shape of the device iOS keys on. The chord is the
+software route.
+
+**SWD**, when the bootloader is out of reach (a firmware that hangs before USB
+comes up, a board that will not enumerate): `J1` is the three-pin SWD header
+- `SWCLK`, `SWDIO` (net `SWD` on the schematic) and `GND`; read the order off
+the silkscreen. With a Raspberry Pi Debug Probe or any CMSIS-DAP probe:
+
+```bash
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000" \
+        -c "program build/controller.elf verify reset exit"
+```
 
 After flashing, plug it into a phone (via USB-OTG / USB-C). It should appear as
 a connected gamepad, ready for the challenge at the repository root, for
 emulators, or any app that supports HID controllers.
+
+### Building on Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -File software\tools\setup-pico-toolchain.ps1   # once: CMake, Ninja, Arm GCC, pico-sdk 2.3.1, prebuilt picotool
+powershell -ExecutionPolicy Bypass -File software\tools\build-firmware.ps1         # -> build\controller.uf2
+```
+
+The build script also finds what the Raspberry Pi Pico VS Code extension puts
+under `%USERPROFILE%\.pico-sdk`, so either route works. The host test needs a
+native C compiler, which neither route installs; CI runs it on every push.
 
 ## Notes
 
