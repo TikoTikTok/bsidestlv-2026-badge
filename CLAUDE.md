@@ -5,8 +5,11 @@ session does not have to rediscover it. Keep it current when the layout or the
 status below changes.
 
 Live site: https://bsidestlv.github.io/bsidestlv-2026-badge/
+Fork's site (the glitch branch, deployed by `pages.yml`, Pages source set to
+"GitHub Actions"): https://tikotiktok.github.io/bsidestlv-2026-badge/glitch.html
 Upstream: `bsidestlv/bsidestlv-2026-badge` (this checkout is the `TikoTikTok`
-fork; pull requests go upstream).
+fork; `upstream` remote; pull requests go upstream). Fork `main` tracks
+upstream `main` exactly - sync it before branching, never commit to it.
 
 ## What this is
 
@@ -39,8 +42,12 @@ hardware/            CERN-OHL-S-2.0
   soldering-kit/     BSidesTLV26TinyBadge: 555 + CD4017 LED chaser, all through-hole
 software/            MIT, never published
   controller/        Pico SDK CMake project; src/glitch.c is the quick-glitch record/replay
-                     engine (no SDK deps), test/ builds it on the host with plain cc
-  tools/             slicers (Python, stdlib only) and generators/verifiers (Node ESM)
+                     engine (no SDK deps), test/ builds it on the host with plain cc;
+                     main.c also watches SELECT+START (2 s) -> reset_usb_boot
+  tools/             slicers (Python, stdlib only) and generators/verifiers (Node ESM);
+                     flash-badge.py (UF2 over USB, --fetch takes the CI build, --status),
+                     hid-trace.py (Linux HID bench), setup-pico-toolchain.ps1 +
+                     build-firmware.ps1 (Windows cross-build)
   references/        source art sheets (15 MB) every asset was cut from
   docs/GAME_DESIGN.md  the five-stage design, tick model, Looking Glass protocol
   legacy/            old generated-sprite pass, unused by the page, safe to delete
@@ -55,11 +62,16 @@ software/            MIT, never published
 npm run verify      # solves both stages + checks the range's levels; CI gate before every deploy
 npm run validate    # legacy sprite integrity only
 make -C software/controller/test   # quick-glitch engine tests, plain C
+python3 software/tools/flash-badge.py --fetch   # newest green CI UF2 -> badge, no toolchain needed
 ```
 
 Firmware: see `software/controller/README.md` (needs pico-sdk + arm-none-eabi;
 `apt install gcc-arm-none-eabi libnewlib-arm-none-eabi` and a shallow clone of
 pico-sdk 2.3.1 with `lib/tinyusb` is enough, that is what firmware.yml does).
+On Windows: `software/tools/setup-pico-toolchain.ps1` once, then
+`build-firmware.ps1`. The dev machine this was written on has Node and Python
+but no C compiler, CMake or Arm toolchain, so the engine test and the UF2 come
+from CI there; `flash-badge.py --fetch` closes that gap.
 
 ## Rules that matter
 
@@ -77,7 +89,7 @@ pico-sdk 2.3.1 with `lib/tinyusb` is enough, that is what firmware.yml does).
   deliberate and must not ship on hardware. Do not "fix" it.
 - Commits: one concern each; describe the change, not the file list.
 
-## Status (as of 2026-09-24)
+## Status (as of 2026-10-06)
 
 Built and live:
 
@@ -89,9 +101,10 @@ Built and live:
 | Page | asset sheet + both stages, Solve buttons run the real solver in-browser. `?autosolve=tea|chase`, `?walk=<id>`. |
 | Badge board | v0.4, fab package in `hardware/badge/production/`. |
 | Soldering kit | schematic generated from `build_badge_sch.py`, fab package present. |
-| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~45 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
-| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback. Driven headless in Chromium during development via `window.__pad.inject`. |
-| CI | Pages workflow verifies both stages and the range before deploy; Firmware workflow runs the engine test and cross-builds the UF2. |
+| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~45 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
+| Flashing | `software/tools/flash-badge.py`: waits for `RPI-RP2`, checks the UF2 family, copies, confirms 054c:09cc came back; `--fetch` pulls the newest green Firmware-workflow artifact. No picotool route (no reset interface, on purpose). SWD header `J1` + openocd is the fallback, documented, untried. |
+| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback, and an on-screen pad (`#touchPad`, fixed at the bottom, open by default on coarse pointers) feeding `pad.inject` as source `ui`. Map scales to the phone's width. Driven headless in Chromium during development via `window.__pad.inject`. |
+| CI | Pages workflow verifies both stages and the range before deploy; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). On the fork, Pages is on "GitHub Actions" and deploys the glitch branch. |
 
 Designed but not built (see `software/docs/GAME_DESIGN.md`):
 
@@ -115,7 +128,16 @@ Known loose ends:
 - The quick-glitch firmware has never run on real hardware: it is verified by
   the host test and by a clean cross-build only. First thing to check on a
   badge: that the 1 ms endpoint interval still binds on iOS, and the LED
-  patterns. The macro is not persisted across power cycles.
+  patterns. The macro is not persisted across power cycles. The bootloader
+  chord and `flash-badge.py`'s copy-and-verify path are likewise untried on a
+  board (the tool's drive scan, UF2 check and status probe were run on
+  Windows with no board attached).
+- The badge the user holds may be running the upstream firmware (no quick
+  glitch, no chord): the first flash goes through BootSel.
+- `main.c` leaves the internal pull-ups and the LED's "any button" feedback
+  commented out; both came from upstream that way (commit 69d933c). The board
+  has its own pull-ups (R3..R9, R14, R18 in the BOM), a bare Pico does not.
+  Not changed here; ask the board author before "fixing" either.
 - Browsers sample gamepads at ~16 ms, so the range's timing floor is the
   host, not the badge. Chrome's `Gamepad.timestamp` is used when it looks
   sane; Firefox/raw-mapping support is a best guess (hat on axis 9).
