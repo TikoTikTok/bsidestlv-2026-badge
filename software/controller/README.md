@@ -46,12 +46,78 @@ The status LED (GPIO8, active-high through a current-limiting resistor):
 
 - **Blinks @ 250 ms** — USB not mounted (waiting for host).
 - **Blinks @ 1 s** — USB suspended.
+- **Blinks @ 100 ms** — quick glitch is recording a take.
+- **Solid** — quick glitch is replaying one.
 - **Solid while pressed** — mounted and running; lights up whenever any button
   is held, as live input feedback.
 
+## Quick glitch
+
+The badge doubles as a fault-injection trainer for the glitch range on the
+challenge site (`glitch.html`): the levels there need an input to land inside
+a window a hand cannot hit, so the firmware carries a record / replay layer
+that speaks the vocabulary of real glitching gear — **trigger**, **offset**,
+**width**, **repeat**.
+
+`SELECT` is the shift key. While it is held nothing you press reaches the host,
+and each other button is a command:
+
+| Chord | Does |
+| ----- | ---- |
+| `SELECT` + `SL` | Start recording a take. Press again to stop. Leading and trailing silence are trimmed; the take always ends with everything released. |
+| `SELECT` + `SR` | **Fire**: tap `START` (the trigger the host measures from), wait `offset`, replay the take at `speed`. Keep the chord held and it fires again every ~600 ms after the replay ends — a repeat, for sweeping. |
+| `SELECT` + `UP` / `DOWN` | Playback speed ×2 / ÷2: 1/4×, 1/2×, 1×, 2×, 4×, 8×, 16×, 32×. Scales the whole take, gaps and hold times alike, so an 80 ms tap at 8× is a 10 ms pulse. |
+| `SELECT` + `LEFT` / `RIGHT` | Offset −/+ 1 ms. Hold to auto-repeat; after twenty steps the step becomes 10 ms. Floors at 0, caps at 10 s. |
+| `SELECT` + `B` | Forget the take, offset 0, speed 1×. |
+| `SELECT` + `START`, held 2 s | Reboot into the UF2 bootloader to take a new firmware - see [Flashing](#flashing). |
+
+A plain `SELECT` press with no command still reaches the host, as a 40 ms tap
+when you let go, so the button keeps working as Share / Select in anything
+else. Recording passes everything through, so you record against the live
+game. Up to 127 button changes fit in a take; it stops itself when full.
+
+A worked example, level 3 of the range (40 lines at 20 ms, target line 23):
+
+1. `SELECT`+`SL`, tap `X` once, `SELECT`+`SL`. The take is one press.
+2. `SELECT`+`UP` ×2 → 4×. A ~150 ms human tap becomes a ~40 ms pulse, two lines wide.
+3. Hold `SELECT`+`RIGHT` until the site's offset readout says ~460 ms.
+4. `SELECT`+`SR`. The site starts the guard's routine on `START` and reports
+   which line the pulse landed on, and how far from the target. Nudge the
+   offset, fire again — or hold the chord and tap `RIGHT` between fires to
+   sweep.
+
+Timing: the engine runs in the main loop, several hundred times a millisecond,
+and every button that was down at any instant since the previous report is
+latched into the next one, so a replayed pulse shorter than one report still
+shows up. Reports go out every **1 ms** (the real controller's endpoint asks
+for 5 ms; `DS4_REPORT_INTERVAL_MS` in `ds4.h` sets both the descriptor and the
+loop), so the offset resolution the host actually sees is 1 ms — provided the
+host reads that fast. Browsers sample gamepads at ~16 ms; the range is tuned
+for that, see `software/docs/GAME_DESIGN.md`.
+
+The layer is plain C with no SDK dependency, `src/glitch.c`, and has a host
+test that scripts a fake clock through record, fire, repeat and the 32-bit
+wrap:
+
+```bash
+make -C software/controller/test
+```
+
+On a real badge, two bench tools show what the host receives. The **Bench**
+panel on `glitch.html` prints every edge the browser sees, timed from the last
+START, at the browser's ~16 ms sampling. For the real numbers, on Linux:
+
+```bash
+sudo python3 software/tools/hid-trace.py     # raw reports, 1 ms rate, µs stamps
+```
+
+A fire with offset 460 ms and a 40 ms take at 1x should print START down at
+0, START up at ~30, X down at ~460, X up at ~500, and the counter-gap stat
+should stay at 0.
+
 ## HID mapping
 
-The device sends DualShock 4 input report `0x01` (64 bytes) every 5 ms:
+The device sends DualShock 4 input report `0x01` (64 bytes) every 1 ms:
 
 | Physical button | DualShock 4 control |
 | --------------- | ------------------- |
@@ -110,22 +176,62 @@ configure time:
 cmake -DPICO_BOARD=pico2 -DPICO_SDK_PATH=/path/to/pico-sdk ..
 ```
 
-The build produces `build/controller.uf2`, about 41KB.
+The build produces `build/controller.uf2`, about 45KB.
 
 ## Flashing
 
-1. Hold the **BOOTSEL** button while plugging the Pico into USB; it mounts as a
-   mass-storage drive (`RPI-RP2`).
-2. Copy `controller.uf2` onto it. The board reboots and re-enumerates as a
-   "Wireless Controller" by "Sony Interactive Entertainment" - see the VID/PID
-   note below.
+The RP2040's ROM bootloader takes firmware over USB; there is nothing to
+install on the host. Get the badge into the bootloader, any of:
 
-On the badge, BOOTSEL is the button silkscreened `BootSel`; hold it while
-plugging in USB-C.
+- hold **BootSel** (silkscreened on the badge; `BOOTSEL` on a Pico) while
+  plugging in USB-C;
+- already plugged in: hold **BootSel**, tap **Reset**;
+- running this firmware: hold **SELECT + START** for two seconds. The LED
+  goes dark and the board drops off the host.
+
+It mounts as a small drive called `RPI-RP2`. Copy `controller.uf2` onto it; the
+board reboots and re-enumerates as a "Wireless Controller" by "Sony Interactive
+Entertainment" - see the VID/PID note below. The tool does the waiting, the
+copy, and the check that the controller came back:
+
+```bash
+python3 software/tools/flash-badge.py                 # build/controller.uf2
+python3 software/tools/flash-badge.py --fetch         # the newest green CI build, via gh
+python3 software/tools/flash-badge.py --status        # what is plugged in right now
+```
+
+`--fetch` is the no-toolchain route: the Firmware workflow builds
+`controller.uf2` on every push under `software/controller/` and keeps it as a
+run artifact for 90 days. Windows, macOS and Linux, standard library only.
+
+`picotool reboot` cannot do this: the firmware has no reset interface, and
+adding one would change the shape of the device iOS keys on. The chord is the
+software route.
+
+**SWD**, when the bootloader is out of reach (a firmware that hangs before USB
+comes up, a board that will not enumerate): `J1` is the three-pin SWD header
+- `SWCLK`, `SWDIO` (net `SWD` on the schematic) and `GND`; read the order off
+the silkscreen. With a Raspberry Pi Debug Probe or any CMSIS-DAP probe:
+
+```bash
+openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c "adapter speed 5000" \
+        -c "program build/controller.elf verify reset exit"
+```
 
 After flashing, plug it into a phone (via USB-OTG / USB-C). It should appear as
 a connected gamepad, ready for the challenge at the repository root, for
 emulators, or any app that supports HID controllers.
+
+### Building on Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -File software\tools\setup-pico-toolchain.ps1   # once: CMake, Ninja, Arm GCC, pico-sdk 2.3.1, prebuilt picotool
+powershell -ExecutionPolicy Bypass -File software\tools\build-firmware.ps1         # -> build\controller.uf2
+```
+
+The build script also finds what the Raspberry Pi Pico VS Code extension puts
+under `%USERPROFILE%\.pico-sdk`, so either route works. The host test needs a
+native C compiler, which neither route installs; CI runs it on every push.
 
 ## Notes
 

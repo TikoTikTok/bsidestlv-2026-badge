@@ -19,6 +19,7 @@ pico_sdk_init()
 
 add_executable(controller
         src/main.c
+        src/glitch.c
         src/usb_descriptors.c
         )
 
@@ -32,6 +33,7 @@ target_include_directories(controller PRIVATE
 target_link_libraries(controller PRIVATE
         pico_stdlib
         pico_unique_id
+        pico_bootrom
         tinyusb_device
         )
 
