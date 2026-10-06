@@ -30,7 +30,7 @@ export const LOOKING_GLASS = {
   ],
   levels: [
     {
-      id: 'sleepy', name: 'The sleepy guard', lineMs: 120, pulseMaxLines: 3,
+      id: 'sleepy', name: 'The sleepy guard', short: 'Sleepy', lineMs: 120, pulseMaxLines: 3,
       blurb: 'Ticks are slow enough to see. Press START, watch the cursor, tap X on the check. ' +
              'A hand can do this one with a little practice.',
       listing: [
@@ -56,7 +56,7 @@ export const LOOKING_GLASS = {
       ],
     },
     {
-      id: 'quick', name: 'The quick guard', lineMs: 40, pulseMaxLines: 3,
+      id: 'quick', name: 'The quick guard', short: 'Quick', lineMs: 40, pulseMaxLines: 3,
       blurb: 'Three times faster, and a crash line two ticks before the check. ' +
              'A hand lands somewhere within about ±40 ms of where it meant to; the check is 40 ms wide. ' +
              'Dial the offset in on the badge instead.',
@@ -89,7 +89,7 @@ export const LOOKING_GLASS = {
       ],
     },
     {
-      id: 'blind', name: 'The blind guard', lineMs: 20, pulseMaxLines: 3, hidden: true,
+      id: 'blind', name: 'The blind guard', short: 'Blind', lineMs: 20, pulseMaxLines: 3, hidden: true,
       blurb: 'Cheshire faded the source. All you know is the routine is 34 ticks of 20 ms and ' +
              'somewhere in it is the check. Each miss tells you whether the guard had decided yet. ' +
              'Sweep: hold the fire chord and tap RIGHT between shots.',
