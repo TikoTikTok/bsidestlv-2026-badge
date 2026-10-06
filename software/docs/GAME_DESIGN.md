@@ -249,10 +249,55 @@ push-into-the-gap puzzles, but a dark floor tile stands in for now.
 7. **Practice mode, leaderboard** — rank by total ticks, which rewards better
    solvers rather than faster typing.
 
-## 10. Open questions
+## 10. The glitch range (built)
+
+The badge is a controller, and it is also the closest thing to glitching gear a
+player will hold at the conference. `glitch.html` is a training ground for
+using it that way, built on the tick model above: two rooms with levels that
+start inside the human budget and end well outside it.
+
+**The firmware side.** The badge carries a record / replay layer with the
+vocabulary of a real glitcher: `SELECT+SL` records a *take* with microsecond
+timestamps; `SELECT+SR` *fires* — a `START` tap as the trigger the host can
+see, a wait of *offset* (1 ms steps), then the take at *speed* (1/4× to 32×,
+which is also the pulse *width*); hold the chord to *repeat*. Reports go out
+every 1 ms.
+
+**The host side.** Browsers sample gamepads at ~16 ms, so that is the floor
+under everything: a replayed press needs ≥ 34 ms per press to be seen, and a
+landing carries ± 8 ms of jitter however good the badge is. Every level is
+tuned to that floor, and `tools/verify-range.mjs` refuses one that is not.
+
+| room | level | budget | by hand |
+|---|---|---|---|
+| The Rabbit's Pocket Watch | 4 presses / 2000 ms | 1.5 /s | yes |
+| | 6 / 1000 ms | 5 /s | just |
+| | 8 / 500 ms | 14 /s | no — record at 4 /s, replay at 4× |
+| | 12 / 600 ms | 18 /s | no |
+| The Looking-Glass Glitch | 120 ms / tick, target visible | ±60 ms | always |
+| | 40 ms / tick, crash line 2 ticks before | ±20 ms | about half |
+| | 20 ms / tick, source hidden | ±10 ms | a quarter — and no idea where |
+
+The glitch model is deliberately the real one: a pulse does its damage at its
+*rising edge*, so skipping the check means starting the pulse inside a window
+one tick wide; every line the pulse covers is corrupted, some lines crash the
+target, and a pulse wider than it survives browns it out. Each miss is a
+measurement — which line, how many lines and milliseconds off — and the hidden
+level only says whether the guard had decided yet, which is enough to bisect
+with the badge's repeat.
+
+The win is the treasure: the routine falls through `door_open(TREASURE)` and
+`alice_jump(TREASURE)` and Alice hops the wall, which is the one thing the
+boulder-pushing rules never let her do.
+
+## 11. Open questions
 
 - **Gamepad vs script parity** — a gamepad player on stages 1–2 and a script on
   3–5 is the intended arc. Worth checking that stage 2 is still fun on a pad.
+  The range's `src/pad.js` is the gamepad layer the stages will need.
+- **Replay as a third path** — the badge's quick glitch sits between a hand
+  and a script: a recorded take can clear a fixed-seed stage but not a reseeded
+  one. Stage 3's reseeding already defeats it; stage 2 should be checked.
 - **Latency floor** — the WS round trip has to fit inside a 16 ms tick. If
   players run scripts on the same machine this is fine; over a network it is
   not. Ship it as a local server.

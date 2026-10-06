@@ -1,0 +1,57 @@
+# Builds the badge firmware and runs the quick-glitch engine's host tests.
+#
+# Two jobs because they answer two different questions: "does the logic do
+# what glitch.h says" needs nothing but a C compiler and runs in seconds;
+# "does it still link into a UF2" needs the Pico SDK and the ARM toolchain.
+name: Firmware
+
+on:
+  push:
+    paths:
+      - 'software/controller/**'
+      - '.github/workflows/firmware.yml'
+  pull_request:
+    paths:
+      - 'software/controller/**'
+      - '.github/workflows/firmware.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine-tests:
+    name: quick-glitch engine (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -C software/controller/test
+
+  uf2:
+    name: controller.uf2 (rp2040)
+    runs-on: ubuntu-latest
+    env:
+      PICO_SDK_VERSION: 2.3.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the ARM toolchain
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+
+      - name: Fetch the Pico SDK (with TinyUSB)
+        run: |
+          git clone -q --depth 1 --branch "$PICO_SDK_VERSION" https://github.com/raspberrypi/pico-sdk "$RUNNER_TEMP/pico-sdk"
+          git -C "$RUNNER_TEMP/pico-sdk" submodule update -q --init --depth 1 lib/tinyusb
+
+      - name: Build
+        run: |
+          cmake -S software/controller -B software/controller/build -DPICO_SDK_PATH="$RUNNER_TEMP/pico-sdk"
+          cmake --build software/controller/build -j
+          ls -l software/controller/build/controller.uf2
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: controller.uf2
+          path: software/controller/build/controller.uf2
