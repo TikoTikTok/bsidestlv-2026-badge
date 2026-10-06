@@ -210,6 +210,15 @@ def detect_repo():
     return f'{m.group(1)}/{m.group(2)}' if m else None
 
 
+def tracked_branch():
+    """The branch CI ran on: the one this checkout pushes to, else its own name."""
+    try:
+        up = git('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}')   # origin/<branch>
+        return up.split('/', 1)[1] if '/' in up else up
+    except subprocess.CalledProcessError:
+        return git('rev-parse', '--abbrev-ref', 'HEAD')
+
+
 def fetch_latest(repo, branch, dest_dir):
     def gh(*args):
         try:
@@ -246,7 +255,7 @@ def main():
                     help=f'the image (default: {os.path.relpath(DEFAULT_UF2, REPO)})')
     ap.add_argument('--fetch', action='store_true', help='download the newest successful CI build into build/ first')
     ap.add_argument('--repo', help='GitHub owner/name for --fetch (default: the origin remote)')
-    ap.add_argument('--branch', help='branch for --fetch (default: the checked-out branch; "" for any)')
+    ap.add_argument('--branch', help='branch for --fetch (default: the branch this checkout tracks; "" for any)')
     ap.add_argument('--drive', help='bootloader drive root, when auto-detection cannot see it')
     ap.add_argument('--timeout', type=float, default=120, help='seconds to wait for the drive (default 120)')
     ap.add_argument('--no-verify', action='store_true', help='do not wait for the controller to re-enumerate')
@@ -261,7 +270,7 @@ def main():
         repo = args.repo or detect_repo()
         if not repo:
             sys.exit('cannot work out the GitHub repo; pass --repo owner/name')
-        branch = args.branch if args.branch is not None else git('rev-parse', '--abbrev-ref', 'HEAD')
+        branch = args.branch if args.branch is not None else tracked_branch()
         args.uf2 = fetch_latest(repo, branch or None, os.path.dirname(DEFAULT_UF2))
 
     if not os.path.isfile(args.uf2):
