@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alice in AI Land — Flash the Badge</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>flash the badge · <a href="index.html">the stages</a> · <a href="glitch.html">glitch range</a></small>
+    </span>
+  </div>
+
+  <div class="controls pad-status">
+    <span id="usbState" class="pad-device">checking for WebUSB…</span>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Flash the badge from this page</h2>
+    <p class="note">The RP2040's ROM bootloader takes firmware over USB, and a Chromium browser can talk to it
+      directly through <b>WebUSB</b> — no picotool, no drive to find, no Python. Chrome, Edge or any other
+      Chromium browser, on Windows, macOS, Linux, ChromeOS and Android. Not Firefox, not Safari, and nothing
+      on an iPhone; those get the <a href="#manual">download</a> below.</p>
+    <ol class="steps">
+      <li><b>Put the badge in the bootloader.</b> Hold <b>BootSel</b> while plugging it in — or, on the
+        quick-glitch firmware, hold <b>SELECT + START</b> for two seconds. The LED goes dark. A small drive
+        called <code>RPI-RP2</code> may pop up; leave it alone.</li>
+      <li><b>Pick a firmware</b> below and press <b>Flash</b>. The browser asks which device to use:
+        choose <b>RP2 Boot</b>.</li>
+      <li><b>Wait for the reboot.</b> The page erases, writes, reads back, then restarts the badge into
+        the new firmware. Press any button on it afterwards and the log says when the browser sees the
+        controller.</li>
+    </ol>
+  </section>
+
+  <section class="panel">
+    <h2>Firmware</h2>
+    <p class="note">What goes on the badge. The site's deploy builds each image from the same commit it
+      publishes, so what you flash is what the page was written against.</p>
+    <div id="images" class="images"></div>
+    <p class="note file-pick">…or a <code>.uf2</code> you built yourself:
+      <input id="file" type="file" accept=".uf2,application/octet-stream"></p>
+
+    <div class="stage-bar">
+      <button id="flashBtn" class="btn" disabled>Flash</button>
+      <a id="downloadBtn" class="btn ghost" hidden download>Download .uf2</a>
+      <span id="flashStatus" class="status">pick a firmware</span>
+    </div>
+    <progress id="progress" class="flash-progress" max="1" value="0" hidden></progress>
+    <ol id="flashLog" class="log flash-log" reversed></ol>
+  </section>
+
+  <section class="panel" id="manual">
+    <h2>Without WebUSB</h2>
+    <p class="note">Download the <code>.uf2</code>, put the badge in the bootloader, and copy the file onto the
+      <code>RPI-RP2</code> drive that appears; the badge reboots the moment the last block lands. From a
+      checkout, <code>python3 software/tools/flash-badge.py --fetch</code> does the same and confirms the
+      controller came back.</p>
+    <p class="note"><b>Linux:</b> the browser has to be allowed to open the bootloader's USB device. Install
+      picotool's udev rule once, then re-plug the badge:</p>
+<pre><code>sudo tee /etc/udev/rules.d/99-picotool.rules &lt;&lt;'EOF'
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="0003", TAG+="uaccess", MODE="660", GROUP="plugdev"
+EOF
+sudo udevadm control --reload-rules</code></pre>
+    <p class="note"><b>Windows:</b> nothing to install — the bootloader carries the descriptors that bind
+      WinUSB to its PICOBOOT interface. If the chooser lists no <em>RP2 Boot</em>, the badge is not in the
+      bootloader.</p>
+    <p class="note"><b>Android:</b> Chrome works over a USB-C or OTG cable. Dismiss the "USB drive"
+      notification if one appears; the page does not need the drive.</p>
+    <p class="note">What the page does is what <code>picotool load</code> does: claim the bootloader's
+      PICOBOOT interface, erase and program flash one 4 KB sector at a time, read it all back, reboot.
+      Source: <code>src/picoboot.js</code> and <code>src/uf2.js</code>, tested without a board by
+      <code>software/tools/verify-flash.mjs</code>.</p>
+  </section>
+</main>
+
+<script type="module" src="src/flash.js"></script>
+</body>
+</html>

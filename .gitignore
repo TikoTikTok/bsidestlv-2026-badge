@@ -18,6 +18,9 @@ software/controller/test/test_glitch
 
 # --- Pages staging ---
 _site/
+# The deploy builds firmware/ (glitch.uf2 + index.json) next to the site;
+# a local copy is for trying flash.html and is never committed.
+firmware/
 
 # --- Node ---
 node_modules/
