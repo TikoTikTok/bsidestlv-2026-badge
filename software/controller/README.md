@@ -204,6 +204,14 @@ python3 software/tools/flash-badge.py --status        # what is plugged in right
 `controller.uf2` on every push under `software/controller/` and keeps it as a
 run artifact for 90 days. Windows, macOS and Linux, standard library only.
 
+**From a browser**, with nothing installed at all: `flash.html` on the site
+(the Pages deploy builds the image it offers from the same commit) claims the
+bootloader's PICOBOOT interface over WebUSB and does what `picotool load`
+does - erase, program, read back, reboot. Chrome, Edge or another Chromium
+browser on Windows, macOS, Linux, ChromeOS and Android; Linux needs
+picotool's udev rule, which the page quotes. The client is `src/picoboot.js`
+and `src/uf2.js`, tested without a board by `software/tools/verify-flash.mjs`.
+
 `picotool reboot` cannot do this: the firmware has no reset interface, and
 adding one would change the shape of the device iOS keys on. The chord is the
 software route.
