@@ -111,23 +111,73 @@ for (const b of touchPad.querySelectorAll('button[data-btn]')) {
   b.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
-// The look. The <head> script already set data-theme before first paint;
-// this gives it a menu and a memory, and does the two things CSS cannot:
-// fold or unfold the prose, and keep the handheld's pad out, since there it
-// is part of the body rather than a sheet.
-const LOOKS = ['classic', 'bench', 'handheld', 'scope'];
-const lookSel = $('#look');
-function setLook(look, { remember = true } = {}) {
-  if (!LOOKS.includes(look)) look = 'classic';
-  document.documentElement.dataset.theme = look;
-  lookSel.value = look;
-  if (remember) try { localStorage.setItem('glitch.look', look); } catch { /* storage may be off */ }
-  for (const d of document.querySelectorAll('details.how')) d.open = look === 'classic';
-  if (look === 'handheld') touchPad.open = true;
+// The looks come from src/looks/index.json: id, label, blurb, swatch, shape
+// and flags. The <head> script already applied the chosen id and its
+// stylesheet before first paint; this loads the manifest, builds the picker
+// (the sheet behind the header's chip, and the same cards in the help),
+// swaps the look's stylesheet when the choice changes, and does the two
+// things CSS cannot: fold or unfold the prose, and keep a look's pad out
+// when the look says it is part of the body.
+const LOOK_DIR = 'src/looks/';
+const looks = (await (await fetch(`${LOOK_DIR}index.json`)).json()).looks;
+const lookById = Object.fromEntries(looks.map(l => [l.id, l]));
+const html = document.documentElement;
+const defaultLook = () =>
+  (matchMedia('(pointer: coarse)').matches && lookById[html.dataset.lookTouch]) ? html.dataset.lookTouch : 'classic';
+
+// one <link> carries the look in force; the next one loads before the old one goes, so nothing flashes
+let lookLink = document.querySelector('link[data-look]');
+function loadLookSheet(id) {
+  const old = lookLink;
+  if (id === 'classic') { old?.remove(); lookLink = null; html.dataset.theme = id; return; }
+  if (old?.dataset.look === id) { html.dataset.theme = id; return; }
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `${LOOK_DIR}${id}.css`;
+  link.dataset.look = id;
+  link.onload = link.onerror = () => { html.dataset.theme = id; old?.remove(); };
+  document.head.append(link);
+  lookLink = link;
+}
+
+function setLook(id, { remember = true } = {}) {
+  if (!lookById[id]) id = 'classic';
+  loadLookSheet(id);
+  if (remember) try { localStorage.setItem('glitch.look', id); } catch { /* storage may be off */ }
+  $('#lookChip .look-name').textContent = lookById[id].label;
+  for (const c of document.querySelectorAll('.look-card')) c.classList.toggle('on', c.dataset.look === id);
+  for (const d of document.querySelectorAll('details.how')) d.open = id === 'classic';
+  if (lookById[id].padAlwaysOut) touchPad.open = true;
   padOpen();
 }
-setLook(document.documentElement.dataset.theme, { remember: false });
-lookSel.addEventListener('change', () => setLook(lookSel.value));
+
+// the picker: one card per look, its miniature painted in the look's two swatch colours
+function lookCard(l) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'look-card';
+  b.dataset.look = l.id;
+  b.style.setProperty('--ground', l.swatch[0]);
+  b.style.setProperty('--tint', l.swatch[1]);
+  const mini = span('look-mini', '');
+  mini.dataset.shape = l.shape;
+  mini.append(span('mini-bar', ''), span('mini-panel', ''), span('mini-pad', ''));
+  b.append(mini, span('look-label', l.label), span('look-blurb', l.blurb));
+  b.addEventListener('click', () => { setLook(l.id); lookSheet.close(); });
+  return b;
+}
+const lookSheet = $('#lookSheet');
+for (const host of document.querySelectorAll('.look-cards')) for (const l of looks) host.append(lookCard(l));
+$('#lookChip').addEventListener('click', () => lookSheet.showModal());
+$('#lookClose').addEventListener('click', () => lookSheet.close());
+lookSheet.addEventListener('click', (e) => { if (e.target === lookSheet) lookSheet.close(); });   // a tap on the backdrop
+$('#lookDefaultName').textContent = lookById[defaultLook()].label;
+$('#lookDefault').addEventListener('click', () => {
+  try { localStorage.removeItem('glitch.look'); } catch { /* storage may be off */ }
+  setLook(defaultLook(), { remember: false });
+  lookSheet.close();
+});
+setLook(html.dataset.theme, { remember: false });
 
 // The phone looks show one thing at a time: a range (which also arms it),
 // the bench, or the help. The classic look ignores the mode and shows all.

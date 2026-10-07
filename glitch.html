@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en" data-theme="classic" data-mode="watch">
+<!-- data-look-touch: the look a touch screen opens on; any id from src/looks/index.json -->
+<html lang="en" data-theme="classic" data-mode="watch" data-look-touch="bench">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -8,14 +9,24 @@
 <link rel="stylesheet" href="src/glitch.css">
 <script>
 // The look, before first paint: ?look= in the URL, else the one chosen last
-// time, else the tidy bench on a touch screen and the classic page elsewhere.
-// src/glitch.js owns everything else about it; this only avoids a flash.
+// time, else data-look-touch on a touch screen and the classic page
+// elsewhere. A phone look is one stylesheet in src/looks/<id>.css, added
+// here so the page never paints in the wrong shape. src/glitch.js owns
+// everything else about looks (the manifest, the picker, switching).
 (function () {
   try {
+    var html = document.documentElement;
     var q = new URLSearchParams(location.search).get('look');
     var look = q || localStorage.getItem('glitch.look') ||
-               (matchMedia('(pointer: coarse)').matches ? 'bench' : 'classic');
-    document.documentElement.dataset.theme = look;
+               (matchMedia('(pointer: coarse)').matches ? html.dataset.lookTouch : 'classic') || 'classic';
+    html.dataset.theme = look;
+    if (look !== 'classic') {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'src/looks/' + encodeURIComponent(look) + '.css';
+      link.dataset.look = look;
+      document.head.appendChild(link);
+    }
   } catch (e) { /* keep the classic look */ }
 })();
 </script>
@@ -34,14 +45,7 @@
   <div class="controls pad-status">
     <span id="padDevice" class="pad-device">keyboard</span>
     <span id="padLeds" class="pad-leds"></span>
-    <label class="look">Look
-      <select id="look">
-        <option value="classic">classic</option>
-        <option value="bench">tidy bench</option>
-        <option value="handheld">handheld</option>
-        <option value="scope">scope</option>
-      </select>
-    </label>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
   </div>
 </header>
 
@@ -62,11 +66,13 @@
       A B X Y, <kbd>Q</kbd> <kbd>E</kbd> for the shoulders, <kbd>Enter</kbd> for START.</p>
     <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
       of each is meant for a hand; the last is not, and that is the lesson.</p>
-    <p class="note">The <b>Look</b> menu in the header picks the page's shape: the classic page,
-      or one of three phone looks that show one range at a time — a tidy bench, a handheld with
-      the pad moulded in, and a scope that puts the measurement first. <code>?look=scope</code>
-      in the address bar picks one too.</p>
     <p class="note">Elsewhere: <a href="index.html">the stages</a> · <a href="flash.html">flash the badge</a>.</p>
+
+    <h2 style="margin-top: 1.25rem;">Looks</h2>
+    <p class="note">How the range sits on the screen: the classic page, or a phone look that shows
+      one range at a time. The <b>◐</b> chip in the header opens these same cards; <code>?look=scope</code>
+      in the address bar picks one too, and the choice is remembered on this device.</p>
+    <div class="look-cards"></div>
   </section>
 
   <section class="panel range" id="watchPanel" data-mode="watch">
@@ -187,6 +193,23 @@
       <code>software/controller/README.md</code>. Flashing it: <a href="flash.html">flash.html</a>.</p>
   </section>
 </main>
+
+<!-- the look picker: a bottom sheet with one card per look in src/looks/index.json -->
+<dialog id="lookSheet" class="look-sheet" aria-labelledby="lookTitle">
+  <div class="sheet">
+    <span class="handle" aria-hidden="true"></span>
+    <div class="sheet-head">
+      <b id="lookTitle">Look</b>
+      <button type="button" id="lookClose" class="btn ghost" aria-label="close">✕</button>
+    </div>
+    <p class="note">How the range sits on this screen. Tap to switch — the page keeps running. Remembered on this device.</p>
+    <div class="look-cards"></div>
+    <div class="sheet-foot">
+      <small>Default here: <span id="lookDefaultName"></span> · <code>?look=scope</code> in the address bar overrides.</small>
+      <button type="button" id="lookDefault" class="btn ghost">use default</button>
+    </div>
+  </div>
+</dialog>
 
 <details id="touchPad" class="touchpad">
   <summary>

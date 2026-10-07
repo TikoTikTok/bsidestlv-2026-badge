@@ -1,22 +1,20 @@
-/* Alice in AI Land - the glitch range's looks.
+/* Alice in AI Land - the glitch range on top of styles.css.
 
    styles.css is the shared chrome and, on its own, the classic look. This
    file adds what the range page has on top of it: a mode bar (one thing on
-   screen at a time), two timing traces, and three phone-first looks picked
-   by <html data-theme>: bench, handheld, scope. In the classic look all of
-   that stays switched off, so index.html and flash.html are untouched.
+   screen at a time), two timing traces, the look picker, and the block every
+   phone look shares. The looks themselves are one file each in src/looks/,
+   described by src/looks/index.json and loaded on demand; a look is picked
+   by <html data-theme>, and in the classic look everything here stays
+   switched off, so index.html and flash.html are untouched.
 
-   The three looks share one DOM. They differ in CSS only: the range panels
-   turn into flex columns and reorder, the pad's three clusters flatten into
-   one grid (display: contents) and take a grid-template-areas per look, and
-   the scope swaps the palette through the variables styles.css already uses. */
-
-:root { --amber: #f3b23f; }   /* a landing that was neither a win nor a crash */
+   The looks share one DOM. They differ in CSS only: the range panels turn
+   into flex columns and reorder, the pad's three clusters flatten into one
+   grid (display: contents) and take a grid-template-areas per look, and a
+   look may swap the palette through the variables styles.css already uses. */
 
 /* ------------------------------------------------------ in every look -- */
 
-.controls .look { text-transform: none; }
-.controls .look select { font-size: 11px; }
 
 .modes { display: none; }
 .mode {
@@ -82,8 +80,7 @@ html:not([data-theme=classic]) .pad-status {
 }
 html:not([data-theme=classic]) .pad-device { grid-area: dev; font-size: 10px; }
 html:not([data-theme=classic]) .pad-leds { grid-area: leds; gap: 3px; flex-wrap: nowrap; }
-html:not([data-theme=classic]) .look { grid-area: look; }
-html:not([data-theme=classic]) .look select { font-size: 10px; padding: .15rem .3rem; }
+html:not([data-theme=classic]) .look-chip { grid-area: look; }
 html:not([data-theme=classic]) .led { font-size: 0; width: 7px; height: 7px; min-width: 0; padding: 0; border-radius: 2px; }
 
 html:not([data-theme=classic]) .modes {
@@ -170,150 +167,97 @@ html:not([data-theme=classic]) .tp-face { display: contents; }
 .tp [data-btn=SELECT] { grid-area: sel; }
 .tp [data-btn=START] { grid-area: sta; }
 
-/* the bench and the handheld share the pad's shape: d-pad left, diamond right,
-   shoulders above each, select/start between */
-html[data-theme=bench] .tp, html[data-theme=handheld] .tp {
-  display: grid; justify-content: space-between; align-items: center; justify-items: center;
-  grid-template-columns: repeat(3, var(--key)) minmax(3.2rem, 1fr) repeat(3, var(--key));
-  grid-template-rows: auto repeat(3, var(--key));
-  grid-template-areas: 'sl sl . . . sr sr' '. u . . . y .' 'l . r sel x . b' '. d . sta . a .';
-  gap: 4px; padding: 4px 0 12px; max-width: 480px; margin: 0 auto;
-}
-html[data-theme=bench] .tp [data-btn=SL], html[data-theme=bench] .tp [data-btn=SR],
-html[data-theme=handheld] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SR] { width: calc(2 * var(--key) + 4px); height: 24px; }
-html[data-theme=bench] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SL] { justify-self: start; }
-html[data-theme=bench] .tp [data-btn=SR], html[data-theme=handheld] .tp [data-btn=SR] { justify-self: end; }
-html[data-theme=bench] .tp-mid button, html[data-theme=handheld] .tp-mid button { width: 100%; max-width: 64px; height: 24px; }
+/* ------------------------------------------------------- the look picker -- */
+/* a chip in the header opens a sheet of cards, one per look in the manifest;
+   the help panel shows the same cards. Each card's miniature is painted in
+   the look's two swatch colours and shaped by its `shape` (page / sheet /
+   device / dock), so a new look needs no artwork. */
 
-/* ------------------------------------------------------------ tidy bench -- */
+.look-chip {
+  font: inherit; font-size: 10px; letter-spacing: .08em; color: var(--accent); white-space: nowrap;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: 99px; height: 26px; padding: 0 10px; cursor: pointer;
+}
+.look-chip:hover { background: var(--panel-2); }
 
-html[data-theme=bench] .bar { padding: 8px 14px; gap: .5rem 1rem; }
-html[data-theme=bench] .brand b { font-size: 12px; }
-html[data-theme=bench] .tp { --key: min(40px, 10vw); }
+.look-sheet {
+  border: 0; padding: 0; background: transparent; color: var(--text);
+  width: min(100%, 560px); max-width: none; max-height: 92vh; inset: auto 0 0 0; margin: 0 auto;
+}
+.look-sheet::backdrop { background: rgba(5, 8, 15, .62); }
+.look-sheet .sheet {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.look-sheet .handle { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head b { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.sheet-head .btn { height: 28px; width: 28px; padding: 0; }
+.look-sheet .note { margin: 0; font-size: 10px; }
+.sheet-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sheet-foot small { font-size: 9px; color: var(--dim); }
+.sheet-foot code { color: var(--accent-2); }
+.sheet-foot .btn { flex: none; font-size: 9px; height: 26px; padding: 0 8px; }
 
-/* -------------------------------------------------------------- handheld -- */
+.look-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px) { .panel .look-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 760px; } }
+.look-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font: inherit; color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); cursor: pointer;
+}
+.look-card:hover { border-color: var(--accent); }
+.look-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
+.look-label { font-size: 11px; letter-spacing: .06em; font-weight: 600; }
+.look-card.on .look-label::after { content: ' · on'; font-size: 9px; color: var(--accent-2); letter-spacing: .1em; font-weight: 400; }
+.look-blurb { font-size: 9px; color: var(--dim); line-height: 1.35; }
 
-html[data-theme=handheld] {
-  --body: #142036; --bezel: #0a1120; --screen: #060a12;
-  --plastic: #1b2a47; --plastic-line: #2b3f66; --plastic-edge: #0b1322;
+/* the miniature: ground and tint from the manifest, the shape from its `shape` */
+.look-mini {
+  position: relative; display: block; height: 96px; border-radius: 6px; overflow: hidden;
+  background: var(--ground); border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent);
 }
-html[data-theme=handheld] body { background: var(--body); padding-bottom: 14px; }
-html[data-theme=handheld] .bar {
-  background: transparent; border-bottom: 0; backdrop-filter: none;
-  width: 100%; max-width: 560px; margin: 0 auto; padding: 6px 16px 0; min-height: 0;
+.look-mini > span { position: absolute; display: block; }
+.mini-bar { left: 0; right: 0; top: 0; height: 10px; background: color-mix(in srgb, var(--tint) 14%, var(--ground)); }
+.mini-bar::after { content: ''; position: absolute; left: 6px; top: 3px; width: 4px; height: 4px; border-radius: 1px; background: var(--tint); }
+.mini-panel {
+  left: 8px; right: 8px; top: 18px; height: 50px; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--tint) 35%, transparent); background: color-mix(in srgb, var(--tint) 8%, var(--ground));
 }
-html[data-theme=handheld] .brand .mark { font-size: 12px; text-shadow: none; }
-html[data-theme=handheld] .brand b { font-size: 10px; color: var(--dim); font-weight: 400; }
-html[data-theme=handheld] .brand small { display: none; }
-html[data-theme=handheld] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
-html[data-theme=handheld] .pad-device { font-size: 9px; }
-html[data-theme=handheld] .led { width: 6px; height: 6px; border-radius: 50%; border-color: var(--plastic-line); background: var(--plastic-edge); }
-html[data-theme=handheld] .led.on { background: var(--accent); box-shadow: 0 0 6px rgba(111, 176, 240, .8); }
-
-/* the screen in its bezel */
-html[data-theme=handheld] main {
-  order: 1; display: flex; width: calc(100% - 28px); max-width: 532px; margin: 4px auto 0; padding: 0; overflow: hidden;
+.mini-panel::after { content: ''; position: absolute; left: 6px; right: 6px; top: 8px; height: 24px; border-radius: 2px; background: #cfc6ad; }
+.mini-pad {
+  left: 0; right: 0; bottom: 0; height: 20px;
+  background: color-mix(in srgb, var(--tint) 10%, var(--ground)); border-top: 1px solid color-mix(in srgb, var(--tint) 30%, transparent);
 }
-html[data-theme=handheld] main > .panel {
-  flex: 1; min-height: 0; margin: 0; padding: 10px; overflow: auto;
-  background: var(--screen); border: 10px solid var(--bezel); border-radius: 18px;
-  box-shadow: 0 0 0 1px var(--plastic-edge), inset 0 0 0 1px #1a2742;
+.mini-pad::before, .mini-pad::after {
+  content: ''; position: absolute; bottom: 5px; width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--tint) 60%, transparent);
 }
-html[data-theme=handheld] main > .panel > h2 { font-size: 9px; letter-spacing: .16em; }
-html[data-theme=handheld] .glass > .listing { max-height: 76px; }
-html[data-theme=handheld] .readout .tile { padding: 5px 7px; }
-html[data-theme=handheld] .readout .tile b { font-size: 12px; }
-html[data-theme=handheld] .range > .log { max-height: 70px; }
-
-/* device buttons under the screen */
-html[data-theme=handheld] .modes { order: 2; margin: 12px auto 0; padding: 0; border: 0; background: transparent; gap: 8px; }
-html[data-theme=handheld] .mode {
-  flex: 0 0 auto; height: 34px; padding: 0 12px; font-size: 9px; border-radius: 8px; color: var(--text);
-  background: #1e2d4a; border: 1px solid var(--plastic-line); border-bottom: 3px solid var(--plastic-edge);
+.mini-pad::before { left: 14px; }
+.mini-pad::after { right: 14px; }
+/* page: the whole page scrolls, two panels, the pad fixed below */
+.look-mini[data-shape=page] .mini-panel { height: 22px; box-shadow: 0 28px 0 0 color-mix(in srgb, var(--tint) 8%, var(--ground)); }
+.look-mini[data-shape=page] .mini-panel::after { top: 5px; height: 10px; width: 36px; right: auto; }
+.look-mini[data-shape=page] .mini-pad { height: 14px; }
+.look-mini[data-shape=page] .mini-pad::before, .look-mini[data-shape=page] .mini-pad::after { width: 6px; height: 6px; bottom: 3px; }
+/* sheet: a mode bar over one panel, the pad as a sheet */
+.look-mini[data-shape=sheet] .mini-panel { top: 22px; height: 46px; border-top: 3px solid var(--tint); }
+/* device: a bezelled screen, the pad moulded into the body */
+.look-mini[data-shape=device] .mini-bar { background: transparent; }
+.look-mini[data-shape=device] .mini-panel {
+  left: 6px; right: 6px; top: 6px; height: 44px; border-radius: 6px; background: #060a12;
+  border: 4px solid color-mix(in srgb, var(--tint) 12%, #060a12);
 }
-html[data-theme=handheld] .mode.on { background: var(--accent); color: var(--ink); border-color: var(--accent); border-bottom-color: #3b78b8; }
-html[data-theme=handheld] .mode.help { margin-left: auto; width: 34px; padding: 0; font-size: 12px; }
-
-/* the pad, moulded into the body: always out, shoulders at the top corners, a grille below */
-html[data-theme=handheld] .touchpad {
-  order: 3; width: 100%; max-width: 560px; margin: 10px auto 0; padding: 0 6px;
-  background: transparent; border-top: 0; backdrop-filter: none;
+.look-mini[data-shape=device] .mini-panel::after { left: 8px; right: 8px; top: 8px; height: 20px; }
+.look-mini[data-shape=device] .mini-pad { height: 34px; background: transparent; border-top: 0; }
+.look-mini[data-shape=device] .mini-pad::before, .look-mini[data-shape=device] .mini-pad::after {
+  width: 14px; height: 14px; bottom: 9px; border-radius: 4px;
+  background: color-mix(in srgb, var(--tint) 35%, var(--ground)); border-color: #0b1322;
 }
-html[data-theme=handheld] .touchpad summary { display: none; }
-html[data-theme=handheld] .tp {
-  --key: min(52px, 12vw); padding: 0 0 4px; max-width: none;
-  grid-template-rows: auto repeat(3, var(--key)) auto;
-  grid-template-areas: 'sl sl . . . sr sr' '. u . . . y .' 'l . r sel x . b' '. d . sta . a .' 'g g g g g g g';
-}
-html[data-theme=handheld] .tp::after {
-  content: ''; grid-area: g; width: 60px; height: 14px; justify-self: center;
-  background: repeating-linear-gradient(90deg, var(--plastic-edge) 0 3px, transparent 3px 9px);
-}
-html[data-theme=handheld] .tp button {
-  background: var(--plastic); border: 1px solid var(--plastic-line); border-bottom: 3px solid var(--plastic-edge);
-  border-radius: 12px; font-size: 14px;
-}
-html[data-theme=handheld] .tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); border-bottom-color: #3b78b8; }
-html[data-theme=handheld] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SR] { height: 28px; border-radius: 14px 14px 6px 6px; font-size: 10px; }
-html[data-theme=handheld] .tp [data-btn=SL] { margin-left: 10px; }
-html[data-theme=handheld] .tp [data-btn=SR] { margin-right: 10px; }
-html[data-theme=handheld] .tp-mid button { width: 48px; height: 22px; border-radius: 99px; border-bottom-width: 2px; font-size: 8px; }
-
-/* ----------------------------------------------------------------- scope -- */
-
-html[data-theme=scope] {
-  --ink: #050806; --panel: #0b120d; --panel-2: #0f1a12; --line: #1b2e22;
-  --text: #c9f5d3; --dim: #6f9b7c; --accent: #5cf29a; --accent-2: #e8ff7a; --hot: #ff6b6b;
-}
-html[data-theme=scope] body {
-  background: radial-gradient(1200px 600px at 50% -10%, #0a160e 0%, transparent 60%), var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-html[data-theme=scope] .bar { background: var(--ink); padding: 8px 14px; }
-html[data-theme=scope] .brand .mark { display: none; }
-html[data-theme=scope] .brand b { font-size: 10px; letter-spacing: .18em; font-weight: 400; color: var(--dim); }
-html[data-theme=scope] .brand small { display: none; }
-html[data-theme=scope] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
-html[data-theme=scope] .pad-device { font-size: 9px; letter-spacing: .08em; }
-html[data-theme=scope] .pad-device.on { color: var(--accent); }
-html[data-theme=scope] .pad-leds { align-items: flex-end; gap: 2px; }
-html[data-theme=scope] .led { width: 3px; height: 10px; border: 0; border-radius: 1px; background: var(--line); }
-html[data-theme=scope] .led.on { background: var(--accent); box-shadow: 0 0 6px rgba(92, 242, 154, .8); }
-
-/* mode keys like an instrument's: flat, the lit one underlined */
-html[data-theme=scope] .modes { padding: 0; border: 0; background: transparent; gap: 6px; }
-html[data-theme=scope] .mode { height: 36px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); letter-spacing: .16em; }
-html[data-theme=scope] .mode.on { background: var(--panel); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
-
-/* no panel box: each block is its own instrument window on the black */
-html[data-theme=scope] main > .panel { background: transparent; border: 0; padding: 0; margin: 12px 0; }
-html[data-theme=scope] .stage-wrap, html[data-theme=scope] .listing, html[data-theme=scope] .tile,
-html[data-theme=scope] .glyph, html[data-theme=scope] .watch canvas, html[data-theme=scope] .log { background: var(--panel); border-radius: 6px; }
-html[data-theme=scope] .log { border: 1px solid var(--line); padding: 6px 10px 6px 1.6rem; }
-html[data-theme=scope] .listing li.pc { background: rgba(92, 242, 154, .18); }
-html[data-theme=scope] .glyph.next { box-shadow: 0 0 10px rgba(92, 242, 154, .35); }
-html[data-theme=scope] .tab.on { color: var(--ink); }
-html[data-theme=scope] .btn { border-radius: 4px; letter-spacing: .16em; }
-html[data-theme=scope] .trace-ticks span.pc { box-shadow: 0 0 6px rgba(92, 242, 154, .8); }
-
-/* the measurement first: offset and width as big numerals, the verdict as a band */
-html[data-theme=scope] .range > .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-html[data-theme=scope] .readout .tile:nth-child(-n+2) { padding: 8px 12px; }
-html[data-theme=scope] .readout .tile:nth-child(-n+2) b { order: -1; font-size: 36px; line-height: 1; letter-spacing: -.02em; }
-html[data-theme=scope] .readout .tile:nth-child(-n+2) small:first-child { margin-top: 6px; letter-spacing: .14em; }
-html[data-theme=scope] .readout .tile:last-child b { font-size: 16px; letter-spacing: .16em; }
-
-/* the pad as a dock of soft keys, two rows of six */
-html[data-theme=scope] .touchpad { background: #070b08; }
-html[data-theme=scope] .tp {
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 8px 0 12px; max-width: 480px;
-  grid-template-areas: 'l u d r sel sta' 'sl sr y x b a';
-}
-html[data-theme=scope] .tp button {
-  width: auto; height: 44px; padding: 0; border-radius: 4px; font-size: 12px; letter-spacing: .06em;
-  background: var(--panel); border: 1px solid var(--line);
-}
-html[data-theme=scope] .tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); }
-html[data-theme=scope] .tp-mid button { font-size: 9px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
-html[data-theme=scope] .tp [data-btn=SL], html[data-theme=scope] .tp [data-btn=SR] { font-size: 10px; }
-html[data-theme=scope] .tp [data-btn=X] { color: var(--accent); border-color: #2f7a52; }
+/* dock: the measurement first, keys in rows */
+.look-mini[data-shape=dock] .mini-panel { border: 0; background: transparent; }
+.look-mini[data-shape=dock] .mini-panel::after { left: 0; right: auto; top: 0; width: 44px; height: 16px; background: var(--tint); }
+.look-mini[data-shape=dock] .mini-pad { height: 30px; background: transparent; border-top: 0; }
+.look-mini[data-shape=dock] .mini-pad::before, .look-mini[data-shape=dock] .mini-pad::after { width: 18px; height: 9px; border-radius: 2px; bottom: 4px; }
+.look-mini[data-shape=dock] .mini-pad::before { left: 8px; box-shadow: 22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent), 44px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
+.look-mini[data-shape=dock] .mini-pad::after { right: 8px; box-shadow: -22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
