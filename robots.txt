@@ -1,0 +1,46 @@
+# Alice in AI Land - BSidesTLV 2026 badge challenge.
+#
+# This is a puzzle for people holding a badge. There is nothing here to
+# learn from and nothing here to solve from a crawl: the stages that matter
+# are sealed under a key that lives on the badge. Everything a crawler can
+# reach is either public art or the rabbit hole.
+#
+# Note for the maintainer: a robots.txt is only honoured at a host's root.
+# On a project page (https://<user>.github.io/<repo>/) this file is served
+# under /<repo>/ and no crawler reads it there; it works once the site has
+# its own domain. The per-page <meta name="robots" content="noai"> tags and
+# the rabbit hole do not depend on it.
+
+User-agent: GPTBot
+User-agent: ChatGPT-User
+User-agent: OAI-SearchBot
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: anthropic-ai
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: Bytespider
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Amazonbot
+User-agent: meta-externalagent
+User-agent: FacebookBot
+User-agent: Diffbot
+User-agent: cohere-ai
+User-agent: Omgilibot
+User-agent: ImagesiftBot
+User-agent: YouBot
+User-agent: DuckAssistBot
+User-agent: MistralAI-User
+User-agent: AI2Bot
+User-agent: Ai2Bot-Dolma
+User-agent: PanguBot
+User-agent: Timpibot
+User-agent: Scrapy
+Disallow: /
+
+User-agent: *
+Disallow: /rabbit-hole/
+Disallow: /stages/sealed/
