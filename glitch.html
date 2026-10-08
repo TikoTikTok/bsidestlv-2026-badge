@@ -1,10 +1,35 @@
 <!doctype html>
-<html lang="en">
+<!-- data-look-touch: the look a touch screen opens on; any id from src/looks/index.json -->
+<html lang="en" data-theme="classic" data-mode="watch" data-look-touch="bench">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Alice in AI Land — Glitch Range</title>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="src/glitch.css">
+<script>
+// The look, before first paint: ?look= in the URL, else the one chosen last
+// time, else data-look-touch on a touch screen and the classic page
+// elsewhere. A phone look is one stylesheet in src/looks/<id>.css, added
+// here so the page never paints in the wrong shape. src/glitch.js owns
+// everything else about looks (the manifest, the picker, switching).
+(function () {
+  try {
+    var html = document.documentElement;
+    var q = new URLSearchParams(location.search).get('look');
+    var look = q || localStorage.getItem('glitch.look') ||
+               (matchMedia('(pointer: coarse)').matches ? html.dataset.lookTouch : 'classic') || 'classic';
+    html.dataset.theme = look;
+    if (look !== 'classic') {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'src/looks/' + encodeURIComponent(look) + '.css';
+      link.dataset.look = look;
+      document.head.appendChild(link);
+    }
+  } catch (e) { /* keep the classic look */ }
+})();
+</script>
 </head>
 <body>
 
@@ -20,11 +45,20 @@
   <div class="controls pad-status">
     <span id="padDevice" class="pad-device">keyboard</span>
     <span id="padLeds" class="pad-leds"></span>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
   </div>
 </header>
 
+<!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look. -->
+<nav id="modes" class="modes" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="watch">Watch</button>
+  <button type="button" class="mode" data-mode="glass">Glass</button>
+  <button type="button" class="mode" data-mode="bench">Bench</button>
+  <button type="button" class="mode help" data-mode="help" aria-label="how it works">?</button>
+</nav>
+
 <main>
-  <section class="panel">
+  <section class="panel" data-mode="help">
     <h2>The range</h2>
     <p class="note">Two practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
       in and press anything — the header lights up when the browser sees it. Without one, the
@@ -32,21 +66,36 @@
       A B X Y, <kbd>Q</kbd> <kbd>E</kbd> for the shoulders, <kbd>Enter</kbd> for START.</p>
     <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
       of each is meant for a hand; the last is not, and that is the lesson.</p>
+    <p class="note">Elsewhere: <a href="index.html">the stages</a> · <a href="flash.html">flash the badge</a>.</p>
+
+    <h2 style="margin-top: 1.25rem;">Looks</h2>
+    <p class="note">How the range sits on the screen: the classic page, or a phone look that shows
+      one range at a time. The <b>◐</b> chip in the header opens these same cards; <code>?look=scope</code>
+      in the address bar picks one too, and the choice is remembered on this device.</p>
+    <div class="look-cards"></div>
   </section>
 
-  <section class="panel range" id="watchPanel">
+  <section class="panel range" id="watchPanel" data-mode="watch">
     <h2>Range 1 — The Rabbit's Pocket Watch <span class="armed-mark">● armed</span></h2>
-    <p class="note">The Rabbit chimes a tune of buttons. Play it back, in order, inside the window
-      — measured from your first press to your last. A wrong button or a slow finish ends the
-      attempt; the next press starts a fresh one. The tune is fixed per level, so a take recorded
-      once on the badge keeps working: record it slowly, then <b>SELECT+UP</b> until it fits.</p>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Rabbit chimes a tune of buttons. Play it back, in order, inside the window
+        — measured from your first press to your last. A wrong button or a slow finish ends the
+        attempt; the next press starts a fresh one. The tune is fixed per level, so a take recorded
+        once on the badge keeps working: record it slowly, then <b>SELECT+UP</b> until it fits.</p>
+    </details>
 
     <div id="watchTabs" class="tabs"></div>
 
     <div class="watch">
       <canvas id="rabbit" width="96" height="96"></canvas>
-      <div>
+      <div class="watch-side">
         <div id="comboSeq" class="combo"></div>
+        <div id="watchTrace" class="trace">
+          <div class="trace-head"><span id="wtHead"></span><span id="wtGaps"></span></div>
+          <div class="trace-bar"><div id="wtFill" class="trace-fill"></div><div id="wtMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="wtMid"></span><span id="wtEnd"></span></div>
+        </div>
         <div class="stage-bar">
           <span id="watchStatus" class="status">press the first button to start the clock</span>
           <button id="watchShuffle" class="btn ghost">New tune</button>
@@ -56,16 +105,19 @@
     <ol id="watchLog" class="log" reversed></ol>
   </section>
 
-  <section class="panel range" id="glassPanel">
+  <section class="panel range" id="glassPanel" data-mode="glass">
     <h2>Range 2 — The Looking-Glass Glitch <span class="armed-mark">● armed</span></h2>
-    <p class="note">The Queen's guard runs a routine at the treasure room door, one line per tick.
-      One of those lines is the check that turns Alice away. A pulse on <b>X</b> whose rising edge
-      lands while that line executes skips it — the routine falls through, the door opens, and
-      Alice jumps to the treasure. <b>START</b> is the trigger: the routine starts the instant the
-      browser sees it. Land anywhere else and the log says where you hit and by how much.</p>
-    <p class="note">A pulse is measured from its rising edge to its falling edge. Every line under
-      it is corrupted, some lines crash the guard, and a pulse wider than the guard survives
-      browns it out. Width is the badge's <b>speed</b>; offset is <b>SELECT+LEFT/RIGHT</b>.</p>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Queen's guard runs a routine at the treasure room door, one line per tick.
+        One of those lines is the check that turns Alice away. A pulse on <b>X</b> whose rising edge
+        lands while that line executes skips it — the routine falls through, the door opens, and
+        Alice jumps to the treasure. <b>START</b> is the trigger: the routine starts the instant the
+        browser sees it. Land anywhere else and the log says where you hit and by how much.</p>
+      <p class="note">A pulse is measured from its rising edge to its falling edge. Every line under
+        it is corrupted, some lines crash the guard, and a pulse wider than the guard survives
+        browns it out. Width is the badge's <b>speed</b>; offset is <b>SELECT+LEFT/RIGHT</b>.</p>
+    </details>
 
     <div id="glassTabs" class="tabs"></div>
     <p id="glassBlurb" class="note"></p>
@@ -82,21 +134,32 @@
     </div>
 
     <div class="readout">
-      <div class="tile"><small>offset</small><b id="roOffset">—</b><small>trigger → rising edge</small></div>
-      <div class="tile"><small>width</small><b id="roWidth">—</b><small>rising → falling edge</small></div>
+      <div class="tile"><small>offset · ms</small><b id="roOffset">—</b><small>trigger → rising edge</small></div>
+      <div class="tile"><small>width · ms</small><b id="roWidth">—</b><small>rising → falling edge</small></div>
       <div class="tile"><small>landed</small><b id="roLanded">—</b><small>step · line</small></div>
       <div class="tile"><small>from target</small><b id="roDelta">—</b><small>lines · ms</small></div>
       <div class="tile"><small>verdict</small><b id="roVerdict">—</b><small id="roHint">&nbsp;</small></div>
     </div>
+
+    <!-- where the pulse landed against the routine, tick by tick -->
+    <div id="glassTrace" class="trace">
+      <div class="trace-head"><span id="traceHead"></span><span id="traceLanded"></span></div>
+      <div class="trace-band"><span id="tracePulse" class="trace-pulse" hidden></span></div>
+      <div id="traceTicks" class="trace-ticks"></div>
+      <div class="trace-axis"><span>0 ms</span><span id="traceMid"></span><span id="traceEnd"></span></div>
+    </div>
     <ol id="glassLog" class="log" reversed></ol>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="benchPanel" data-mode="bench">
     <h2>Bench</h2>
-    <p class="note">Every edge the browser sees, timed from the last <b>START</b> press, whichever
-      range is armed. Fire the badge and read the offset and width straight off it. The browser
-      samples the pad every ~16 ms, so expect that much rounding; for microseconds use
-      <code>software/tools/hid-trace.py</code> on the raw HID reports.</p>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">Every edge the browser sees, timed from the last <b>START</b> press, whichever
+        range is armed. Fire the badge and read the offset and width straight off it. The browser
+        samples the pad every ~16 ms, so expect that much rounding; for microseconds use
+        <code>software/tools/hid-trace.py</code> on the raw HID reports.</p>
+    </details>
     <div class="stage-bar">
       <button id="benchClear" class="btn ghost">Clear</button>
       <span id="benchStatus" class="status">no edges yet</span>
@@ -104,7 +167,7 @@
     <ol id="benchLog" class="log bench" reversed></ol>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-mode="help">
     <h2>Using the badge</h2>
     <p class="note"><b>SELECT</b> is the shift key. While it is held nothing you press reaches the
       browser, and every other button is a command. A plain SELECT still arrives as a tap when you
@@ -129,32 +192,61 @@
     <p class="note">Firmware, engine tests and the chord table:
       <code>software/controller/README.md</code>. Flashing it: <a href="flash.html">flash.html</a>.</p>
   </section>
-
-  <details id="touchPad" class="touchpad">
-    <summary>on-screen pad <small>for a phone without the badge · the Bench marks these edges <code>ui</code></small></summary>
-    <div class="tp">
-      <div class="tp-dpad">
-        <button type="button" data-btn="UP" aria-label="up">▲</button>
-        <button type="button" data-btn="LEFT" aria-label="left">◀</button>
-        <button type="button" data-btn="RIGHT" aria-label="right">▶</button>
-        <button type="button" data-btn="DOWN" aria-label="down">▼</button>
-      </div>
-      <div class="tp-mid">
-        <button type="button" data-btn="SELECT">select</button>
-        <button type="button" data-btn="START">start</button>
-      </div>
-      <div class="tp-face">
-        <button type="button" data-btn="SL">SL</button>
-        <button type="button" data-btn="SR">SR</button>
-        <button type="button" data-btn="Y">Y</button>
-        <button type="button" data-btn="X">X</button>
-        <button type="button" data-btn="B">B</button>
-        <button type="button" data-btn="A">A</button>
-      </div>
-    </div>
-  </details>
 </main>
 
+<!-- the look picker: a bottom sheet with one card per look in src/looks/index.json -->
+<dialog id="lookSheet" class="look-sheet" aria-labelledby="lookTitle">
+  <div class="sheet">
+    <span class="handle" aria-hidden="true"></span>
+    <div class="sheet-head">
+      <b id="lookTitle">Look</b>
+      <button type="button" id="lookClose" class="btn ghost" aria-label="close">✕</button>
+    </div>
+    <p class="note">How the range sits on this screen. Tap to switch — the page keeps running. Remembered on this device.</p>
+    <div class="look-cards"></div>
+    <div class="sheet-foot">
+      <small>Default here: <span id="lookDefaultName"></span> · <code>?look=scope</code> in the address bar overrides.</small>
+      <button type="button" id="lookDefault" class="btn ghost">use default</button>
+    </div>
+  </div>
+</dialog>
+
+<details id="touchPad" class="touchpad">
+  <summary>
+    <span class="tp-label">on-screen pad</span>
+    <span class="tp-hint"><small>for a phone without the badge · the Bench marks these edges <code>ui</code></small></span>
+  </summary>
+  <div class="tp">
+    <div class="tp-dpad">
+      <button type="button" data-btn="UP" aria-label="up">▲</button>
+      <button type="button" data-btn="LEFT" aria-label="left">◀</button>
+      <button type="button" data-btn="RIGHT" aria-label="right">▶</button>
+      <button type="button" data-btn="DOWN" aria-label="down">▼</button>
+    </div>
+    <div class="tp-mid">
+      <button type="button" data-btn="SELECT">select</button>
+      <button type="button" data-btn="START">start</button>
+    </div>
+    <div class="tp-face">
+      <button type="button" data-btn="SL">SL</button>
+      <button type="button" data-btn="SR">SR</button>
+      <button type="button" data-btn="Y">Y</button>
+      <button type="button" data-btn="X">X</button>
+      <button type="button" data-btn="B">B</button>
+      <button type="button" data-btn="A">A</button>
+    </div>
+  </div>
+</details>
+
+<script>
+// The module below waits for the art before it runs; until then, fold the
+// prose for the phone looks and keep the handheld's pad out, so nothing jumps.
+(function () {
+  var look = document.documentElement.dataset.theme;
+  for (var d of document.querySelectorAll('details.how')) d.open = look === 'classic';
+  if (look === 'handheld') document.getElementById('touchPad').open = true;
+})();
+</script>
 <script type="module" src="src/glitch.js"></script>
 </body>
 </html>

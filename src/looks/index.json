@@ -1,0 +1,9 @@
+{
+  "_": "The glitch range's looks. One entry per look; the phone looks each have src/looks/<id>.css, loaded on demand. Add a look = a file + an entry; replace one = swap its file, keep its id. shape picks the picker card's miniature: page | sheet | device | dock. padAlwaysOut: the on-screen pad is part of the body, never folded. The touch-screen default is data-look-touch on <html> in glitch.html.",
+  "looks": [
+    { "id": "classic",  "label": "classic",    "blurb": "the whole page, both ranges, the pad fixed below", "swatch": ["#05080f", "#6fb0f0"], "shape": "page",   "phone": false },
+    { "id": "bench",    "label": "tidy bench", "blurb": "one range at a time, the pad as a sheet",          "swatch": ["#05080f", "#6fb0f0"], "shape": "sheet",  "phone": true },
+    { "id": "handheld", "label": "handheld",   "blurb": "the phone is the console",                        "swatch": ["#142036", "#6fb0f0"], "shape": "device", "phone": true, "padAlwaysOut": true },
+    { "id": "scope",    "label": "scope",      "blurb": "the measurement first, phosphor on black",       "swatch": ["#050806", "#5cf29a"], "shape": "dock",   "phone": true }
+  ]
+}

@@ -1,0 +1,263 @@
+/* Alice in AI Land - the glitch range on top of styles.css.
+
+   styles.css is the shared chrome and, on its own, the classic look. This
+   file adds what the range page has on top of it: a mode bar (one thing on
+   screen at a time), two timing traces, the look picker, and the block every
+   phone look shares. The looks themselves are one file each in src/looks/,
+   described by src/looks/index.json and loaded on demand; a look is picked
+   by <html data-theme>, and in the classic look everything here stays
+   switched off, so index.html and flash.html are untouched.
+
+   The looks share one DOM. They differ in CSS only: the range panels turn
+   into flex columns and reorder, the pad's three clusters flatten into one
+   grid (display: contents) and take a grid-template-areas per look, and a
+   look may swap the palette through the variables styles.css already uses. */
+
+/* ------------------------------------------------------ in every look -- */
+
+
+.modes { display: none; }
+.mode {
+  flex: 1; font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--dim); background: transparent; border: 0; border-radius: 6px; height: 32px; cursor: pointer;
+}
+.mode.on { background: var(--accent); color: var(--ink); }
+.mode.help { flex: 0 0 2.6rem; font-size: 13px; text-transform: none; }
+
+/* the prose folds on a phone; the classic look keeps it open (glitch.js sets `open`) */
+details.how > summary { display: none; }
+details.how > summary::-webkit-details-marker { display: none; }
+
+.tab .short { display: none; }
+
+/* the traces: where the pulse landed against the routine, and the tune inside its window */
+.trace { display: none; }
+.trace-head, .trace-axis {
+  display: flex; justify-content: space-between; gap: .5rem;
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+}
+.trace-axis { text-transform: none; letter-spacing: 0; margin-top: 3px; }
+.trace-band { position: relative; height: 10px; margin-top: 4px; }
+.trace-pulse {
+  position: absolute; top: 2px; height: 6px; min-width: 4px; border-radius: 1px;
+  background: var(--accent); box-shadow: 0 0 6px rgba(111, 176, 240, .7);
+}
+.trace-pulse.win { background: var(--accent-2); box-shadow: 0 0 6px rgba(63, 214, 163, .7); }
+.trace-pulse.hot { background: var(--hot); box-shadow: 0 0 6px rgba(244, 121, 141, .7); }
+.trace-pulse.nop { background: var(--amber); box-shadow: 0 0 6px rgba(243, 178, 63, .7); }
+.trace-ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
+.trace-ticks span { position: relative; height: 22px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2); }
+.trace-ticks span.target { background: rgba(63, 214, 163, .3); border-color: var(--accent-2); }
+.trace-ticks span.crash { border-color: var(--hot); }
+.trace-ticks span.crash::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+  border-radius: 50%; background: var(--hot);
+}
+.trace-ticks span.hit { background: rgba(111, 176, 240, .35); border-color: var(--accent); }
+.trace-ticks span.hit.win { background: rgba(63, 214, 163, .5); border-color: var(--accent-2); }
+.trace-ticks span.hit.hot { background: rgba(244, 121, 141, .4); border-color: var(--hot); }
+.trace-ticks span.hit.nop { background: rgba(243, 178, 63, .4); border-color: var(--amber); }
+.trace-ticks span.pc { background: var(--accent); border-color: var(--accent); }
+.trace-bar {
+  position: relative; height: 22px; margin-top: 4px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2);
+}
+.trace-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(111, 176, 240, .2); }
+.trace-fill.win { background: rgba(63, 214, 163, .25); }
+.trace-fill.hot { background: rgba(244, 121, 141, .25); }
+.trace-mark { position: absolute; top: 3px; width: 2px; height: 16px; background: var(--accent-2); box-shadow: 0 0 4px rgba(63, 214, 163, .8); }
+
+/* ------------------------------------------- the phone looks, shared part -- */
+
+html:not([data-theme=classic]) body {
+  display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; padding-bottom: 0;
+}
+html:not([data-theme=classic]) .bar { position: static; flex: none; }
+html:not([data-theme=classic]) .brand small { font-size: 10px; }
+html:not([data-theme=classic]) .pad-status {
+  display: grid; grid-template-columns: auto auto; grid-template-areas: 'dev look' 'leds look';
+  gap: 4px 10px; align-items: center; justify-items: end;
+}
+html:not([data-theme=classic]) .pad-device { grid-area: dev; font-size: 10px; }
+html:not([data-theme=classic]) .pad-leds { grid-area: leds; gap: 3px; flex-wrap: nowrap; }
+html:not([data-theme=classic]) .look-chip { grid-area: look; }
+html:not([data-theme=classic]) .led { font-size: 0; width: 7px; height: 7px; min-width: 0; padding: 0; border-radius: 2px; }
+
+html:not([data-theme=classic]) .modes {
+  display: flex; flex: none; width: calc(100% - 28px); max-width: 532px; margin: 10px auto 0; padding: 2px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+}
+html:not([data-theme=classic]) main {
+  flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 0 14px;
+}
+html:not([data-theme=classic]) main > .panel { margin: 12px 0; padding: 14px; }
+html:not([data-theme=classic]) main > .panel > h2 { font-size: 11px; }
+/* one thing on screen: the panels the mode did not pick go away */
+html:not([data-theme=classic])[data-mode=watch] main > .panel:not([data-mode=watch]),
+html:not([data-theme=classic])[data-mode=glass] main > .panel:not([data-mode=glass]),
+html:not([data-theme=classic])[data-mode=bench] main > .panel:not([data-mode=bench]),
+html:not([data-theme=classic])[data-mode=help] main > .panel:not([data-mode=help]) { display: none; }
+html:not([data-theme=classic]) .armed-mark { display: none; }
+html:not([data-theme=classic]) .range.armed { border-color: var(--line); box-shadow: none; }
+
+html:not([data-theme=classic]) details.how > summary {
+  display: block; cursor: pointer; list-style: none; font-size: 10px; color: var(--dim); letter-spacing: .04em;
+}
+html:not([data-theme=classic]) details.how > summary::after { content: ' ▸'; }
+html:not([data-theme=classic]) details.how[open] > summary::after { content: ' ▾'; }
+html:not([data-theme=classic]) details.how .note { margin-top: .5rem; }
+
+html:not([data-theme=classic]) .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 0; }
+html:not([data-theme=classic]) .tabs::-webkit-scrollbar { display: none; }
+html:not([data-theme=classic]) .tab { white-space: nowrap; font-size: 10px; padding: 5px 9px; }
+html:not([data-theme=classic]) .tab .long { display: none; }
+html:not([data-theme=classic]) .tab .short { display: inline; }
+
+html:not([data-theme=classic]) .trace { display: block; }
+
+/* the range panels become a column and reorder: the thing to look at comes first */
+html:not([data-theme=classic]) .range { display: flex; flex-direction: column; }
+/* a height-bound panel (the handheld's screen) scrolls; its items never squash */
+html:not([data-theme=classic]) .range > *, html:not([data-theme=classic]) .range > .glass > * { flex-shrink: 0; }
+html:not([data-theme=classic]) .range > h2 { order: 0; margin: 0; }
+html:not([data-theme=classic]) .range > details.how { order: 1; margin-top: 4px; }
+html:not([data-theme=classic]) .range > .tabs { order: 2; }
+html:not([data-theme=classic]) .range > .note { order: 3; margin: 8px 0 0; font-size: 11px; }
+html:not([data-theme=classic]) .glass { display: contents; }
+html:not([data-theme=classic]) .glass > .stage-wrap { order: 4; display: flex; justify-content: center; margin-top: 8px; padding: 0; overflow: hidden; }
+html:not([data-theme=classic]) .glass .stage-wrap canvas { width: min(100%, 432px); }
+html:not([data-theme=classic]) .range > .stage-bar { order: 5; margin-top: 8px; gap: 8px; }
+html:not([data-theme=classic]) .range > .stage-bar .status { order: -1; flex: 1 1 100%; }
+html:not([data-theme=classic]) .range > .readout { order: 6; margin-top: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+html:not([data-theme=classic]) .readout .tile { padding: 6px 8px; }
+html:not([data-theme=classic]) .readout .tile b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html:not([data-theme=classic]) .readout .tile small:last-child { display: none; }
+html:not([data-theme=classic]) .readout .tile:last-child { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; }
+html:not([data-theme=classic]) .readout .tile:last-child b { flex: none; overflow: visible; }
+html:not([data-theme=classic]) .readout .tile:last-child small:last-child { display: inline; flex: 1; min-width: 0; margin-left: auto; text-align: right; }
+html:not([data-theme=classic]) .range > .trace { order: 7; margin-top: 8px; }
+html:not([data-theme=classic]) .glass > .listing { order: 8; margin-top: 8px; max-height: 170px; }
+html:not([data-theme=classic]) .range > .log { order: 9; max-height: 150px; }
+html:not([data-theme=classic]) .log:empty { display: none; }
+
+html:not([data-theme=classic]) .watch { order: 4; margin-top: 10px; align-items: flex-start; flex-wrap: nowrap; }
+html:not([data-theme=classic]) .watch canvas { width: 72px; height: 72px; }
+html:not([data-theme=classic]) .watch-side { flex: 1; min-width: 0; }
+html:not([data-theme=classic]) .glyph { width: min(3rem, 11vw); height: min(3rem, 11vw); font-size: 18px; }
+html:not([data-theme=classic]) .watch-side .trace { margin-top: 8px; }
+html:not([data-theme=classic]) .watch-side .stage-bar { margin-top: 8px; gap: 8px; }
+html:not([data-theme=classic]) .watch-side .stage-bar .status { order: -1; flex: 1 1 6rem; }
+
+/* the pad sits in the flow at the bottom, no longer fixed over the page */
+html:not([data-theme=classic]) .touchpad { position: static; flex: none; padding: 0 14px; }
+html:not([data-theme=classic]) body.touchpad-open { padding-bottom: 0; }
+html:not([data-theme=classic]) .touchpad summary {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 6px 0; font-size: 10px;
+}
+html:not([data-theme=classic]) .touchpad summary::before { content: none; }
+html:not([data-theme=classic]) .touchpad summary::after {
+  content: ''; order: 1; width: 36px; height: 4px; border-radius: 2px; background: var(--line);
+}
+html:not([data-theme=classic]) .touchpad .tp-label { order: 0; }
+html:not([data-theme=classic]) .touchpad .tp-hint { order: 2; }
+html:not([data-theme=classic]) .touchpad summary small { margin: 0; font-size: 9px; }
+html:not([data-theme=classic]) .tp-dpad,
+html:not([data-theme=classic]) .tp-mid,
+html:not([data-theme=classic]) .tp-face { display: contents; }
+.tp [data-btn=SELECT] { grid-area: sel; }
+.tp [data-btn=START] { grid-area: sta; }
+
+/* ------------------------------------------------------- the look picker -- */
+/* a chip in the header opens a sheet of cards, one per look in the manifest;
+   the help panel shows the same cards. Each card's miniature is painted in
+   the look's two swatch colours and shaped by its `shape` (page / sheet /
+   device / dock), so a new look needs no artwork. */
+
+.look-chip {
+  font: inherit; font-size: 10px; letter-spacing: .08em; color: var(--accent); white-space: nowrap;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: 99px; height: 26px; padding: 0 10px; cursor: pointer;
+}
+.look-chip:hover { background: var(--panel-2); }
+
+.look-sheet {
+  border: 0; padding: 0; background: transparent; color: var(--text);
+  width: min(100%, 560px); max-width: none; max-height: 92vh; inset: auto 0 0 0; margin: 0 auto;
+}
+.look-sheet::backdrop { background: rgba(5, 8, 15, .62); }
+.look-sheet .sheet {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.look-sheet .handle { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head b { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.sheet-head .btn { height: 28px; width: 28px; padding: 0; }
+.look-sheet .note { margin: 0; font-size: 10px; }
+.sheet-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sheet-foot small { font-size: 9px; color: var(--dim); }
+.sheet-foot code { color: var(--accent-2); }
+.sheet-foot .btn { flex: none; font-size: 9px; height: 26px; padding: 0 8px; }
+
+.look-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 700px) { .panel .look-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 760px; } }
+.look-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font: inherit; color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); cursor: pointer;
+}
+.look-card:hover { border-color: var(--accent); }
+.look-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
+.look-label { font-size: 11px; letter-spacing: .06em; font-weight: 600; }
+.look-card.on .look-label::after { content: ' · on'; font-size: 9px; color: var(--accent-2); letter-spacing: .1em; font-weight: 400; }
+.look-blurb { font-size: 9px; color: var(--dim); line-height: 1.35; }
+
+/* the miniature: ground and tint from the manifest, the shape from its `shape` */
+.look-mini {
+  position: relative; display: block; height: 96px; border-radius: 6px; overflow: hidden;
+  background: var(--ground); border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent);
+}
+.look-mini > span { position: absolute; display: block; }
+.mini-bar { left: 0; right: 0; top: 0; height: 10px; background: color-mix(in srgb, var(--tint) 14%, var(--ground)); }
+.mini-bar::after { content: ''; position: absolute; left: 6px; top: 3px; width: 4px; height: 4px; border-radius: 1px; background: var(--tint); }
+.mini-panel {
+  left: 8px; right: 8px; top: 18px; height: 50px; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--tint) 35%, transparent); background: color-mix(in srgb, var(--tint) 8%, var(--ground));
+}
+.mini-panel::after { content: ''; position: absolute; left: 6px; right: 6px; top: 8px; height: 24px; border-radius: 2px; background: #cfc6ad; }
+.mini-pad {
+  left: 0; right: 0; bottom: 0; height: 20px;
+  background: color-mix(in srgb, var(--tint) 10%, var(--ground)); border-top: 1px solid color-mix(in srgb, var(--tint) 30%, transparent);
+}
+.mini-pad::before, .mini-pad::after {
+  content: ''; position: absolute; bottom: 5px; width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--tint) 60%, transparent);
+}
+.mini-pad::before { left: 14px; }
+.mini-pad::after { right: 14px; }
+/* page: the whole page scrolls, two panels, the pad fixed below */
+.look-mini[data-shape=page] .mini-panel { height: 22px; box-shadow: 0 28px 0 0 color-mix(in srgb, var(--tint) 8%, var(--ground)); }
+.look-mini[data-shape=page] .mini-panel::after { top: 5px; height: 10px; width: 36px; right: auto; }
+.look-mini[data-shape=page] .mini-pad { height: 14px; }
+.look-mini[data-shape=page] .mini-pad::before, .look-mini[data-shape=page] .mini-pad::after { width: 6px; height: 6px; bottom: 3px; }
+/* sheet: a mode bar over one panel, the pad as a sheet */
+.look-mini[data-shape=sheet] .mini-panel { top: 22px; height: 46px; border-top: 3px solid var(--tint); }
+/* device: a bezelled screen, the pad moulded into the body */
+.look-mini[data-shape=device] .mini-bar { background: transparent; }
+.look-mini[data-shape=device] .mini-panel {
+  left: 6px; right: 6px; top: 6px; height: 44px; border-radius: 6px; background: #060a12;
+  border: 4px solid color-mix(in srgb, var(--tint) 12%, #060a12);
+}
+.look-mini[data-shape=device] .mini-panel::after { left: 8px; right: 8px; top: 8px; height: 20px; }
+.look-mini[data-shape=device] .mini-pad { height: 34px; background: transparent; border-top: 0; }
+.look-mini[data-shape=device] .mini-pad::before, .look-mini[data-shape=device] .mini-pad::after {
+  width: 14px; height: 14px; bottom: 9px; border-radius: 4px;
+  background: color-mix(in srgb, var(--tint) 35%, var(--ground)); border-color: #0b1322;
+}
+/* dock: the measurement first, keys in rows */
+.look-mini[data-shape=dock] .mini-panel { border: 0; background: transparent; }
+.look-mini[data-shape=dock] .mini-panel::after { left: 0; right: auto; top: 0; width: 44px; height: 16px; background: var(--tint); }
+.look-mini[data-shape=dock] .mini-pad { height: 30px; background: transparent; border-top: 0; }
+.look-mini[data-shape=dock] .mini-pad::before, .look-mini[data-shape=dock] .mini-pad::after { width: 18px; height: 9px; border-radius: 2px; bottom: 4px; }
+.look-mini[data-shape=dock] .mini-pad::before { left: 8px; box-shadow: 22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent), 44px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
+.look-mini[data-shape=dock] .mini-pad::after { right: 8px; box-shadow: -22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }

@@ -1,0 +1,29 @@
+/* Alice in AI Land - the glitch range's "bench" look.
+
+   Same palette as the classic page, mobile-first structure: one range on
+   screen at a time behind the mode bar, prose folded, level chips in a row,
+   the readout as a strip, the pad a bottom sheet with a grab handle.
+
+   One file per look: src/looks/index.json lists it, glitch.html loads it on
+   demand when <html data-theme="bench"> is in force, and the shared phone
+   block in src/glitch.css does the rest. Replace this file to replace the
+   look; keep the id so bookmarks and the remembered choice still resolve. */
+
+/* the pad's shape: d-pad left, diamond right, a shoulder over each, select/start
+   between. The handheld's file carries the same block, so each look stands alone. */
+html[data-theme=bench] .tp, html[data-theme=handheld] .tp {
+  display: grid; justify-content: space-between; align-items: center; justify-items: center;
+  grid-template-columns: repeat(3, var(--key)) minmax(3.2rem, 1fr) repeat(3, var(--key));
+  grid-template-rows: auto repeat(3, var(--key));
+  grid-template-areas: 'sl sl . . . sr sr' '. u . . . y .' 'l . r sel x . b' '. d . sta . a .';
+  gap: 4px; padding: 4px 0 12px; max-width: 480px; margin: 0 auto;
+}
+html[data-theme=bench] .tp [data-btn=SL], html[data-theme=bench] .tp [data-btn=SR],
+html[data-theme=handheld] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SR] { width: calc(2 * var(--key) + 4px); height: 24px; }
+html[data-theme=bench] .tp [data-btn=SL], html[data-theme=handheld] .tp [data-btn=SL] { justify-self: start; }
+html[data-theme=bench] .tp [data-btn=SR], html[data-theme=handheld] .tp [data-btn=SR] { justify-self: end; }
+html[data-theme=bench] .tp-mid button, html[data-theme=handheld] .tp-mid button { width: 100%; max-width: 64px; height: 24px; }
+
+html[data-theme=bench] .bar { padding: 8px 14px; gap: .5rem 1rem; }
+html[data-theme=bench] .brand b { font-size: 12px; }
+html[data-theme=bench] .tp { --key: min(40px, 10vw); }
