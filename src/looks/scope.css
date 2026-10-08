@@ -1,0 +1,67 @@
+/* Alice in AI Land - the glitch range's "scope" look.
+
+   A bench instrument in phosphor on black: offset and width as big numerals,
+   the verdict as a band, the pad a dock of soft keys. The palette comes
+   through the variables styles.css already uses.
+
+   One file per look: src/looks/index.json lists it, glitch.html loads it on
+   demand when <html data-theme="scope"> is in force, and the shared phone
+   block in src/glitch.css does the rest. Replace this file to replace the
+   look; keep the id so bookmarks and the remembered choice still resolve. */
+
+html[data-theme=scope] {
+  --ink: #050806; --panel: #0b120d; --panel-2: #0f1a12; --line: #1b2e22;
+  --text: #c9f5d3; --dim: #6f9b7c; --accent: #5cf29a; --accent-2: #e8ff7a; --hot: #ff6b6b;
+}
+html[data-theme=scope] body {
+  background: radial-gradient(1200px 600px at 50% -10%, #0a160e 0%, transparent 60%), var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme=scope] .bar { background: var(--ink); padding: 8px 14px; }
+html[data-theme=scope] .brand .mark { display: none; }
+html[data-theme=scope] .brand b { font-size: 10px; letter-spacing: .18em; font-weight: 400; color: var(--dim); }
+html[data-theme=scope] .brand small { display: none; }
+html[data-theme=scope] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
+html[data-theme=scope] .pad-device { font-size: 9px; letter-spacing: .08em; }
+html[data-theme=scope] .pad-device.on { color: var(--accent); }
+html[data-theme=scope] .pad-leds { align-items: flex-end; gap: 2px; }
+html[data-theme=scope] .led { width: 3px; height: 10px; border: 0; border-radius: 1px; background: var(--line); }
+html[data-theme=scope] .led.on { background: var(--accent); box-shadow: 0 0 6px rgba(92, 242, 154, .8); }
+
+/* mode keys like an instrument's: flat, the lit one underlined */
+html[data-theme=scope] .modes { padding: 0; border: 0; background: transparent; gap: 6px; }
+html[data-theme=scope] .mode { height: 36px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); letter-spacing: .16em; }
+html[data-theme=scope] .mode.on { background: var(--panel); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* no panel box: each block is its own instrument window on the black */
+html[data-theme=scope] main > .panel { background: transparent; border: 0; padding: 0; margin: 12px 0; }
+html[data-theme=scope] .stage-wrap, html[data-theme=scope] .listing, html[data-theme=scope] .tile,
+html[data-theme=scope] .glyph, html[data-theme=scope] .watch canvas, html[data-theme=scope] .log { background: var(--panel); border-radius: 6px; }
+html[data-theme=scope] .log { border: 1px solid var(--line); padding: 6px 10px 6px 1.6rem; }
+html[data-theme=scope] .listing li.pc { background: rgba(92, 242, 154, .18); }
+html[data-theme=scope] .glyph.next { box-shadow: 0 0 10px rgba(92, 242, 154, .35); }
+html[data-theme=scope] .tab.on { color: var(--ink); }
+html[data-theme=scope] .btn { border-radius: 4px; letter-spacing: .16em; }
+html[data-theme=scope] .trace-ticks span.pc { box-shadow: 0 0 6px rgba(92, 242, 154, .8); }
+
+/* the measurement first: offset and width as big numerals, the verdict as a band */
+html[data-theme=scope] .range > .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+html[data-theme=scope] .readout .tile:nth-child(-n+2) { padding: 8px 12px; }
+html[data-theme=scope] .readout .tile:nth-child(-n+2) b { order: -1; font-size: 36px; line-height: 1; letter-spacing: -.02em; }
+html[data-theme=scope] .readout .tile:nth-child(-n+2) small:first-child { margin-top: 6px; letter-spacing: .14em; }
+html[data-theme=scope] .readout .tile:last-child b { font-size: 16px; letter-spacing: .16em; }
+
+/* the pad as a dock of soft keys, two rows of six */
+html[data-theme=scope] .touchpad { background: #070b08; }
+html[data-theme=scope] .tp {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 8px 0 12px; max-width: 480px;
+  grid-template-areas: 'l u d r sel sta' 'sl sr y x b a';
+}
+html[data-theme=scope] .tp button {
+  width: auto; height: 44px; padding: 0; border-radius: 4px; font-size: 12px; letter-spacing: .06em;
+  background: var(--panel); border: 1px solid var(--line);
+}
+html[data-theme=scope] .tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+html[data-theme=scope] .tp-mid button { font-size: 9px; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; }
+html[data-theme=scope] .tp [data-btn=SL], html[data-theme=scope] .tp [data-btn=SR] { font-size: 10px; }
+html[data-theme=scope] .tp [data-btn=X] { color: var(--accent); border-color: #2f7a52; }

@@ -36,6 +36,11 @@ firmware/          NOT in the repo: pages.yml builds glitch.uf2 + index.json the
   src/range.js       glitch range rules: combo state machine, guard-routine interpreter, pulse landing
   src/pad.js         input: DS4 gamepad (standard mapping, 4 ms poll) or keyboard -> timestamped edges
   src/glitch.js      the glitch range page (glitch.html)
+  src/glitch.css     the range page on top of styles.css: mode bar, timing traces, the look picker,
+                     the block every phone look shares; classic = styles.css alone
+  src/looks/         index.json (one entry per look: id, label, blurb, swatch, shape, phone,
+                     padAlwaysOut) + <id>.css per phone look, loaded on demand. Add a look = a file
+                     + an entry; replace one = swap its file. verify-looks.mjs checks the two agree
   src/uf2.js         UF2 parser + folding into 4 KB sectors; mirrors flash-badge.py's checks
   src/picoboot.js    PICOBOOT over WebUSB (the RP2040 ROM bootloader's protocol, as picotool speaks it)
   src/flash.js       the flash page (flash.html): firmware cards from firmware/index.json, progress, log
@@ -70,7 +75,7 @@ software/            MIT, never published
 
 ```
 ./serve.sh          # http://localhost:8080 - ES modules need http://, not file://
-npm run verify      # solves both stages, checks the range's levels, flashes the fake ROM; CI gate before every deploy
+npm run verify      # solves both stages, checks the range's levels and its looks' manifest, flashes the fake ROM; CI gate before every deploy
 npm run validate    # legacy sprite integrity only
 make -C software/controller/test   # quick-glitch engine tests, plain C
 python3 software/tools/flash-badge.py --fetch   # newest green CI UF2 -> badge, no toolchain needed
@@ -115,7 +120,7 @@ Built and live:
 | Soldering kit | schematic generated from `build_badge_sch.py`, fab package present. |
 | Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~45 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
 | Flashing | `software/tools/flash-badge.py`: waits for `RPI-RP2`, checks the UF2 family, copies, confirms 054c:09cc came back; `--fetch` pulls the newest green Firmware-workflow artifact. No picotool route (no reset interface, on purpose). SWD header `J1` + openocd is the fallback, documented, untried. |
-| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback, and an on-screen pad (`#touchPad`, fixed at the bottom, open by default on coarse pointers) feeding `pad.inject` as source `ui`. Map scales to the phone's width. Driven headless in Chromium during development via `window.__pad.inject`. |
+| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback, and an on-screen pad (`#touchPad`, fixed at the bottom, open by default on coarse pointers) feeding `pad.inject` as source `ui`. Map scales to the phone's width. Four looks from the header's ◐ chip (a sheet of cards, the same cards in the ? help) or `?look=` (kept in localStorage; `data-look-touch` on `<html>` names the touch-screen default): classic, and three phone looks - bench, handheld, scope - that show one thing at a time behind a mode bar (Watch / Glass / Bench / ?), fold the prose, reshape the pad (bottom sheet / moulded body / soft-key dock) and add two traces: the routine tick by tick with the pulse's landing, and the tune's window with a mark per press. One DOM, CSS-only differences: the shared phone block in `src/glitch.css`, one file per look in `src/looks/`, described by `src/looks/index.json`. Driven headless in Chromium during development via `window.__pad.inject`. |
 | Browser flashing | `flash.html`: WebUSB to the ROM bootloader (2e8a:0003), PICOBOOT exactly as picotool does it - exclusive access, EXIT_XIP, erase + write per 4 KB sector, read back, REBOOT(0, SRAM_END, 500 ms). One firmware on offer (the quick-glitch build) plus a local `.uf2`; the download link and `flash-badge.py` are the no-WebUSB route. Tested only against `fake-bootloader.mjs`; never run against a board. |
 | CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
 
