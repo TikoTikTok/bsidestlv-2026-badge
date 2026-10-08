@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Alice in AI Land — Glitch Range</title>
+<meta name="robots" content="noai, noimageai">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
     <span class="mark">◆</span>
     <span>
       <b>ALICE IN AI LAND</b>
-      <small>glitch range · <a href="index.html">back to the stages</a> · <a href="flash.html">flash the badge</a></small>
+      <small>glitch range · <a href="index.html">back to the stages</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a></small>
     </span>
   </div>
 
@@ -27,9 +28,10 @@
   <section class="panel">
     <h2>The range</h2>
     <p class="note">Two practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
-      in and press anything — the header lights up when the browser sees it. Without one, the
-      keyboard stands in: arrows, <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for
-      A B X Y, <kbd>Q</kbd> <kbd>E</kbd> for the shoulders, <kbd>Enter</kbd> for START.</p>
+      in and press anything — the header lights up when the browser sees it. The published site
+      listens to the badge and nothing else; on a local checkout the keyboard stands in: arrows,
+      <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for A B X Y, <kbd>Q</kbd> <kbd>E</kbd>
+      for the shoulders, <kbd>Enter</kbd> for START.</p>
     <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
       of each is meant for a hand; the last is not, and that is the lesson.</p>
   </section>
@@ -115,6 +117,7 @@
       <tr><th>SELECT + UP / DOWN</th><td>speed ×2 / ÷2, from 1/4× to 32×. Scales gaps and hold times alike.</td></tr>
       <tr><th>SELECT + LEFT / RIGHT</th><td>offset −/+ 1 ms; hold to repeat, and the step grows to 10 ms after twenty.</td></tr>
       <tr><th>SELECT + B</th><td>forget the take, offset 0, speed 1×.</td></tr>
+      <tr><th>SELECT + Y, held</th><td>the <b>beacon</b>: the badge spells its vault — serial and stage key — on the stick axes, for browsers without WebHID. The gate on these pages reads it; <a href="badge.html">the vault page</a> shows it.</td></tr>
       <tr><th>SELECT + START, held 2 s</th><td>reboot into the UF2 bootloader (the <code>RPI-RP2</code> drive) to take a new firmware — <a href="flash.html">the flash page</a> writes one from this browser, <code>software/tools/flash-badge.py</code> from a checkout.</td></tr>
     </table>
     <p class="note"><b>Range 1:</b> record the tune at a comfortable pace, stop, then fire. Too slow?
@@ -153,6 +156,7 @@
       </div>
     </div>
   </details>
+<a class="hole" href="rabbit-hole/" tabindex="-1" aria-hidden="true">down the rabbit hole</a>
 </main>
 
 <script type="module" src="src/glitch.js"></script>
