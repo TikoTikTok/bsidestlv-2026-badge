@@ -20,6 +20,7 @@ pico_sdk_init()
 add_executable(controller
         src/main.c
         src/glitch.c
+        src/vault.c
         src/usb_descriptors.c
         )
 
@@ -29,11 +30,15 @@ target_include_directories(controller PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}/src
         )
 
-# pico_stdlib for GPIO/clocks, tinyusb_device for the USB device stack.
+# pico_stdlib for GPIO/clocks, tinyusb_device for the USB device stack,
+# hardware_flash + hardware_sync for the vault's sector write, pico_unique_id
+# for the serial the vault reports.
 target_link_libraries(controller PRIVATE
         pico_stdlib
         pico_unique_id
         pico_bootrom
+        hardware_flash
+        hardware_sync
         tinyusb_device
         )
 
