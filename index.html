@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Alice in AI Land — Asset Sheet</title>
+<meta name="robots" content="noai, noimageai">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,7 +14,7 @@
     <span class="mark">◆</span>
     <span>
       <b>ALICE IN AI LAND</b>
-      <small>characters &amp; items · 48×48 · <a href="glitch.html">glitch range</a> · <a href="flash.html">flash the badge</a></small>
+      <small>characters &amp; items · 48×48 · <a href="glitch.html">glitch range</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a></small>
     </span>
   </div>
 
@@ -34,14 +35,16 @@
 </header>
 
 <main>
-  <section class="panel">
-    <h2>Stage — A Mad Tea Party</h2>
+  <section class="panel" id="teaPanel">
+    <h2>Stage — A Mad Tea Party <span class="armed-mark">● armed</span></h2>
     <p class="note">One wall splits the room and the only way through is the gate, shut until
       Alice steps on the lever. Every rock starts on the wrong side, so each has to be lined up
       on the gate's row and shoved through a one-tile corridor — the order is the puzzle. The
       door opens once all three buttons are held.</p>
-    <p class="note">Arrow keys or WASD to move, <b>R</b> to reset. <b>Solve</b> runs a real
-      search over the stage and plays back what it finds — it is not a recorded answer.</p>
+    <p class="note">The badge's d-pad moves, <b>START</b> resets; the stage last tapped is the one
+      the badge drives. On a local checkout the arrow keys or WASD, <b>Enter</b> and <b>R</b> work
+      too; the published site plays from the badge alone. <b>Solve</b> runs a real search over the
+      stage and plays back what it finds — it is not a recorded answer.</p>
 
     <div class="stage-wrap"><canvas id="stage"></canvas></div>
 
@@ -56,8 +59,8 @@
     </div>
   </section>
 
-  <section class="panel">
-    <h2>Stage — The Queen's Gauntlet</h2>
+  <section class="panel" id="chasePanel">
+    <h2>Stage — The Queen's Gauntlet <span class="armed-mark">● armed</span></h2>
     <p class="note">This room runs on a clock. Every tick the cast advances one cell along a fixed
       loop, so a plan is a <em>schedule</em>: one corridor joins the two halves, the Queen walks it
       looking three cells ahead, and both rocks plus Alice have to cross it several times over.
@@ -152,6 +155,7 @@ ctx.drawImage(items.teapot_heart_red, x, y, 48, 48);  // sits on it</code></pre>
       <code>python3 tools/slice-tile-sheet.py</code>,
       <code>node tools/build-walk-manifest.mjs assets/characters/&lt;name&gt; &lt;name&gt;</code>.</p>
   </section>
+<a class="hole" href="rabbit-hole/" tabindex="-1" aria-hidden="true">down the rabbit hole</a>
 </main>
 
 <script type="module" src="src/gallery.js"></script>

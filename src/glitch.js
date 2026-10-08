@@ -6,11 +6,23 @@
 
 import { Pad } from './pad.js';
 import { comboSequence, Combo, buildLevel, idealOffsetMs, Run } from './range.js';
-import { RABBIT_WATCH } from '../stages/rabbit-watch.js';
-import { LOOKING_GLASS } from '../stages/looking-glass.js';
+import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
+import { loadStage } from './seal.js';
 
 const $ = (sel) => document.querySelector(sel);
 const TILE = 48;
+
+// ------------------------------------------------------------------- input ----
+
+// The pad first: on the site the gate needs its poll to hear the beacon, and
+// the page does not listen to anything else (see src/gate.js, src/pad.js).
+const mode = gateMode();
+const pad = new Pad({ sources: gateSources(mode) }).start();
+window.__pad = pad;   // scripted tests inject edges through this (dev hosts only; the policy drops it elsewhere)
+
+const badge = await openGate({ pad, mode });
+const [RABBIT_WATCH, LOOKING_GLASS] = await Promise.all([loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key)])
+  .catch((e) => { showRefusal(`a range would not open: ${e.message}`); throw e; });
 
 // ------------------------------------------------------------------ assets ----
 
@@ -51,10 +63,7 @@ const frameOf = (ch, dir, now, periodMs) => {
   return ch.images[dir][cyc[Math.floor(now / periodMs) % cyc.length]];
 };
 
-// ------------------------------------------------------------------- input ----
-
-const pad = new Pad().start();
-window.__pad = pad;   // scripted tests inject edges through this
+// ----------------------------------------------------------------- header ----
 
 const ledsEl = $('#padLeds');
 const LED_ORDER = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
@@ -66,22 +75,24 @@ const leds = Object.fromEntries(LED_ORDER.map(b => {
   return [b, el];
 }));
 
+const noPadLabel = pad.allows('key') ? 'keyboard' : 'no badge';
 function refreshPad() {
   $('#padDevice').textContent = pad.device
     ? `${pad.device.id.replace(/\s*\(.*$/, '').slice(0, 40)}${pad.device.mapping === 'standard' ? '' : ' (raw)'}`
-    : 'keyboard';
+    : noPadLabel;
   $('#padDevice').classList.toggle('on', !!pad.device);
   for (const [b, el] of Object.entries(leds)) el.classList.toggle('on', pad.held.has(b));
 }
 setInterval(refreshPad, 100);
 
-// The on-screen pad. A phone has no keyboard and the badge is not always
-// plugged in, so these feed the same edge stream as source 'ui', stamped
-// with the pointer event's own time. They carry the screen's latency and the
-// Bench says so; they are for driving the page, not for beating a level.
+// The on-screen pad. On a dev host it feeds the same edge stream as source
+// 'ui', stamped with the pointer event's own time, for driving the page from
+// a phone without the badge. On the site the policy is badge-only, so it is
+// not offered at all - and the policy would drop its edges anyway.
 const touchPad = $('#touchPad');
-touchPad.open = matchMedia('(pointer: coarse)').matches;
-const padOpen = () => document.body.classList.toggle('touchpad-open', touchPad.open);
+if (!pad.allows('ui')) { touchPad.remove(); $('#glassRun').remove(); document.body.classList.add('badge-only'); }
+else { touchPad.open = matchMedia('(pointer: coarse)').matches; }
+const padOpen = () => document.body.classList.toggle('touchpad-open', touchPad.isConnected && touchPad.open);
 touchPad.addEventListener('toggle', padOpen);
 padOpen();
 for (const b of touchPad.querySelectorAll('button[data-btn]')) {
@@ -127,7 +138,7 @@ pad.on(({ button, down, t, source }) => {
   const li = logTo('#benchLog', `${button.padEnd(6)} ${down ? '▼' : '▲'}  ${rel === null ? '   —   ' : rel.toFixed(1).padStart(8)} ms  ${source}`,
                    button === 'START' && down ? 'win' : '');
   li.style.whiteSpace = 'pre';
-  $('#benchStatus').textContent = `${benchCount} edges · ${pad.device ? pad.device.id.slice(0, 32) : 'keyboard'}`;
+  $('#benchStatus').textContent = `${benchCount} edges · ${pad.device ? pad.device.id.slice(0, 32) : noPadLabel}`;
 });
 $('#benchClear').addEventListener('click', () => { $('#benchLog').textContent = ''; benchCount = 0; benchT0 = null; $('#benchStatus').textContent = 'no edges yet'; });
 
@@ -363,7 +374,7 @@ function glassEdge(edge) {
   if (r) finishRun(r);
 }
 
-$('#glassRun').addEventListener('click', () => {
+$('#glassRun')?.addEventListener('click', () => {
   arm('glass');
   pad.inject('START', true);
   setTimeout(() => pad.inject('START', false), 30);

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noai, noimageai">
+<title>Alice in AI Land — The Vault</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>the vault · <a href="index.html">the stages</a> · <a href="glitch.html">glitch range</a> · <a href="flash.html">flash the badge</a></small>
+    </span>
+  </div>
+
+  <div class="controls pad-status">
+    <span id="hidState" class="pad-device">checking for WebHID…</span>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>The badge is the key</h2>
+    <p class="note">Every badge carries a <b>vault</b>: a 32-byte key written at the booth and a label
+      saying which batch it belongs to. The stages that matter are sealed under keys derived from it,
+      so a page opens them only with a badge plugged in — and a crawler, a script or a model reading
+      this site gets ciphertext. The key never leaves the badge except into the page that asked.</p>
+    <p class="note">This page reads a badge's vault and, for the booth, writes one. It needs
+      <b>WebHID</b> — Chrome or Edge on a computer. A badge that already has a key only takes a new
+      one, or an erase, while <kbd>SELECT</kbd> is physically held on it.</p>
+    <div class="stage-bar">
+      <button id="connectBtn" class="btn">Connect the badge</button>
+      <button id="readBtn" class="btn ghost" disabled>Read again</button>
+      <span id="vaultStatus" class="status">no badge connected</span>
+    </div>
+    <div class="vault-grid">
+      <div class="vault-field"><label>serial</label><output id="vSerial">—</output></div>
+      <div class="vault-field"><label>label</label><output id="vLabel">—</output></div>
+      <div class="vault-field"><label>state</label><output id="vState">—</output></div>
+      <div class="vault-field"><label>key <button id="revealBtn" class="btn ghost" type="button" style="padding:.1rem .4rem;font-size:10px">show</button></label><output id="vKey">—</output></div>
+    </div>
+  </section>
+
+  <section class="panel" id="booth">
+    <h2>Provision — the booth</h2>
+    <p class="note">One key per event, the same on every badge: it is what the sealed stages are sealed
+      under (<code>software/tools/seal-stage.mjs</code> reads it from <code>ALICE_STAGE_KEY</code>).
+      Generate it once, keep it where the organisers keep secrets, and paste it here for each badge.
+      The label is free text, fifteen bytes, shown on the gate when the badge passes.</p>
+    <div class="vault-grid">
+      <div class="vault-field"><label for="keyInput">key (64 hex)</label><input id="keyInput" autocomplete="off" spellcheck="false" placeholder="paste the event key, or Generate"></div>
+      <div class="vault-field"><label for="labelInput">label</label><input id="labelInput" maxlength="15" autocomplete="off" placeholder="bsidestlv26"></div>
+    </div>
+    <div class="stage-bar">
+      <button id="genBtn" class="btn ghost">Generate a key</button>
+      <button id="writeBtn" class="btn" disabled>Write to the badge</button>
+      <button id="eraseBtn" class="btn ghost" disabled>Erase the badge</button>
+      <span id="writeStatus" class="status">connect a badge first</span>
+    </div>
+    <p class="note">A blank badge takes its first key as it is. To re-key or erase one, hold
+      <kbd>SELECT</kbd> on the badge while pressing the button — the state above says
+      <em>SELECT held</em> when the badge sees it. The badge erases its sector after the transfer
+      ends, so the read-back waits a moment.</p>
+  </section>
+
+  <section class="panel">
+    <h2>The beacon — phones and other browsers</h2>
+    <p class="note">Where there is no WebHID the badge spells its vault on the stick axes. Hold
+      <kbd>SELECT</kbd> + <kbd>Y</kbd> on the badge; the bar fills over about two seconds and the
+      decoded serial and key appear below. This is what the gate on the stages and the range does on
+      a phone, so it is the thing to try after a flash.</p>
+    <progress id="beaconBar" class="gate-beacon" max="1" value="0"></progress>
+    <div class="stage-bar">
+      <span id="beaconStatus" class="status">press a button on the badge so the browser lists it, then hold SELECT + Y</span>
+    </div>
+    <div class="vault-grid">
+      <div class="vault-field"><label>gamepad</label><output id="bDevice">—</output></div>
+      <div class="vault-field"><label>serial</label><output id="bSerial">—</output></div>
+      <div class="vault-field"><label>key</label><output id="bKey">—</output></div>
+      <div class="vault-field"><label>frames</label><output id="bFrames">0 good · 0 bad</output></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Notes</h2>
+    <p class="note">The vault is HID feature report <code>0xF1</code>, one of the vendor reports the
+      DualShock 4 descriptor already declares, so the descriptor the badge presents is unchanged and
+      iOS keeps binding it. A real DualShock 4 answers the same report with zeros, and this page says
+      so. Wire formats: <code>software/controller/src/vault.h</code>; the browser side is
+      <code>src/vault.js</code>, proven against a model of the firmware by
+      <code>software/tools/verify-badge.mjs</code>.</p>
+    <p class="note">On Linux, Chrome needs read/write access to the badge's <code>/dev/hidraw*</code>
+      node; a udev rule for <code>054c:09cc</code> (the one Steam ships) is enough. The key lives in
+      the last 4 KB sector of the flash, which no firmware image reaches, so it survives reflashing.</p>
+  </section>
+</main>
+
+<script type="module" src="src/badge.js"></script>
+</body>
+</html>

@@ -18,6 +18,13 @@
 // Browsers themselves sample gamepads at ~16 ms, so that is the floor. A
 // press shorter than that can be missed entirely, and the range's levels
 // are tuned so nothing needs to be shorter.
+//
+// Who may play is a policy of this module too. Every edge carries a source
+// - 'pad' for a gamepad, 'key' for the keyboard, 'ui' for an on-screen
+// button or a script's inject() - and a Pad built with `sources` drops any
+// edge from a source not in the set. On the published site that set is
+// {'pad'}: the badge plays, nothing else does. On a dev host (localhost)
+// everything is in, because that is where the pages are driven headless.
 
 export const BUTTONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
 
@@ -27,10 +34,12 @@ export const BUTTONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL',
 const STANDARD = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'SL', 5: 'SR', 8: 'SELECT', 9: 'START',
                    12: 'UP', 13: 'DOWN', 14: 'LEFT', 15: 'RIGHT' };
 
-// Keyboard stand-in. Arrows for the d-pad; Z X C V under the left hand for
-// the diamond, Q / E for the shoulders, Enter / Backspace for Start / Select.
+// Keyboard stand-in. Arrows or WASD for the d-pad; Z X C V under the left
+// hand for the diamond, Q / E for the shoulders, Enter / Backspace for
+// Start / Select.
 export const KEYS = {
   ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT',
+  w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT',
   z: 'A', x: 'B', c: 'X', v: 'Y', q: 'SL', e: 'SR', Enter: 'START', Backspace: 'SELECT',
 };
 
@@ -56,13 +65,25 @@ function readGamepad(gp) {
   return held;
 }
 
+/** True for the hosts a checkout is served from (./serve.sh), never for the site. */
+export function isDevHost(hostname) {
+  return hostname === '' || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+/** The edge sources a page accepts: everything on a dev host, the badge alone on the site. */
+export function sourcesFor(dev) {
+  return new Set(dev ? ['pad', 'key', 'ui'] : ['pad']);
+}
+
 export class Pad {
-  constructor({ pollMs = 4 } = {}) {
+  constructor({ pollMs = 4, sources = sourcesFor(true) } = {}) {
     this.held = new Set();          // what is down right now, both sources merged
     this.listeners = new Set();
+    this.sources = sources;         // edge sources that reach the listeners
     this.device = null;             // { id, index, mapping } of the gamepad in use
     this.lastEdgeT = null;
     this.pollMs = pollMs;
+    this.onAxes = null;             // fn(axes, t): every poll's stick values, for the vault beacon
     this._padHeld = new Set();
     this._keyHeld = new Set();
     this._lastStamp = 0;
@@ -73,12 +94,21 @@ export class Pad {
   /** Subscribe to edges: fn({ button, down, t, source }). Returns unsubscribe. */
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
-  /** A synthetic edge from the page itself - an on-screen button, say. */
-  inject(button, down, t = performance.now()) { this._emit(button, down, t, 'ui'); }
+  /** Whether edges from `source` reach the listeners under this pad's policy. */
+  allows(source) { return this.sources.has(source); }
+
+  /** A synthetic edge from the page itself - an on-screen button, say. False if the policy drops it. */
+  inject(button, down, t = performance.now()) {
+    if (!this.allows('ui')) return false;
+    this._emit(button, down, t, 'ui');
+    return true;
+  }
 
   start() {
-    addEventListener('keydown', this._boundKeydown);
-    addEventListener('keyup', this._boundKeyup);
+    if (this.allows('key')) {
+      addEventListener('keydown', this._boundKeydown);
+      addEventListener('keyup', this._boundKeyup);
+    }
     addEventListener('gamepadconnected', () => this._poll());
     const loop = () => { this._poll(); this._timer = setTimeout(loop, this.pollMs); };
     loop();
@@ -92,6 +122,7 @@ export class Pad {
   }
 
   _emit(button, down, t, source) {
+    if (!this.allows(source)) return;
     const was = this.held.has(button);
     if (down) this.held.add(button); else this.held.delete(button);
     if (was === down) return;                    // the other source already had it
@@ -132,6 +163,7 @@ export class Pad {
     // the browser's own read time, if it looks like one: same clock, recent
     const stamp = gp.timestamp;
     const t = (stamp > 0 && stamp <= now && now - stamp < 1000 && stamp !== this._lastStamp) ? stamp : now;
+    if (this.onAxes) this.onAxes(gp.axes, t);
     let changed = false;
     for (const b of held) if (!this._padHeld.has(b)) { this._padHeld.add(b); this._emit(b, true, t, 'pad'); changed = true; }
     for (const b of [...this._padHeld]) if (!held.has(b)) { this._padHeld.delete(b); this._emit(b, false, t, 'pad'); changed = true; }

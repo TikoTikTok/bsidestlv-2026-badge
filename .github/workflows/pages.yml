@@ -25,10 +25,13 @@ on:
       - 'index.html'
       - 'glitch.html'
       - 'flash.html'
+      - 'badge.html'
+      - 'robots.txt'
       - 'styles.css'
       - 'src/**'
       - 'stages/**'
       - 'assets/**'
+      - 'rabbit-hole/**'
       - 'software/controller/**'
       - '.github/workflows/pages.yml'
       - '.github/workflows/build-uf2.yml'
@@ -57,13 +60,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify both stages are solvable, the range is honest and the flasher behaves, before publishing
+      - name: Verify both stages are solvable, the range is honest, the flasher and the badge gate behave, before publishing
         run: npm run verify
+
+      # Sealed stages are committed as ciphertext; with the event key in the
+      # repository's secrets the deploy proves each one still opens, so a
+      # blob sealed under a stale key never reaches the site. No secret, no
+      # check - the stages still publish.
+      - name: Open every sealed stage with the event key
+        if: hashFiles('stages/sealed/*.json') != ''
+        env:
+          ALICE_STAGE_KEY: ${{ secrets.ALICE_STAGE_KEY }}
+        run: |
+          if [ -z "$ALICE_STAGE_KEY" ]; then echo "::warning::ALICE_STAGE_KEY is not set; sealed stages were not checked"; exit 0; fi
+          node software/tools/seal-stage.mjs --open stages/sealed/*.json > /dev/null
 
       - name: Stage the site
         run: |
           mkdir _site
-          cp -r index.html glitch.html flash.html styles.css src stages assets .nojekyll _site/
+          cp -r index.html glitch.html flash.html badge.html robots.txt styles.css src stages assets rabbit-hole .nojekyll _site/
 
       - uses: actions/download-artifact@v4
         with:
