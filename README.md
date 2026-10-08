@@ -12,6 +12,8 @@ badge is used to play.
 index.html         the challenge - static site, served from the repo root
 glitch.html        the glitch range - two practice rooms for the badge's quick-glitch layer
 flash.html         flash the badge from the browser - WebUSB to the RP2040's bootloader
+badge.html         the badge's vault - read it, provision it at the booth, try the beacon
+robots.txt  rabbit-hole/   what crawlers get: a refusal, and a walkthrough that never ends
 styles.css  src/  stages/  assets/
 hardware/          KiCad projects (CERN-OHL-S-2.0)
   badge/             "BSidesTLV2026 Alice Controller" - RP2040 handheld, 14 buttons, USB-C
@@ -36,13 +38,30 @@ same seed plus same input trace gives the same outcome byte for byte — which i
 what makes it scriptable, replayable and verifiable.
 
 It lives at the repository root — `index.html`, `glitch.html`, `flash.html`,
-`styles.css`, `src/`, `stages/` and `assets/` — as plain static files. No server, no build step, every path
+`badge.html`, `styles.css`, `src/`, `stages/`, `assets/`, `robots.txt` and
+`rabbit-hole/` — as plain static files. No server, no build step, every path
 relative, so it works at a domain root or under `/<repo>/` unchanged.
+
+**The badge is the key.** On the published site nothing plays from a keyboard
+or a screen: a gate asks for the badge first — *Connect* over WebHID in
+Chrome or Edge, or hold `SELECT`+`Y` on the badge and it spells its vault on
+the stick axes for any browser with a Gamepad API, phones included. The vault
+is a 32-byte stage key written at the booth; the stages that matter are
+sealed under it (`src/seal.js`, `npm run seal`), so a crawler, a script or a
+model reading this site gets ciphertext. `badge.html` reads and provisions
+it. What this stops, what it does not, and the server tier beyond it:
+[`software/docs/BADGE_GATE.md`](software/docs/BADGE_GATE.md). Crawlers also
+meet `robots.txt`, `noai` tags and a rabbit hole they can follow for as long
+as they like.
 
 ```
 ./serve.sh          # http://localhost:8080, the same files Pages serves
-npm run verify      # proves both stages are solvable and the range is honest
+npm run verify      # proves both stages are solvable, the range is honest, the flasher and the badge gate behave
+npm run seal -- path/to/stage.js   # ALICE_STAGE_KEY=<64 hex>: seal a stage into stages/sealed/
 ```
+
+On `localhost` there is no gate and the keyboard works, because that is
+where the pages are developed; `?gate=1` brings the gate up there to try it.
 
 ### The glitch range
 
@@ -59,9 +78,10 @@ Two rooms, each with levels that start hand-playable and end badge-only:
   how many lines and milliseconds off — and the last level hides the source so
   the only way in is to sweep the offset and read the guard's reactions.
 
-The page works from the keyboard too, which is how you find out that level 3 of
-each cannot be done that way. `software/tools/verify-range.mjs` checks exactly
-that: hand levels fit a hand, badge levels do not, and every level is winnable.
+On a local checkout the page works from the keyboard too, which is how you find
+out that level 3 of each cannot be done that way. `software/tools/verify-range.mjs`
+checks exactly that: hand levels fit a hand, badge levels do not, and every
+level is winnable.
 
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those
 paths, cross-builds the firmware into `firmware/` beside them (so `flash.html`
@@ -130,6 +150,14 @@ Android phone, nothing to install — and writes the image the deploy built.
 It speaks PICOBOOT, the protocol `picotool` uses (`src/picoboot.js`), reads
 the flash back before rebooting, and is tested against a model of the ROM by
 `software/tools/verify-flash.mjs`.
+
+**The vault.** The last flash sector holds the stage key the challenge site
+is sealed under. HID feature report `0xF1` — one the DualShock 4 descriptor
+already declares, so iOS is unaffected — reads and writes it; `SELECT`+`Y`
+held spells it on the stick axes for browsers without WebHID. Writes to a
+keyed badge need `SELECT` physically held. `software/controller/src/vault.c`,
+host-tested by `test/test_vault.c`; the site side is `src/vault.js`, proven
+against `software/tools/fake-badge.mjs`.
 
 **Quick glitch.** `SELECT` is a shift key. `SELECT+SL` records a take of button
 presses with microsecond timestamps; `SELECT+SR` fires it — a `START` tap as
