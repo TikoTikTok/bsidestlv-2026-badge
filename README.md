@@ -92,6 +92,12 @@ out that level 3 of each cannot be done that way. `software/tools/verify-range.m
 checks exactly that: hand levels fit a hand, badge levels do not, and every
 level is winnable.
 
+The badge is a grip the phone sits in, so a phone held the other way up turns
+the whole controller over. The page notices (the screen reports a "secondary"
+orientation) and turns the badge's buttons back: UP/DOWN, LEFT/RIGHT, A/Y and
+B/X swap, the shoulders and START/SELECT stay. Nothing changes on the badge.
+`?flip=1` / `?flip=0` pins it either way for testing.
+
 Every page has a theme and a look — the ◐ chip in the header opens a sheet of
 cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
 address bar; both are remembered on the device. The theme is what the page is

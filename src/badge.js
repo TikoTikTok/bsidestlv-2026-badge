@@ -6,7 +6,7 @@
 // window.__vault.useDevice(badge) makes the Connect button talk to it, and
 // window.__vault.pad is the gamepad poll the beacon test reads.
 
-import { Pad } from './pad.js';
+import { Pad, flipFor } from './pad.js';
 import { hasHid, requestBadgeHid, readVaultHid, writeVaultHid, BeaconDecoder, BEACON, CMD, hex, unhex, KEY_LEN, LABEL_LEN } from './vault.js';
 import { initLooks } from './looks.js';
 
@@ -109,7 +109,7 @@ $('#eraseBtn').addEventListener('click', () => write(CMD.ERASE));
 
 // ----------------------------------------------------------------- beacon ----
 
-const pad = new Pad().start();
+const pad = new Pad({ flip: flipFor(location.search) }).start();
 const decoder = new BeaconDecoder();
 pad.onAxes = (axes) => {
   const frame = decoder.sample(axes);
