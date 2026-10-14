@@ -2,15 +2,30 @@
    Console-feeling chrome: deep blue plastic, hard edges, one accent. */
 
 :root {
-  --ink: #05080f;
+  /* the palette. A theme (src/themes/<id>.css) overrides these on html[data-theme=<id>]
+     and everything below paints from them, so a theme is a block of variables and a
+     few flourishes. The classic theme is this block alone. */
+  --ink: #05080f;          /* the page */
+  --ink-2: #070c16;        /* the deepest wells: listings, the rooms' canvases */
+  --well: #0a1120;         /* inset boxes: tiles, glyphs, cells */
   --panel: #0e1729;
   --panel-2: #132038;
+  --panel-end: #0b1322;    /* the foot of a panel's gradient */
   --line: #24365a;
+  --haze: #17253f;         /* the glow at the top of the page */
+  --bar: rgba(8, 13, 24, .92);   /* the header, and the fixed pad */
   --text: #cfe0f5;
   --dim: #7f95b8;
-  --accent: #6fb0f0;
-  --accent-2: #3fd6a3;
-  --hot: #f4798d;
+  --accent: #6fb0f0;       /* the primary: buttons, headings, the lit key */
+  --accent-2: #3fd6a3;     /* good: armed, won, done */
+  --hot: #f4798d;          /* bad: crashed, refused */
+  --amber: #f3b23f;        /* neither: a pulse that landed on nothing */
+  --on-accent: #05080f;    /* text on an accent */
+  --glow: color-mix(in srgb, var(--accent) 60%, transparent);
+  --shade: rgba(0, 0, 0, .6);    /* the dialogs' drop shadow */
+  --font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: var(--font);   /* the brand, headings, buttons */
+  --r: 10px; --r-s: 8px; --r-xs: 6px;    /* corners: panels, boxes, buttons */
   color-scheme: dark;
 }
 
@@ -19,10 +34,10 @@
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 50% -10%, #17253f 0%, transparent 60%),
+    radial-gradient(1200px 600px at 50% -10%, var(--haze) 0%, transparent 60%),
     var(--ink);
   color: var(--text);
-  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 14px/1.5 var(--font);
   padding-bottom: 4rem;
 }
 
@@ -36,14 +51,14 @@ canvas { image-rendering: pixelated; display: block; }
   align-items: center; justify-content: space-between;
   padding: .75rem clamp(.75rem, 3vw, 2rem);
   padding-top: calc(.75rem + env(safe-area-inset-top, 0px));
-  background: rgba(8, 13, 24, .92);
+  background: var(--bar);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: .6rem; }
 .brand b { letter-spacing: .14em; font-size: 15px; }
 .brand small { display: block; color: var(--dim); font-size: 11px; letter-spacing: .04em; }
-.mark { color: var(--accent); font-size: 22px; text-shadow: 0 0 12px rgba(111, 176, 240, .6); }
+.mark { color: var(--accent); font-size: 22px; text-shadow: 0 0 12px var(--glow); }
 
 .controls { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; }
 .controls label { display: flex; align-items: center; gap: .4rem; color: var(--dim); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
@@ -61,9 +76,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(.75rem, 3vw, 2rem); }
 
 .panel {
   margin: 2rem 0;
-  background: linear-gradient(180deg, var(--panel) 0%, #0b1322 100%);
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-end) 100%);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r);
   padding: 1.25rem;
 }
 .panel > h2 {
@@ -75,11 +90,11 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(.75rem, 3vw, 2rem); }
 
 pre {
   margin: 0; padding: 1rem; overflow-x: auto;
-  background: #070c16; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-s);
   font-size: 12px; line-height: 1.6;
 }
 
-.stage-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #060a12; padding: .75rem; }
+.stage-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--ink-2); padding: .75rem; }
 /* a room wider than the screen shrinks rather than scrolls: 13 tiles is 624 px, a phone is 360 */
 .stage-wrap canvas { max-width: 100%; height: auto; }
 
@@ -92,7 +107,7 @@ pre {
 }
 .compass { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
 .cell {
-  border: 1px solid var(--line); border-radius: 8px; background: #0a1120;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
   padding: .35rem; display: grid; place-items: center; gap: .2rem;
   cursor: pointer; position: relative;
 }
@@ -104,11 +119,11 @@ pre {
 .cell canvas { display: block; }
 
 .walk-hero {
-  border: 1px solid var(--line); border-radius: 10px; background: #070c16;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--ink-2);
   padding: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
   justify-content: center;
 }
-.walk-hero canvas { background: #0a1120; border: 1px solid var(--line); border-radius: 8px; }
+.walk-hero canvas { background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s); }
 .hero-meta { display: flex; flex-direction: column; gap: .5rem; font-size: 11px; color: var(--dim); }
 .hero-meta b { font-size: 24px; letter-spacing: .12em; color: var(--accent); }
 .hero-meta label { display: flex; flex-direction: column; gap: .25rem; text-transform: uppercase; letter-spacing: .06em; }
@@ -133,14 +148,14 @@ pre {
 .items { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: .6rem; }
 .item { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
 .swatchbox {
-  border: 1px solid var(--line); border-radius: 8px; padding: .4rem;
+  border: 1px solid var(--line); border-radius: var(--r-s); padding: .4rem;
   display: grid; place-items: center; width: 100%;
 }
 .swatchbox.checker {
-  background-image: linear-gradient(45deg, #1b2436 25%, transparent 25%), linear-gradient(-45deg, #1b2436 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1b2436 75%), linear-gradient(-45deg, transparent 75%, #1b2436 75%);
-  background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; background-color: #242e42;
+  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%), linear-gradient(-45deg, var(--line) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--line) 75%), linear-gradient(-45deg, transparent 75%, var(--line) 75%);
+  background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; background-color: var(--panel-2);
 }
-.swatchbox.dark { background: #070c16; }
+.swatchbox.dark { background: var(--ink-2); }
 .swatchbox.light { background: #cdd8e6; }
 .item figcaption { font-size: 10px; color: var(--dim); cursor: pointer; text-align: center; word-break: break-word; }
 .item figcaption:hover { color: var(--accent); }
@@ -150,7 +165,7 @@ pre {
 
 .stage-bar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: .9rem; }
 .btn {
-  background: var(--accent); color: #05080f; border: 0; border-radius: 6px;
+  background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--r-xs);
   padding: .4rem .9rem; font: inherit; font-size: 12px; letter-spacing: .08em;
   text-transform: uppercase; cursor: pointer;
 }
@@ -188,20 +203,20 @@ kbd {
 .led.on { background: var(--accent); color: var(--ink); border-color: var(--accent); }
 
 .range { position: relative; border-color: var(--line); }
-.range.armed, .panel.armed { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
+.range.armed, .panel.armed { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; }
 .armed-mark { float: right; font-size: 10px; letter-spacing: .12em; color: var(--accent-2); visibility: hidden; }
 .range.armed .armed-mark, .panel.armed .armed-mark { visibility: visible; }
 
 .watch { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-.watch canvas { background: #0a1120; border: 1px solid var(--line); border-radius: 8px; flex: none; }
+.watch canvas { background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s); flex: none; }
 .combo { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; }
 .glyph {
   width: 2.4rem; height: 2.4rem; display: grid; place-items: center;
-  border: 1px solid var(--line); border-radius: 8px; background: #0a1120;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
   font-size: 16px; color: var(--dim);
 }
 .glyph.done { color: var(--accent-2); border-color: var(--accent-2); }
-.glyph.next { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(111, 176, 240, .35); }
+.glyph.next { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); }
 .glyph.bad { color: var(--hot); border-color: var(--hot); }
 
 .glass { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1rem; align-items: start; }
@@ -213,7 +228,7 @@ kbd {
 .glass .stage-wrap canvas { max-width: 100%; height: auto; }
 .listing {
   margin: 0; padding: .5rem 0; list-style: none; max-height: 420px; overflow: auto;
-  background: #070c16; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-s);
   font-size: 12px; line-height: 1.45;
 }
 .listing li { display: flex; gap: .75rem; padding: 0 .75rem; white-space: pre; }
@@ -225,12 +240,12 @@ kbd {
 .listing li.target::after { content: '← the check'; color: var(--accent-2); opacity: .6; font-size: 10px; align-self: center; }
 .listing li.crash code { color: var(--hot); }
 .listing li.crash::after { content: '✗ crashed here'; color: var(--hot); opacity: .7; font-size: 10px; align-self: center; }
-.listing li.pc { background: rgba(111, 176, 240, .18); }
+.listing li.pc { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .listing li.pc .tick { color: var(--accent); opacity: 1; }
 
 .readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .5rem; margin-top: .9rem; }
 .tile {
-  border: 1px solid var(--line); border-radius: 8px; background: #0a1120; padding: .5rem .6rem;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well); padding: .5rem .6rem;
   display: flex; flex-direction: column; gap: .15rem;
 }
 .tile small { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
@@ -261,7 +276,7 @@ kbd {
 
 .touchpad {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
-  background: rgba(8, 13, 24, .95); backdrop-filter: blur(6px);
+  background: var(--bar); backdrop-filter: blur(6px);
   border-top: 1px solid var(--line);
   padding: 0 clamp(.75rem, 3vw, 2rem) env(safe-area-inset-bottom, 0px);
 }
@@ -284,7 +299,7 @@ body.touchpad-open { padding-bottom: 16rem; }
 }
 .tp button {
   font: inherit; font-size: 13px; color: var(--text); background: var(--panel-2);
-  border: 1px solid var(--line); border-radius: 10px; width: var(--key); height: var(--key);
+  border: 1px solid var(--line); border-radius: var(--r); width: var(--key); height: var(--key);
   touch-action: none; -webkit-tap-highlight-color: transparent; cursor: pointer; padding: 0;
 }
 .tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); }
@@ -314,11 +329,11 @@ body.touchpad-open { padding-bottom: 16rem; }
 .images { display: grid; gap: .6rem; margin: .5rem 0; }
 .image {
   display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'r t' 'r f' 'r b'; column-gap: .75rem; row-gap: .2rem;
-  align-items: start; border: 1px solid var(--line); border-radius: 8px; background: #0a1120;
+  align-items: start; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
   padding: .75rem .9rem; cursor: pointer;
 }
 .image:hover { border-color: var(--accent); }
-.image.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
+.image.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; }
 .image.off { opacity: .55; cursor: default; }
 .image input { grid-area: r; margin: .2rem 0 0; accent-color: var(--accent-2); }
 .image > b { grid-area: t; font-size: 13px; letter-spacing: .06em; color: var(--text); }
@@ -336,16 +351,16 @@ body.touchpad-open { padding-bottom: 16rem; }
 
 .gate {
   width: min(92vw, 640px); margin: auto; padding: 1.4rem 1.6rem 1.2rem;
-  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 0 0 1px rgba(111, 176, 240, .15);
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 30px 80px var(--shade), 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
   font: inherit;
 }
-.gate::backdrop { background: rgba(5, 8, 15, .86); backdrop-filter: blur(4px); }
+.gate::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
 .gate h2 { margin: 0 0 .4rem; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 .gate h3 { margin: 0 0 .3rem; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
-.gate-mark { float: right; color: var(--accent); font-size: 26px; text-shadow: 0 0 12px rgba(111, 176, 240, .6); }
+.gate-mark { float: right; color: var(--accent); font-size: 26px; text-shadow: 0 0 12px var(--glow); }
 .gate-ways { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
-.gate-way { border: 1px solid var(--line); border-radius: 8px; padding: .8rem .9rem; background: var(--panel-2); }
+.gate-way { border: 1px solid var(--line); border-radius: var(--r-s); padding: .8rem .9rem; background: var(--panel-2); }
 .gate-way .note { margin-bottom: .6rem; }
 .gate-beacon { display: block; width: 100%; height: 10px; accent-color: var(--accent-2); }
 .gate-status { margin: .5rem 0 0; font-size: 12px; color: var(--dim); min-height: 1.5em; }
@@ -358,15 +373,15 @@ body.touchpad-open { padding-bottom: 16rem; }
 .gate-device.hot { color: var(--hot); }
 .gate-device a, .gate-flash a { color: var(--accent); }
 /* the way in for a badge that has no firmware yet: lit up when the gate sees such a controller */
-.gate-flash { margin: .8rem 0 0; padding: .55rem .75rem; border: 1px dashed var(--line); border-radius: 8px; max-width: none; }
+.gate-flash { margin: .8rem 0 0; padding: .55rem .75rem; border: 1px dashed var(--line); border-radius: var(--r-s); max-width: none; }
 .gate-flash.hot { border-color: var(--hot); border-style: solid; color: var(--text); }
-.refusal { margin: 0 0 1rem; padding: .6rem .9rem; border: 1px solid var(--hot); border-radius: 8px; color: var(--hot); font-size: 12px; }
+.refusal { margin: 0 0 1rem; padding: .6rem .9rem; border: 1px solid var(--hot); border-radius: var(--r-s); color: var(--hot); font-size: 12px; }
 @media (max-width: 560px) { .gate-ways { grid-template-columns: 1fr; } }
 
 /* The badge's vault page (badge.html). */
 .vault-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; margin: .6rem 0 1rem; }
 .vault-field label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: .2rem; }
-.vault-field input { width: 100%; font: inherit; font-size: 12px; color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: .4rem .5rem; }
+.vault-field input { width: 100%; font: inherit; font-size: 12px; color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .5rem; }
 .vault-field input:focus { outline: none; border-color: var(--accent); }
 .vault-field output { display: block; font-size: 12px; word-break: break-all; color: var(--text); }
 .vault-field output.on { color: var(--accent-2); }
@@ -379,18 +394,20 @@ body.touchpad-open { padding-bottom: 16rem; }
 /* ------------------------------------------------------------------ looks -- */
 /* How the site sits on a screen. The classic look is this file alone: every
    panel, the page scrolls. A phone look is one more stylesheet, src/looks/
-   <id>.css, picked by <html data-theme> (src/look-boot.js puts it in the head
+   <id>.css, picked by <html data-look> (src/look-boot.js puts it in the head
    before paint, src/looks.js swaps it). The block below is what every phone
    look shares, on every page: one column, the header static, a mode bar that
    shows one panel at a time, the prose folded behind "how it works". A look's
-   own file restyles the chrome on top - palette, bezel, soft keys - with
-   rules written html[data-theme=<id>] ..., which win by coming later. */
+   own file reshapes the chrome on top - bezel, soft keys, the pad - with
+   rules written html[data-look=<id>] ..., which win by coming later. The
+   palette is the theme's: src/themes/<id>.css on <html data-theme>, loaded
+   after the look's sheet, overriding the variables at the top of this file. */
 
 /* the mode bar and the folds exist in every look; the classic one hides them */
 .modes { display: none; }
 .mode {
   flex: 1; font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--dim); background: transparent; border: 0; border-radius: 6px; height: 32px; cursor: pointer;
+  color: var(--dim); background: transparent; border: 0; border-radius: var(--r-xs); height: 32px; cursor: pointer;
 }
 .mode.on { background: var(--accent); color: var(--ink); }
 .mode.help { flex: 0 0 2.6rem; font-size: 13px; text-transform: none; }
@@ -402,42 +419,42 @@ details.how > summary::-webkit-details-marker { display: none; }
 .tab .short { display: none; }
 
 /* the phone looks, shared */
-html:not([data-theme=classic]) body {
+html:not([data-look=classic]) body {
   display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; padding-bottom: 0;
 }
-html:not([data-theme=classic]) .bar { position: static; flex: none; }
-html:not([data-theme=classic]) .brand small { font-size: 10px; }
-html:not([data-theme=classic]) .modes {
+html:not([data-look=classic]) .bar { position: static; flex: none; }
+html:not([data-look=classic]) .brand small { font-size: 10px; }
+html:not([data-look=classic]) .modes {
   display: flex; flex: none; width: calc(100% - 28px); max-width: 532px; margin: 10px auto 0; padding: 2px;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel);
 }
-html:not([data-theme=classic]) main {
+html:not([data-look=classic]) main {
   flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 0 14px;
 }
-html:not([data-theme=classic]) main > .panel { margin: 12px 0; padding: 14px; }
-html:not([data-theme=classic]) main > .panel > h2 { font-size: 11px; }
+html:not([data-look=classic]) main > .panel { margin: 12px 0; padding: 14px; }
+html:not([data-look=classic]) main > .panel > h2 { font-size: 11px; }
 
-html:not([data-theme=classic]) details.how > summary {
+html:not([data-look=classic]) details.how > summary {
   display: block; cursor: pointer; list-style: none; font-size: 10px; color: var(--dim); letter-spacing: .04em;
 }
-html:not([data-theme=classic]) details.how > summary::after { content: ' ▸'; }
-html:not([data-theme=classic]) details.how[open] > summary::after { content: ' ▾'; }
-html:not([data-theme=classic]) details.how .note { margin-top: .5rem; }
+html:not([data-look=classic]) details.how > summary::after { content: ' ▸'; }
+html:not([data-look=classic]) details.how[open] > summary::after { content: ' ▾'; }
+html:not([data-look=classic]) details.how .note { margin-top: .5rem; }
 
-html:not([data-theme=classic]) .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 0; }
-html:not([data-theme=classic]) .tabs::-webkit-scrollbar { display: none; }
-html:not([data-theme=classic]) .tab { white-space: nowrap; font-size: 10px; padding: 5px 9px; }
-html:not([data-theme=classic]) .tab .long { display: none; }
-html:not([data-theme=classic]) .tab .short { display: inline; }
-html:not([data-theme=classic]) main > .panel.off { display: none; }
-html:not([data-theme=classic]) .armed-mark { display: none; }
-html:not([data-theme=classic]) .panel.armed { border-color: var(--line); box-shadow: none; }
-html:not([data-theme=classic]) .stage-wrap { padding: 0; overflow: hidden; display: flex; justify-content: center; }
-html:not([data-theme=classic]) .stage-wrap canvas { max-width: 100%; height: auto; }
-html:not([data-theme=classic]) .stage-bar { gap: 8px; }
-html:not([data-theme=classic]) .controls label { font-size: 10px; }
-html:not([data-theme=classic]) .log:empty { display: none; }
-html:not([data-theme=classic]) .items { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+html:not([data-look=classic]) .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 0; }
+html:not([data-look=classic]) .tabs::-webkit-scrollbar { display: none; }
+html:not([data-look=classic]) .tab { white-space: nowrap; font-size: 10px; padding: 5px 9px; }
+html:not([data-look=classic]) .tab .long { display: none; }
+html:not([data-look=classic]) .tab .short { display: inline; }
+html:not([data-look=classic]) main > .panel.off { display: none; }
+html:not([data-look=classic]) .armed-mark { display: none; }
+html:not([data-look=classic]) .panel.armed { border-color: var(--line); box-shadow: none; }
+html:not([data-look=classic]) .stage-wrap { padding: 0; overflow: hidden; display: flex; justify-content: center; }
+html:not([data-look=classic]) .stage-wrap canvas { max-width: 100%; height: auto; }
+html:not([data-look=classic]) .stage-bar { gap: 8px; }
+html:not([data-look=classic]) .controls label { font-size: 10px; }
+html:not([data-look=classic]) .log:empty { display: none; }
+html:not([data-look=classic]) .items { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
 
 /* the on-screen pad as a mirror: on the site nothing on the screen is a
    controller, so the pad only shows what the badge is pressing */
@@ -445,10 +462,11 @@ html:not([data-theme=classic]) .items { grid-template-columns: repeat(auto-fill,
 .touchpad.mirror .tp button.down { opacity: 1; }
 
 /* ------------------------------------------------------- the look picker -- */
-/* a chip in the header opens a sheet of cards, one per look in the manifest;
-   the help panel shows the same cards. Each card's miniature is painted in
-   the look's two swatch colours and shaped by its `shape` (page / sheet /
-   device / dock), so a new look needs no artwork. */
+/* a chip in the header opens a sheet of cards: the themes, then the looks,
+   one card per entry in the manifests; a help panel's .look-cards host shows
+   the same. A look card's miniature is shaped by its `shape` (page / sheet /
+   device / dock) and painted in the theme in force; a theme card's is painted
+   in its own five swatch colours. A new look or theme needs no artwork. */
 
 .look-chip {
   font: inherit; font-size: 10px; letter-spacing: .08em; color: var(--accent); white-space: nowrap;
@@ -458,14 +476,14 @@ html:not([data-theme=classic]) .items { grid-template-columns: repeat(auto-fill,
 
 .look-sheet {
   border: 0; padding: 0; background: transparent; color: var(--text);
-  width: min(100%, 560px); max-width: none; max-height: 92vh; inset: auto 0 0 0; margin: 0 auto;
+  width: min(100%, 560px); max-width: none; max-height: 92vh; inset: auto 0 0 0; margin: 0 auto; overflow: auto;
 }
-.look-sheet::backdrop { background: rgba(5, 8, 15, .62); }
+.look-sheet::backdrop { background: color-mix(in srgb, var(--ink) 62%, transparent); }
 .look-sheet .sheet {
   display: flex; flex-direction: column; gap: 10px;
   padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
   background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0;
-  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 12px/1.4 var(--font);
 }
 .look-sheet .handle { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
@@ -477,21 +495,30 @@ html:not([data-theme=classic]) .items { grid-template-columns: repeat(auto-fill,
 .sheet-foot code { color: var(--accent-2); }
 .sheet-foot .btn { flex: none; font-size: 9px; height: 26px; padding: 0 8px; }
 
-.look-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 700px) { .panel .look-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 760px; } }
+.look-cards { display: grid; gap: 14px; }
+.pick-head { display: flex; align-items: baseline; gap: 8px; }
+.pick-head b { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.pick-head small { font-size: 9px; color: var(--dim); }
+.pick .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px; }
+.pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (min-width: 700px) {
+  .panel .pick .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 760px; }
+  .panel .pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 .look-card {
   display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font: inherit; color: var(--text);
-  border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); cursor: pointer;
 }
 .look-card:hover { border-color: var(--accent); }
-.look-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
+.look-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; }
 .look-label { font-size: 11px; letter-spacing: .06em; font-weight: 600; }
 .look-card.on .look-label::after { content: ' · on'; font-size: 9px; color: var(--accent-2); letter-spacing: .1em; font-weight: 400; }
 .look-blurb { font-size: 9px; color: var(--dim); line-height: 1.35; }
 
-/* the miniature: ground and tint from the manifest, the shape from its `shape` */
+/* a look's miniature: the shape from its `shape`, the paint from the theme in force */
 .look-mini {
-  position: relative; display: block; height: 96px; border-radius: 6px; overflow: hidden;
+  --ground: var(--ink); --tint: var(--accent);
+  position: relative; display: block; height: 96px; border-radius: var(--r-xs); overflow: hidden;
   background: var(--ground); border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent);
 }
 .look-mini > span { position: absolute; display: block; }
@@ -522,14 +549,14 @@ html:not([data-theme=classic]) .items { grid-template-columns: repeat(auto-fill,
 /* device: a bezelled screen, the pad moulded into the body */
 .look-mini[data-shape=device] .mini-bar { background: transparent; }
 .look-mini[data-shape=device] .mini-panel {
-  left: 6px; right: 6px; top: 6px; height: 44px; border-radius: 6px; background: #060a12;
-  border: 4px solid color-mix(in srgb, var(--tint) 12%, #060a12);
+  left: 6px; right: 6px; top: 6px; height: 44px; border-radius: var(--r-xs); background: var(--ink-2);
+  border: 4px solid color-mix(in srgb, var(--tint) 12%, var(--ink-2));
 }
 .look-mini[data-shape=device] .mini-panel::after { left: 8px; right: 8px; top: 8px; height: 20px; }
 .look-mini[data-shape=device] .mini-pad { height: 34px; background: transparent; border-top: 0; }
 .look-mini[data-shape=device] .mini-pad::before, .look-mini[data-shape=device] .mini-pad::after {
   width: 14px; height: 14px; bottom: 9px; border-radius: 4px;
-  background: color-mix(in srgb, var(--tint) 35%, var(--ground)); border-color: #0b1322;
+  background: color-mix(in srgb, var(--tint) 35%, var(--ground)); border-color: var(--panel-end);
 }
 /* dock: the measurement first, keys in rows */
 .look-mini[data-shape=dock] .mini-panel { border: 0; background: transparent; }
@@ -538,3 +565,23 @@ html:not([data-theme=classic]) .items { grid-template-columns: repeat(auto-fill,
 .look-mini[data-shape=dock] .mini-pad::before, .look-mini[data-shape=dock] .mini-pad::after { width: 18px; height: 9px; border-radius: 2px; bottom: 4px; }
 .look-mini[data-shape=dock] .mini-pad::before { left: 8px; box-shadow: 22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent), 44px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
 .look-mini[data-shape=dock] .mini-pad::after { right: 8px; box-shadow: -22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
+
+/* a theme's miniature: a little page in its five swatch colours - the page (--s0), a panel (--s1),
+   the accent (--s2), the good colour (--s3), the text (--s4) */
+.theme-mini {
+  position: relative; display: block; height: 56px; border-radius: var(--r-xs); overflow: hidden;
+  background: var(--s0); border: 1px solid color-mix(in srgb, var(--s4) 25%, transparent);
+}
+.theme-mini > span { position: absolute; display: block; }
+.theme-mini .mini-bar { left: 0; right: 0; top: 0; height: 9px; background: var(--s1); }
+.theme-mini .mini-dot { left: 5px; top: 3px; width: 3px; height: 3px; border-radius: 1px; background: var(--s2); }
+.theme-mini .mini-head { left: 6px; top: 15px; width: 38%; height: 4px; background: var(--s2); }
+.theme-mini .mini-text { left: 6px; right: 6px; top: 24px; height: 3px; background: var(--s4); opacity: .45; box-shadow: 0 6px 0 var(--s4); }
+.theme-mini .mini-btn { left: 6px; bottom: 6px; width: 22px; height: 9px; border-radius: 2px; background: var(--s2); }
+.theme-mini .mini-ok { left: 32px; bottom: 6px; width: 14px; height: 9px; border-radius: 2px; border: 1px solid var(--s3); }
+
+/* ------------------------------------------------------- the display face -- */
+/* a theme may set --font-display apart from --font: the brand, the headings and
+   the buttons take it; the data - listings, logs, readouts - stays in --font.
+   Last in the file, after every `font: inherit` that would reset it. */
+.brand b, .panel > h2, .btn, .tab, .mode, .gate h2, .gate h3, .sheet-head b, .look-label, .hero-meta b, .pick-head b { font-family: var(--font-display); }
