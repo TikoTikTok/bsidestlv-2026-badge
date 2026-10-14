@@ -10,7 +10,10 @@
 //--------------------------------------------------------------------+
 // Mirrors a wired DualShock 4 (CUH-ZCT2U). iOS binds controllers by
 // VID/PID, so these values are what make an iPhone attach a real
-// GameController profile instead of ignoring the device.
+// GameController profile instead of ignoring the device. The strings
+// are the badge's own (see below): binding goes by the numbers, and the
+// name is how a browser - and the challenge site - tells a badge from a
+// real controller, or from a badge still running the stock firmware.
 tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -326,8 +329,8 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 },      // 0: supported language is English (0x0409)
-  "Sony Interactive Entertainment",   // 1: Manufacturer
-  "Wireless Controller",              // 2: Product
+  "BSidesTLV",                        // 1: Manufacturer
+  "BSidesTLV 2026 Alice Controller",  // 2: Product - browsers put this in Gamepad.id; src/pad.js looks for it
 };
 
 static uint16_t _desc_str[32 + 1];

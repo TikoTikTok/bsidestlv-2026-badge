@@ -10,6 +10,12 @@
 //               stick axes; the pad's poll feeds the decoder and a bar fills.
 //               Any browser with a Gamepad API, which is every phone.
 //
+// A new badge, or one still on the stock firmware, has neither: it shows
+// up as a plain "Wireless Controller" (the badge firmware names itself, see
+// BADGE_PRODUCT in src/pad.js). The dialog says so when it sees one and
+// points at flash.html, which is never gated, so the way in for a fresh
+// badge is: flash, come back, press a button.
+//
 // What passing buys: the page's `badge` - serial, label and the 32-byte key
 // that opens sealed stages (src/seal.js). Nothing is stored; unplug and
 // reload and the badge is asked again. A blank badge (no key yet) passes
@@ -25,7 +31,7 @@
 // visitor from editing it. What it cannot be edited around is the key, and
 // that is why the stages worth protecting are sealed under it.
 
-import { isDevHost, sourcesFor } from './pad.js';
+import { isDevHost, sourcesFor, BADGE_PRODUCT } from './pad.js';
 import { hasHid, requestBadgeHid, grantedBadgesHid, readVaultHid, BeaconDecoder, BEACON } from './vault.js';
 
 /** 'dev' or 'site': how this page should behave, from where it is served. */
@@ -68,6 +74,9 @@ export function openGate({ pad, mode = gateMode() } = {}) {
     const bar = el('progress', { class: 'gate-beacon', id: 'gateBeacon', max: '1', value: '0' });
     const connect = el('button', { class: 'btn', id: 'gateConnect', type: 'button' }, 'Connect the badge');
     const device = el('span', { class: 'gate-device', id: 'gateDevice' }, 'no gamepad seen yet');
+    const flashNote = el('p', { class: 'note gate-flash', id: 'gateFlash',
+      html: `A <b>new badge</b>, or one still on the stock firmware, has no vault and no beacon yet - it shows up as a plain “Wireless Controller”. ` +
+            `<a href="flash.html">Flash the firmware from this browser</a> (hold BootSel while plugging it in), then come back here and press a button on it.` });
 
     const dialog = el('dialog', { class: 'gate', id: 'gate', 'aria-labelledby': 'gateTitle' },
       el('div', { class: 'gate-mark', 'aria-hidden': 'true' }, '◆'),
@@ -77,7 +86,7 @@ export function openGate({ pad, mode = gateMode() } = {}) {
         el('div', { class: 'gate-way' },
           el('h3', {}, hasHid() ? 'On this computer' : 'On a computer'),
           el('p', { class: 'note' }, hasHid()
-            ? 'Press Connect and pick “Wireless Controller” in the chooser. The badge answers with its vault in one report.'
+            ? `Press Connect and pick “${BADGE_PRODUCT}” in the chooser. The badge answers with its vault in one report.`
             : 'Chrome or Edge can read the badge directly over WebHID. This browser cannot, so use the beacon.'),
           hasHid() ? connect : el('span', {})),
         el('div', { class: 'gate-way' },
@@ -86,6 +95,7 @@ export function openGate({ pad, mode = gateMode() } = {}) {
           bar)),
       status,
       el('p', { class: 'gate-foot' }, 'gamepad: ', device),
+      flashNote,
     );
     document.body.append(dialog);
     dialog.addEventListener('cancel', (e) => e.preventDefault());   // Esc does not open the gate
@@ -123,7 +133,12 @@ export function openGate({ pad, mode = gateMode() } = {}) {
         const vault = await readVaultHid(dev);
         pass(vault, 'hid');
       } catch (e) {
-        say(/not a badge/.test(e.message) ? 'that is a DualShock 4, not the badge' : `could not read the badge: ${e.message}`, 'hot');
+        if (/not a badge/.test(e.message)) {
+          say('that controller has no vault: a DualShock 4, or a badge still on the stock firmware - flash it first (below), then come back', 'hot');
+          flashNote.classList.add('hot');
+        } else {
+          say(`could not read the badge: ${e.message}`, 'hot');
+        }
       }
     };
     connect.addEventListener('click', async () => {
@@ -138,8 +153,26 @@ export function openGate({ pad, mode = gateMode() } = {}) {
     });
     if (hasHid()) grantedBadgesHid().then(async (devs) => { if (devs[0] && !done) await readHid(devs[0]); }).catch(() => {});
 
+    // the gamepad line, redrawn only when what it says changes (it holds a link)
+    let shown = null;
     const watch = setInterval(() => {
-      device.textContent = pad.device ? `${pad.device.id.replace(/\s*\(.*$/, '').slice(0, 40)} (${pad.device.mapping || 'raw'})` : 'none seen yet - press a button on it';
+      const d = pad.device;
+      const key = d ? `${d.id}|${d.badge}` : '';
+      if (key === shown) return;
+      shown = key;
+      device.textContent = '';
+      device.className = 'gate-device';
+      if (!d) { device.textContent = 'none seen yet - press a button on it'; return; }
+      const name = `${d.id.replace(/\s*\(.*$/, '').slice(0, 40)} (${d.mapping || 'raw'})`;
+      if (d.badge) {
+        device.textContent = `${name} - the badge firmware is on it: Connect, or hold SELECT + Y`;
+        device.classList.add('on');
+      } else {
+        device.append(`${name} - not announcing itself as the badge: a DualShock 4, or a badge still on the stock firmware. `,
+                      el('a', { href: 'flash.html' }, 'Flash it'), ' and come back.');
+        device.classList.add('hot');
+        flashNote.classList.add('hot');
+      }
     }, 250);
   });
 }

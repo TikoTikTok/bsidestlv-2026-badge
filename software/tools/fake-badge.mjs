@@ -8,6 +8,7 @@
 // (badge.html's `window.__vault.useDevice`) to walk the UI without a board.
 
 import { REPORT_ID, REPORT_LEN, KEY_LEN, LABEL_LEN, STATE, CMD, BEACON, beaconFrame, beaconAxes, hex } from '../../src/vault.js';
+import { BADGE_PRODUCT } from '../../src/pad.js';
 
 const TAG = [0x41, 0x4C, 0x49, 0x43, 0x45];   // "ALICE"
 const toFloat = (b) => b / 127.5 - 1;
@@ -22,7 +23,7 @@ export class FakeBadge {
     this.writes = [];               // every store/erase the flash would have seen
     this.chordSince = null;         // SELECT+Y: beacon start time (ms)
     this.opened = false;
-    this.vendorId = 0x054C; this.productId = 0x09CC; this.productName = 'Wireless Controller';
+    this.vendorId = 0x054C; this.productId = 0x09CC; this.productName = BADGE_PRODUCT;
   }
 
   get provisioned() { return !!this.key; }
@@ -88,7 +89,7 @@ export class FakeBadge {
   /** What navigator.getGamepads() would hold at `tMs`: a standard-mapping pad with centred buttons. */
   gamepad(tMs) {
     return {
-      id: 'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)',
+      id: `${BADGE_PRODUCT} (STANDARD GAMEPAD Vendor: 054c Product: 09cc)`,
       index: 0, connected: true, mapping: 'standard', timestamp: tMs,
       axes: this.axesBytes(tMs).map(toFloat),
       buttons: Array.from({ length: 18 }, () => ({ pressed: false, touched: false, value: 0 })),
