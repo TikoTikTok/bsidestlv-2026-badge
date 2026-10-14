@@ -10,7 +10,7 @@
 import { parseVaultReport, buildSetReport, BeaconDecoder, beaconAxes, beaconFrame, crc32,
          CMD, STATE, REPORT_ID, REPORT_LEN, BEACON, hex, unhex } from '../../src/vault.js';
 import { seal, unseal, isSealed } from '../../src/seal.js';
-import { Pad, isDevHost, sourcesFor } from '../../src/pad.js';
+import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT } from '../../src/pad.js';
 import { FakeBadge } from './fake-badge.mjs';
 
 let failed = 0;
@@ -196,6 +196,13 @@ console.log('seal: a stage under the badge key');
 
 console.log('pad: who may play');
 {
+  // the badge is known by its name, in every browser's spelling of Gamepad.id
+  ok(BADGE_PRODUCT.length <= 32, 'the product string fits the firmware\'s 32-character descriptor buffer');
+  ok(isBadgeId(new FakeBadge().gamepad(0).id), 'the fake badge announces itself');
+  for (const id of [`${BADGE_PRODUCT} (STANDARD GAMEPAD Vendor: 054c Product: 09cc)`, `054c-09cc-${BADGE_PRODUCT}`, BADGE_PRODUCT])
+    ok(isBadgeId(id), `badge id recognised: ${id}`);
+  for (const id of ['Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)', '054c-09cc-Wireless Controller', 'Xbox 360 Controller (XInput STANDARD GAMEPAD)', undefined])
+    ok(!isBadgeId(id), `not a badge: ${id}`);
   ok(isDevHost('localhost') && isDevHost('127.0.0.1') && isDevHost('[::1]') && isDevHost(''), 'dev hosts');
   ok(!isDevHost('tikotiktok.github.io') && !isDevHost('bsidestlv.github.io') && !isDevHost('localhost.evil.example'), 'the site is not dev');
   ok(same([...sourcesFor(true)].sort(), ['key', 'pad', 'ui']), 'dev: every source');
