@@ -22,18 +22,6 @@
   </div>
 
   <div class="controls">
-    <label>Item zoom
-      <input id="zoom" type="range" min="1" max="6" step="1" value="2">
-      <output id="zoomOut">2×</output>
-    </label>
-    <label class="check"><input id="animate" type="checkbox" checked> animate</label>
-    <label>Backdrop
-      <select id="backdrop">
-        <option value="checker">checker</option>
-        <option value="dark">dark</option>
-        <option value="light">light</option>
-      </select>
-    </label>
     <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
   </div>
 </header>
@@ -151,6 +139,20 @@
 
   <section class="panel" data-mode="art">
     <h2>Tiles</h2>
+    <!-- the sheet's own controls: how big the cut assets are drawn below, and on what -->
+    <div class="controls sheet-controls">
+      <label>Zoom
+        <input id="zoom" type="range" min="1" max="6" step="1" value="2">
+        <output id="zoomOut">2×</output>
+      </label>
+      <label>Backdrop
+        <select id="backdrop">
+          <option value="checker">checker</option>
+          <option value="dark">dark</option>
+          <option value="light">light</option>
+        </select>
+      </label>
+    </div>
     <p class="note">Cut from <code>references/tiles-reference.png</code> by
       <code>tools/slice-tile-sheet.py</code>. Floors and walls fill the whole 48×48 cell — they
       are the grid. Doors, buttons and levers keep their aspect and sit on the cell floor, sharing
