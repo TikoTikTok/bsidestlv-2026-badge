@@ -69,6 +69,7 @@ and each other button is a command:
 | `SELECT` + `UP` / `DOWN` | Playback speed ×2 / ÷2: 1/4×, 1/2×, 1×, 2×, 4×, 8×, 16×, 32×. Scales the whole take, gaps and hold times alike, so an 80 ms tap at 8× is a 10 ms pulse. |
 | `SELECT` + `LEFT` / `RIGHT` | Offset −/+ 1 ms. Hold to auto-repeat; after twenty steps the step becomes 10 ms. Floors at 0, caps at 10 s. |
 | `SELECT` + `B` | Forget the take, offset 0, speed 1×. |
+| `SELECT` + `Y`, held | The **beacon**: spell the vault (serial, stage key) on the stick axes for browsers without WebHID - see [The vault](#the-vault). |
 | `SELECT` + `START`, held 2 s | Reboot into the UF2 bootloader to take a new firmware - see [Flashing](#flashing). |
 
 A plain `SELECT` press with no command still reaches the host, as a 40 ms tap
@@ -97,7 +98,7 @@ for that, see `software/docs/GAME_DESIGN.md`.
 
 The layer is plain C with no SDK dependency, `src/glitch.c`, and has a host
 test that scripts a fake clock through record, fire, repeat and the 32-bit
-wrap:
+wrap (the same make builds the vault's test, below):
 
 ```bash
 make -C software/controller/test
@@ -114,6 +115,42 @@ sudo python3 software/tools/hid-trace.py     # raw reports, 1 ms rate, µs stamp
 A fire with offset 460 ms and a 40 ms take at 1x should print START down at
 0, START up at ~30, X down at ~460, X up at ~500, and the counter-gap stat
 should stay at 0.
+
+## The vault
+
+The badge is the key to the challenge site: `src/vault.{h,c}` keeps a 32-byte
+**stage key** and a 15-byte label in the last 4 KB sector of the flash, written
+once at the booth. The site's event stages are sealed under keys derived from
+it (`src/seal.js` on the site), so a page opens them only with a badge plugged
+in. The design, its limits and the server tier beyond it:
+[`software/docs/BADGE_GATE.md`](../docs/BADGE_GATE.md).
+
+Two ways out of the badge, both read by the site's `src/vault.js`:
+
+- **HID feature report `0xF1`.** One of the vendor reports the DualShock 4
+  descriptor already declares (63 bytes), so the descriptor stays byte-identical
+  to the real controller's and iOS keeps binding. `GET` answers `ALICE`, a
+  version, state bits, the RP2040 serial, the key and the label; a real
+  DualShock 4 answers zeros. `SET` on the same ID stores a key or erases.
+  Chrome's WebHID reaches it from `badge.html`.
+- **The beacon.** While `SELECT` + `Y` is held the stick axes (centred
+  otherwise - the board has no sticks) carry the same payload: left X is a
+  clock flipping every 50 ms symbol, the other three axes a nibble each as
+  one of 16 levels, 31 symbols a frame, a 250 ms gap, CRC-32. Any browser
+  with a Gamepad API decodes it - that is the phone route.
+
+Writes are gated by presence: a blank badge takes its first key as it is; a
+badge that has one accepts a new key or an erase only while `SELECT` is
+physically held, so a page cannot wipe a badge that was merely plugged in.
+The sector write is deferred out of the control transfer (an erase is tens of
+milliseconds with interrupts off); the page reads back after it. The record
+survives reflashing - no image reaches the last sector.
+
+`test/test_vault.c` runs the record, the reports, the write policy and the
+beacon on the host, decoding the beacon the way a browser samples a gamepad
+(60 Hz from any phase, 30 Hz, 250 Hz) and pinning the first symbols so the
+site's model of the badge (`software/tools/fake-badge.mjs`) is proven to
+encode the same bytes.
 
 ## HID mapping
 
@@ -132,16 +169,18 @@ The device sends DualShock 4 input report `0x01` (64 bytes) every 1 ms:
 | SELECT          | Share               |
 
 There are no analog sticks or triggers on the board, so both sticks report
-centered (`0x80`) and both triggers report released. Opposing D-pad directions
-cancel out (e.g. pressing UP and DOWN together reports centered) so no
-impossible diagonal is ever sent.
+centered (`0x80`) and both triggers report released - except while the vault's
+beacon is running, which puts its symbols on the four stick bytes. Opposing
+D-pad directions cancel out (e.g. pressing UP and DOWN together reports
+centered) so no impossible diagonal is ever sent.
 
 The report is streamed continuously rather than only on change: the real
 controller does the same, and the report counter in `buttons2` has to keep
 advancing for drivers that watch it for a stalled device. Feature reports the
 host probes during attach (IMU calibration `0x02`, MAC `0x12`, version `0xA3`)
 are answered with well-formed placeholder data - see
-`tud_hid_get_report_cb()` in `src/usb_descriptors.c`.
+`tud_hid_get_report_cb()` in `src/usb_descriptors.c`. Feature report `0xF1`
+is the vault, above.
 
 ## Building
 

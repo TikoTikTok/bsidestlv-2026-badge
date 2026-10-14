@@ -7,10 +7,23 @@
 import { parse, step, solve, isGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, solve as solveChase,
          isGoal as isChaseGoal, hazardCells, hazardAt, seenBy } from './chase.js';
-import { TEA_PARTY } from '../stages/tea-party.js';
-import { QUEENS_GAUNTLET } from '../stages/queens-gauntlet.js';
+import { Pad } from './pad.js';
+import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
+import { loadStage } from './seal.js';
 
 const $ = (sel) => document.querySelector(sel);
+
+// ------------------------------------------------------------------ input ----
+
+// The badge is the controller for both stages. On the site it is the only
+// one (src/gate.js asks for it before anything plays); on a dev host the
+// keyboard works too. The stages themselves come through src/seal.js, so a
+// sealed copy under stages/sealed/ takes over from the plain module the
+// moment one is published.
+const mode = gateMode();
+const pad = new Pad({ sources: gateSources(mode) }).start();
+window.__pad = pad;
+const gatePromise = openGate({ pad, mode });
 
 const state = { zoom: 2, animate: true, backdrop: 'checker' };
 
@@ -56,6 +69,20 @@ const [characters, items, tiles] = await Promise.all([
   loadSet('tiles', 'tiles'),
 ]);
 const byId = Object.fromEntries(characters.map(c => [c.id, c]));
+
+const badge = await gatePromise;
+const [TEA_PARTY, QUEENS_GAUNTLET] = await Promise.all([loadStage('tea-party', badge?.key), loadStage('queens-gauntlet', badge?.key)])
+  .catch((e) => { showRefusal(`a stage would not open: ${e.message}`); throw e; });
+
+// Which stage the badge's d-pad drives: the one last touched, the tea party first.
+let armedStage = 'tea';
+const armStage = (which) => {
+  armedStage = which;
+  $('#teaPanel').classList.toggle('armed', which === 'tea');
+  $('#chasePanel').classList.toggle('armed', which === 'chase');
+};
+$('#teaPanel').addEventListener('pointerdown', () => armStage('tea'));
+$('#chasePanel').addEventListener('pointerdown', () => armStage('chase'));
 
 // --------------------------------------------------------------- controls ----
 
@@ -378,14 +405,19 @@ function drawStage(now) {
 
 }
 
-const KEY_DIRS = { ArrowUp: 'N', ArrowDown: 'S', ArrowLeft: 'W', ArrowRight: 'E',
-                   w: 'N', s: 'S', a: 'W', d: 'E' };
+// The badge drives the stage: d-pad steps, START resets, while this stage is
+// armed. On a dev host the pad also carries the keyboard (arrows or WASD,
+// Enter), so there is one path for a move; R is the page's own reset key.
+const PAD_DIRS = { UP: 'N', DOWN: 'S', LEFT: 'W', RIGHT: 'E' };
+pad.on(({ button, down }) => {
+  if (!down || armedStage !== 'tea') return;
+  if (button === 'START') { resetStage(); return; }
+  const dir = PAD_DIRS[button];
+  if (dir && !solution) applyMove(dir);
+});
 addEventListener('keydown', (e) => {
-  if (e.key === 'r' || e.key === 'R') { resetStage(); return; }
-  const dir = KEY_DIRS[e.key];
-  if (!dir || solution) return;
-  e.preventDefault();
-  applyMove(dir);
+  if (!pad.allows('key') || armedStage !== 'tea') return;
+  if (e.key === 'r' || e.key === 'R') resetStage();
 });
 
 $('#resetBtn').addEventListener('click', resetStage);
@@ -588,13 +620,20 @@ function drawChase(now) {
   cctx.globalAlpha = 1;
 }
 
-const CHASE_KEYS = { ArrowUp: 'N', ArrowDown: 'S', ArrowLeft: 'W', ArrowRight: 'E',
-                     w: 'N', s: 'S', a: 'W', d: 'E', ' ': 'wait' };
+// The badge: d-pad moves, Y waits a tick (the design's tick-step), START
+// restarts. The keyboard rides the same pad on a dev host (V is Y there);
+// space and R are the page's own wait and restart keys.
+const CHASE_PAD = { UP: 'N', DOWN: 'S', LEFT: 'W', RIGHT: 'E', Y: 'wait' };
+pad.on(({ button, down }) => {
+  if (!down || armedStage !== 'chase') return;
+  if (button === 'START') { chaseRestart(); return; }
+  const action = CHASE_PAD[button];
+  if (action && !chasePlan) queued = action;   // consumed by the next tick, not now
+});
 addEventListener('keydown', (e) => {
+  if (!pad.allows('key') || armedStage !== 'chase') return;
   if (e.key === 'r' || e.key === 'R') { chaseRestart(); return; }
-  const action = CHASE_KEYS[e.key];
-  if (!action || chasePlan) return;
-  queued = action;                       // consumed by the next tick, not now
+  if (e.key === ' ' && !chasePlan) { e.preventDefault(); queued = 'wait'; }
 });
 
 $('#chaseReset').addEventListener('click', chaseRestart);
