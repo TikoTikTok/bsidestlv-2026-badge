@@ -1,40 +1,57 @@
-// Alice in AI Land - the look, before first paint.
+// Alice in AI Land - the look and the theme, before first paint.
 //
-// Every page loads this from <head> as a plain script, before its body. It
-// decides which look is in force - ?look= in the URL, else the one chosen
-// last time on this device, else data-look-touch on <html> when the screen
-// is a touch screen, else the classic page - and puts the look's stylesheet
-// in the head right away, so the page never paints in the wrong shape. A
-// look is one file in src/looks/<id>.css; the classic look is styles.css
-// alone. Once the body exists it folds what the phone looks fold (the prose
-// behind "how it works") and hides the panels the page's mode bar did not
-// pick, so there is nothing for the module to undo later.
+// Every page loads this from <head> as a plain script, before its body. Two
+// choices shape a page: the look, how it sits on the screen (the classic page,
+// or a phone look that shows one panel at a time), and the theme, what it is
+// painted in. This decides both - ?look= and ?theme= in the URL, else what was
+// chosen last time on this device, else the page's own defaults: data-look-touch
+// on <html> when the screen is a touch screen, data-theme-default always - and
+// puts their stylesheets in the head right away, so the page never paints in the
+// wrong shape or colour. A look is one file in src/looks/<id>.css, a theme one
+// in src/themes/<id>.css; the classic look and the classic theme are styles.css
+// alone. The look's sheet goes in first and the theme's after it, so a theme's
+// palette wins over anything a look paints. Once the body exists it folds what
+// the phone looks fold (the prose behind "how it works") and hides the panels
+// the page's mode bar did not pick, so there is nothing for the module to undo.
 //
-// src/looks.js owns everything else: the manifest, the picker, switching.
+// src/looks.js owns everything else: the manifests, the picker, switching.
 (function () {
   var html = document.documentElement;
-  var KEY = 'alice.look';
-  var look = 'classic';
-  try {
-    var q = new URLSearchParams(location.search).get('look');
-    // 'glitch.look' is the key the range used before every page had looks
-    var remembered = localStorage.getItem(KEY) || localStorage.getItem('glitch.look');
-    var touch = matchMedia('(pointer: coarse)').matches ? html.dataset.lookTouch : null;
-    look = q || remembered || touch || 'classic';
-    if (!/^[a-z][a-z0-9-]*$/.test(look)) look = 'classic';
-  } catch (e) { look = 'classic'; }
+  var slug = /^[a-z][a-z0-9-]*$/;
+  var query = null;
+  try { query = new URLSearchParams(location.search); } catch (e) { query = null; }
 
-  html.dataset.theme = look;
-  if (look !== 'classic') {
+  // the URL, then the device's memory, then the page's default, else classic
+  function pick(name, key, fallback) {
+    var v = null;
+    try {
+      v = (query && query.get(name)) || localStorage.getItem(key)
+        // 'glitch.look' is the key the range used before every page had looks
+        || (name === 'look' ? localStorage.getItem('glitch.look') : null);
+    } catch (e) { v = null; }
+    v = v || fallback || 'classic';
+    return slug.test(v) ? v : 'classic';
+  }
+  var touch = false;
+  try { touch = matchMedia('(pointer: coarse)').matches; } catch (e) { touch = false; }
+  var look = pick('look', 'alice.look', touch ? html.dataset.lookTouch : null);
+  var theme = pick('theme', 'alice.theme', html.dataset.themeDefault);
+  html.dataset.look = look;
+  html.dataset.theme = theme;
+
+  function sheet(kind, dir, id) {
+    if (id === 'classic') return;
     var link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = 'src/looks/' + look + '.css';
-    link.dataset.look = look;
+    link.href = dir + id + '.css';
+    link.dataset[kind] = id;
     document.head.appendChild(link);
   }
+  sheet('look', 'src/looks/', look);      // the look first, the theme after it: the theme's palette wins
+  sheet('theme', 'src/themes/', theme);
 
   document.addEventListener('DOMContentLoaded', function () {
-    var classic = html.dataset.theme === 'classic';
+    var classic = html.dataset.look === 'classic';
     var d = document.querySelectorAll('details.how');
     for (var i = 0; i < d.length; i++) d[i].open = classic;
     if (!classic && html.dataset.mode) {
