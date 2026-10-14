@@ -3,7 +3,8 @@
 // surface and decodes its stick-axis beacon at browser sampling rates, the
 // wire formats match the firmware's host test (test_vault.c) byte for byte,
 // src/seal.js round-trips a stage under a badge key and refuses the wrong
-// one, and src/pad.js only lets the badge in outside a dev host.
+// one, src/pad.js only lets the badge in outside a dev host, and src/gate.js
+// knows when the badge has gone (the watch behind the reconnect dialog).
 //
 //   node software/tools/verify-badge.mjs
 
@@ -11,6 +12,7 @@ import { parseVaultReport, buildSetReport, BeaconDecoder, beaconAxes, beaconFram
          CMD, STATE, REPORT_ID, REPORT_LEN, BEACON, hex, unhex } from '../../src/vault.js';
 import { seal, unseal, isSealed } from '../../src/seal.js';
 import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT } from '../../src/pad.js';
+import { BadgeWatch } from '../../src/gate.js';
 import { FakeBadge } from './fake-badge.mjs';
 
 let failed = 0;
@@ -221,7 +223,39 @@ console.log('pad: who may play');
   const got = [];
   dev.on(e => got.push(e));
   ok(dev.inject('B', true, 3) === true && got.length === 1 && got[0].source === 'ui', 'inject works in dev');
+
+  // the gate's pause: while the badge is away no source reaches a listener
+  pad.muted = true;
+  pad._emit('B', true, 4, 'pad');
+  ok(seen.length === 1 && !pad.held.has('B'), 'a badge edge is dropped while muted');
+  dev.muted = true;
+  ok(dev.inject('X', true, 5) === false && got.length === 1, 'inject says no while muted, even in dev');
+  pad.muted = false;
+  pad._emit('B', true, 6, 'pad');
+  ok(seen.length === 2 && pad.held.has('B'), 'and passes again after');
+}
+
+// ---------------------------------------------------------- the watch ----
+
+console.log('gate: when the badge has gone');
+{
+  const badge = { id: `${BADGE_PRODUCT} (STANDARD GAMEPAD Vendor: 054c Product: 09cc)`, index: 0, mapping: 'standard', badge: true };
+  const ds4 = { id: 'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)', index: 0, mapping: 'standard', badge: false };
+  const w = new BadgeWatch({ graceMs: 300 });
+  ok(w.sample(null, 0) === null && w.sample(null, 5000) === null && !w.seen,
+     'no gamepad before the badge ever showed is not a loss (a WebHID pass lists none until a press)');
+  ok(w.sample(badge, 5100) === null && w.seen, 'the badge shows on the gamepad side: armed');
+  ok(w.sample(null, 5200) === null && w.sample(null, 5400) === null, 'a blink shorter than the grace is not a loss');
+  ok(w.sample(badge, 5450) === null && w.goneAt === null, 'back inside the grace: nothing happened');
+  ok(w.sample(null, 5500) === null && w.sample(null, 5799) === null && w.sample(null, 5800) === 'lost', 'gone for the grace: lost');
+  ok(w.sample(null, 6000) === null && w.sample(null, 9000) === null, 'said once, then quiet until the badge is seen again');
+  ok(w.sample(badge, 9100) === null && w.sample(ds4, 9200) === null && w.sample(ds4, 9500) === 'lost',
+     'another controller standing in for the badge is a loss too');
+  w.sample(badge, 9600);
+  w.reset();
+  ok(!w.seen && w.sample(null, 20000) === null, 'reset disarms: a resume over WebHID waits for the badge to show again');
+  ok(new BadgeWatch().graceMs === 300, 'the default grace');
 }
 
 if (failed) { console.error(`verify-badge: ${failed} failure(s)`); process.exit(1); }
-console.log('verify-badge: the vault, the beacon, sealed stages and the input policy all check out');
+console.log('verify-badge: the vault, the beacon, sealed stages, the input policy and the badge watch all check out');
