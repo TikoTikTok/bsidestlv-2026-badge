@@ -38,6 +38,10 @@
   var theme = pick('theme', 'alice.theme', html.dataset.themeDefault);
   html.dataset.look = look;
   html.dataset.theme = theme;
+  // the hand switch for a phone held upside down (src/tilt.js): '180' turns the page before paint
+  var flip = null;
+  try { flip = localStorage.getItem('alice.flip'); } catch (e) { flip = null; }
+  if (flip === '180') html.dataset.flip = '180';
 
   function sheet(kind, dir, id) {
     if (id === 'classic') return;
