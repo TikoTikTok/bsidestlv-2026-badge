@@ -1,0 +1,49 @@
+/* Alice in AI Land - the "teaparty" theme: the Hatter's table in daylight.
+
+   The one light theme: parchment, a dotted tablecloth, rust-red for the
+   teapot and tea-leaf green for what went right, headings in an old-style
+   serif with small caps, soft corners, and a teacup left on the table in the
+   corner of the page. The rooms' canvases sit on tan so the pixel art still
+   reads.
+
+   One file per theme: src/themes/index.json lists it, src/look-boot.js loads
+   it on demand when <html data-theme="teaparty"> is in force, and styles.css
+   paints from the variables it sets. A theme paints; a look (src/looks/)
+   shapes. Replace this file to replace the theme; keep the id so bookmarks
+   and the remembered choice still resolve. */
+
+html[data-theme=teaparty] {
+  color-scheme: light;
+  --ink: #efe3c8; --ink-2: #dcc9a2; --well: #f7eedb;
+  --panel: #fbf5e8; --panel-2: #f2e8d2; --panel-end: #f5ecd8; --line: #d3bf98;
+  --haze: #ffd79b; --bar: rgba(251, 245, 232, .92);
+  --text: #2a1b10; --dim: #7a6350;
+  --accent: #b5451b; --accent-2: #2f7d5a; --hot: #b3122e; --amber: #c98a12; --on-accent: #fff8ec;
+  --glow: color-mix(in srgb, var(--accent) 35%, transparent);
+  --shade: rgba(70, 40, 10, .25);
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --r: 14px; --r-s: 10px; --r-xs: 8px;
+}
+/* the tablecloth: a faint dotted weave over the parchment */
+html[data-theme=teaparty] body {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(120, 80, 20, .09) 0 1.5px, transparent 2px) 0 0 / 18px 18px,
+    radial-gradient(1200px 600px at 50% -10%, var(--haze) 0%, transparent 60%),
+    var(--ink);
+}
+html[data-theme=teaparty] .brand .mark { color: var(--accent); text-shadow: none; }
+html[data-theme=teaparty] .brand b { font-weight: 700; letter-spacing: .08em; }
+html[data-theme=teaparty] .panel > h2 { font-size: 15px; letter-spacing: .06em; font-weight: 700; text-transform: none; font-variant: small-caps; }
+html[data-theme=teaparty] .panel { box-shadow: 0 2px 0 var(--line), 0 10px 30px rgba(90, 60, 20, .12); }
+html[data-theme=teaparty] .btn { font-weight: 700; }
+html[data-theme=teaparty] .gate, html[data-theme=teaparty] .look-sheet .sheet { box-shadow: 0 20px 60px var(--shade); }
+html[data-theme=teaparty] .swatchbox.checker {
+  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%), linear-gradient(-45deg, var(--line) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--line) 75%), linear-gradient(-45deg, transparent 75%, var(--line) 75%);
+  background-color: var(--ink-2);
+}
+/* the teacup, left on the table */
+html[data-theme=teaparty] body::after {
+  content: '☕'; position: fixed; right: -2vmin; bottom: -4vmin; z-index: -1; font-size: 42vmin; line-height: 1;
+  color: var(--accent); opacity: .08; pointer-events: none; filter: grayscale(1) sepia(1);
+}
