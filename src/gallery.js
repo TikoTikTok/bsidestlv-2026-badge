@@ -47,7 +47,7 @@ $('#chasePanel').addEventListener('pointerdown', () => armStage('chase'));
 // phone can pick its look while the badge is still being asked for
 const looksReady = initLooks({ onMode(m) { if (m === 'tea' || m === 'chase') armStage(m); } });
 
-const state = { zoom: 2, animate: true, backdrop: 'checker' };
+const state = { zoom: 2, backdrop: 'checker' };   // the asset sheet's controls, in the Art panel
 
 const WALK_CHARACTERS = [
   { id: 'alice2',   label: 'Alice' },
@@ -105,7 +105,6 @@ $('#zoom').addEventListener('input', (e) => {
   $('#zoomOut').textContent = `${state.zoom}×`;
   drawItems(); drawTiles();
 });
-$('#animate').addEventListener('change', (e) => { state.animate = e.target.checked; });
 $('#backdrop').addEventListener('change', (e) => {
   state.backdrop = e.target.value;
   document.querySelectorAll('.swatchbox').forEach(el => { el.className = `swatchbox ${state.backdrop}`; });
@@ -244,7 +243,7 @@ $('#walkSpeed').addEventListener('input', (e) => {
   period = +e.target.value;
   $('#walkSpeedOut').textContent = `${period}ms`;
 });
-const playing = () => $('#walkPlay').checked && state.animate;
+const playing = () => $('#walkPlay').checked;
 
 // ------------------------------------------------------------------ stage ----
 
