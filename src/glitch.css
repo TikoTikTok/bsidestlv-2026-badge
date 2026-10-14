@@ -92,6 +92,14 @@ html:not([data-theme=classic]) .range > .log { order: 9; max-height: 150px; }
 html:not([data-theme=classic]) .log:empty { display: none; }
 
 html:not([data-theme=classic]) .watch { order: 4; margin-top: 10px; align-items: flex-start; flex-wrap: nowrap; }
+/* the lock: the garden beside the guess, the clock under it; a column on a phone */
+html:not([data-theme=classic]) .lock { display: contents; }
+html:not([data-theme=classic]) .lock > .stage-wrap { order: 4; display: flex; justify-content: center; margin-top: 8px; padding: 0; overflow: hidden; }
+html:not([data-theme=classic]) .lock .stage-wrap canvas { width: min(100%, 336px); }
+html:not([data-theme=classic]) .lock > .lock-side { order: 5; margin-top: 8px; }
+html:not([data-theme=classic]) .lock-side .trace { margin-top: 8px; }
+html:not([data-theme=classic]) .lock-side .stage-bar { margin-top: 8px; gap: 8px; }
+html:not([data-theme=classic]) .lock-side .stage-bar .status { order: -1; flex: 1 1 100%; }
 html:not([data-theme=classic]) .watch canvas { width: 72px; height: 72px; }
 html:not([data-theme=classic]) .watch-side { flex: 1; min-width: 0; }
 html:not([data-theme=classic]) .glyph { width: min(3rem, 11vw); height: min(3rem, 11vw); font-size: 18px; }

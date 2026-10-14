@@ -206,6 +206,9 @@ kbd {
 
 .glass { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1rem; align-items: start; }
 @media (max-width: 860px) { .glass { grid-template-columns: 1fr; } }
+.lock { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 860px) { .lock { grid-template-columns: 1fr; } }
+.lock-side { min-width: 0; }
 /* the room is 9 tiles = 432 px; on a phone let it shrink rather than scroll */
 .glass .stage-wrap canvas { max-width: 100%; height: auto; }
 .listing {

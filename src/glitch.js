@@ -6,6 +6,7 @@
 
 import { Pad } from './pad.js';
 import { comboSequence, Combo, buildLevel, idealOffsetMs, Run } from './range.js';
+import { buildLock, summarize, guessKey } from './lock.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
@@ -94,17 +95,16 @@ if (!padIsMirror) for (const b of tpButtons) {
 // ------------------------------------------------------------------ arming ----
 
 // Only one range listens at a time. Firing the badge taps START and then
-// replays the take; if both ranges heard it, a combo replayed for range 1
-// would also land as a stray pulse in range 2's log. A tap on a range arms
-// it, and so does the phone looks' mode bar.
+// replays the take; if every range heard it, a combo replayed for range 1
+// would also land as a stray pulse in range 2's log and a guess in range
+// 3's. A tap on a range arms it, and so does the phone looks' mode bar.
+const RANGES = ['watch', 'glass', 'lock'];
 let armed = 'watch';
 function arm(which) {
   armed = which;
-  $('#watchPanel').classList.toggle('armed', which === 'watch');
-  $('#glassPanel').classList.toggle('armed', which === 'glass');
+  for (const r of RANGES) $(`#${r}Panel`).classList.toggle('armed', which === r);
 }
-$('#watchPanel').addEventListener('pointerdown', () => arm('watch'));
-$('#glassPanel').addEventListener('pointerdown', () => arm('glass'));
+for (const r of RANGES) $(`#${r}Panel`).addEventListener('pointerdown', () => arm(r));
 arm('watch');
 
 // ------------------------------------------------------------------- looks ----
@@ -113,7 +113,7 @@ arm('watch');
 // on this page: keep the handheld's pad out, and arm the range on screen.
 await initLooks({
   onLook(look) { if (look.padAlwaysOut) touchPad.open = true; padOpen(); },
-  onMode(m) { if (m === 'watch' || m === 'glass') arm(m); },
+  onMode(m) { if (RANGES.includes(m)) arm(m); },
 });
 
 // -------------------------------------------------------------------- gate ----
@@ -122,7 +122,8 @@ await initLooks({
 // ranges come through src/seal.js so a sealed copy takes over the moment one
 // is published. On a dev host the gate resolves at once.
 const badge = await openGate({ pad, mode });
-const [RABBIT_WATCH, LOOKING_GLASS] = await Promise.all([loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key)])
+const [RABBIT_WATCH, LOOKING_GLASS, CATERPILLAR_LOCK] = await Promise.all([
+  loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key), loadStage('caterpillar-lock', badge?.key)])
   .catch((e) => { showRefusal(`a range would not open: ${e.message}`); throw e; });
 
 
@@ -160,8 +161,10 @@ async function loadSome(folder, names) {
 const [alice, queen, rabbit, tiles, items] = await Promise.all([
   loadCharacter('alice2'), loadCharacter('queen'), loadCharacter('rabbit'),
   loadSome('tiles', ['wall_blue', 'wall_blue_banner_red', 'pillar_blue', 'floor_marble_plain',
-                     'floor_marble_veined', 'floor_carpet_heart', 'door_heart_closed', 'door_heart_open']),
-  loadSome('items', ['key_heart', 'potion_star']),
+                     'floor_marble_veined', 'floor_carpet_heart', 'door_heart_closed', 'door_heart_open',
+                     'hedge_daisies', 'hedge_wide', 'hedge_roses', 'floor_grass_clover', 'floor_grass_flowers',
+                     'floor_dirt_patch', 'door_wood_closed', 'door_wood_open']),
+  loadSome('items', ['key_heart', 'potion_star', 'mushroom_red', 'mushroom_blue_trio']),
 ]);
 
 const frameOf = (ch, dir, now, periodMs) => {
@@ -187,7 +190,8 @@ $('#benchClear').addEventListener('click', () => { $('#benchLog').textContent = 
 pad.on((edge) => {
   refreshPad();
   if (armed === 'watch') watchEdge(edge);
-  else glassEdge(edge);
+  else if (armed === 'glass') glassEdge(edge);
+  else lockEdge(edge);
 });
 
 
@@ -509,6 +513,211 @@ $('#glassRun')?.addEventListener('click', () => {
 });
 $('#glassClear').addEventListener('click', () => { $('#glassLog').textContent = ''; attempt = 0; resetReadout(); });
 
+// ---------------------------------------------------- range 3: the lock ----
+// The Caterpillar's door and its clock. Rules in src/lock.js; this is the
+// garden, the guess, the clock as a bar, and a log that keeps every sample
+// of a guess together so the median is read off, not worked out.
+
+let lockLevel = null, lock = null, lockSeed = 0, lockAttempt = 0;
+let lockScene = { kind: 'idle', since: 0 };        // idle | entering | waiting | no | open
+const lockSamples = new Map();                     // guessKey -> [ms]
+let lastAnswer = null;
+let lockStray = null;                              // a symbol that arrived in the same sample as START, before it
+let lockTimer = null;                              // the door's answer, due whether or not a frame is drawn
+
+const lockStatus = $('#lockStatus');
+const setLockStatus = (text, kind = '') => { lockStatus.textContent = text; lockStatus.className = `status ${kind}`; };
+const lockMaxMs = () => (lockLevel.length + 2) * lockLevel.tickMs;
+
+const lockTabs = CATERPILLAR_LOCK.levels.map((lv, i) => {
+  const b = document.createElement('button');
+  b.className = 'tab';
+  b.append(span('long', `${i + 1} \u00b7 ${lv.name} \u00b7 ${lv.length} of ${lv.pool.length} \u00b7 ${lv.tickMs} ms/tick`),
+           span('short', `${i + 1} ${lv.short} \u00b7 ${lv.tickMs}ms`));
+  b.addEventListener('click', () => setLockLevel(lv));
+  $('#lockTabs').append(b);
+  return { lv, b };
+});
+
+function setLockLevel(lv, seed = 0) {
+  clearTimeout(lockTimer);
+  lockLevel = lv;
+  lockSeed = seed;
+  lock = buildLock(lv, seed);
+  lockSamples.clear();
+  lastAnswer = null;
+  lockStray = null;
+  lockScene = { kind: 'idle', since: performance.now() };
+  for (const t of lockTabs) t.b.classList.toggle('on', t.lv === lv);
+  $('#lockBlurb').textContent = lv.blurb;
+  $('#ltHead').textContent = `clock \u00b7 ${lv.tickMs} ms a tick \u00b7 ${lv.order === 'secret' ? 'checked in his order' : 'checked first to last'}`;
+  $('#ltMid').textContent = `${lv.length + 1} ticks = right`;
+  $('#ltEnd').textContent = `${lockMaxMs()} ms`;
+  $('#ltAnswer').textContent = '';
+  $('#ltMarks').textContent = '';
+  drawLockGuess();
+  resetLockReadout();
+  setLockStatus(`${lv.pool.length}^${lv.length} = ${Math.pow(lv.pool.length, lv.length).toLocaleString('en')} passwords \u00b7 ` +
+                (lv.jitterTicks ? `jitter \u00b1${lv.jitterTicks} tick` : 'no jitter') + ' \u00b7 START, then the password');
+}
+
+function resetLockReadout() {
+  for (const id of ['lrMs', 'lrTicks', 'lrN', 'lrMedian', 'lrVerdict']) $(`#${id}`).textContent = '\u2014';
+  $('#lrHint').innerHTML = '&nbsp;';
+  $('#lrVerdict').className = '';
+}
+
+function drawLockGuess() {
+  const el = $('#lockGuess');
+  el.textContent = '';
+  const typed = lock.guess ?? lastAnswer?.guess ?? [];
+  for (let i = 0; i < lockLevel.length; i++) {
+    const g = document.createElement('span');
+    const sym = typed[i];
+    let cls = 'glyph';
+    if (sym && (lock.entering || lock.waiting)) cls += ' done';
+    else if (sym && lastAnswer?.win) cls += ' done';
+    else if (!sym && lock.entering && i === typed.length) cls += ' next';
+    g.className = cls;
+    g.textContent = sym ? GLYPH[sym] : '\u00b7';
+    if (sym) g.title = sym;
+    el.append(g);
+  }
+}
+
+function lockEdge(edge) {
+  // a badge fire can land the take's first symbol in the same browser sample
+  // as the trigger's START, and the sample lists some buttons before START:
+  // hold such a press for a moment and type it once START has opened the guess
+  if (edge.down && edge.button !== 'START' && !lock.entering && lockLevel.pool.includes(edge.button)) { lockStray = edge; return; }
+  let r = lock.edge(edge);
+  if (r?.kind === 'open') {
+    clearTimeout(lockTimer);
+    lockScene = { kind: 'entering', since: edge.t };
+    resetLockReadout();
+    $('#ltAnswer').textContent = '';
+    setLockStatus(`${lockLevel.length} symbols\u2026`, 'busy');
+    if (lockStray && edge.t - lockStray.t <= 20) r = lock.edge(lockStray) ?? r;
+  }
+  lockStray = null;
+  if (r?.kind === 'submitted') {
+    lockScene = { kind: 'waiting', since: edge.t };
+    setLockStatus('the Caterpillar is thinking\u2026', 'busy');
+    // a background tab draws no frames, so the answer is not left to the
+    // render loop: a timer delivers it (the loop still checks, harmlessly)
+    clearTimeout(lockTimer);
+    lockTimer = setTimeout(() => { const a = lock.tick(performance.now()); if (a) lockAnswer(a); }, Math.max(0, r.answerAt - performance.now()) + 1);
+  }
+  drawLockGuess();
+}
+
+function lockAnswer(a) {
+  lockAttempt++;
+  lastAnswer = a;
+  const key = guessKey(a.guess);
+  const samples = lockSamples.get(key) ?? lockSamples.set(key, []).get(key);
+  samples.push(a.ms);
+  const st = summarize(samples);
+  const ticks = a.ms / lockLevel.tickMs;
+  const digits = lockLevel.jitterTicks ? 1 : 0;
+  const glyphs = a.guess.map(g => GLYPH[g]).join(' ');
+  $('#lrMs').textContent = `${Math.round(a.ms)}`;
+  $('#lrTicks').textContent = ticks.toFixed(digits);
+  $('#lrN').textContent = `${st.n}`;
+  $('#lrMedian').textContent = `${Math.round(st.median)}`;
+  const kind = a.win ? 'win' : 'hot';
+  $('#lrVerdict').textContent = a.win ? 'enter' : 'no';
+  $('#lrVerdict').className = kind;
+  $('#lrHint').textContent = a.win ? 'the door opens' : `median ${(st.median / lockLevel.tickMs).toFixed(1)} ticks`;
+  if (a.win) setLockStatus(`"Enter." \u2014 ${glyphs} \u00b7 guess ${lockAttempt} \u00b7 ${Math.round(a.ms)} ms`, 'win');
+  else setLockStatus(`"No." after ${Math.round(a.ms)} ms \u2014 ${ticks.toFixed(digits)} ticks` +
+                     (st.n > 1 ? ` \u00b7 median of ${st.n}: ${(st.median / lockLevel.tickMs).toFixed(1)}` : ''), 'hot');
+  logTo('#lockLog', `#${lockAttempt} ${glyphs} \u00b7 ${Math.round(a.ms)} ms \u00b7 ${ticks.toFixed(digits)} ticks` +
+        (st.n > 1 ? ` \u00b7 n=${st.n} median ${Math.round(st.median)} ms (${Math.round(st.min)}\u2013${Math.round(st.max)})` : '') +
+        (a.win ? ' \u00b7 the door opens' : ''), a.win ? 'win' : '');
+  // the clock: a mark per sample of this guess, the newest bright
+  const marks = $('#ltMarks');
+  marks.textContent = '';
+  for (const ms of samples) {
+    const m = span('trace-mark', '');
+    m.style.left = `${Math.min(ms / lockMaxMs(), 1) * 100}%`;
+    m.style.opacity = ms === a.ms ? 1 : .4;
+    marks.append(m);
+  }
+  $('#ltAnswer').textContent = `${Math.round(a.ms)} ms \u00b7 ${ticks.toFixed(digits)} ticks`;
+  lockScene = { kind: a.win ? 'open' : 'no', since: performance.now() };
+  drawLockGuess();
+}
+
+$('#lockShuffle').addEventListener('click', () => { setLockLevel(lockLevel, lockSeed + 1); $('#lockLog').textContent = ''; lockAttempt = 0; });
+$('#lockClear').addEventListener('click', () => { $('#lockLog').textContent = ''; lockAttempt = 0; lockSamples.clear(); resetLockReadout(); $('#ltMarks').textContent = ''; });
+
+// the clock as a bar: it fills while the door thinks, and stays at the answer
+function drawLockTrace(now) {
+  if (!lock) return;
+  const max = lockMaxMs();
+  let ms = 0;
+  if (lock.waiting) ms = Math.min(now - lock.submittedAt, max);
+  else if (lastAnswer && lockScene.kind !== 'entering') ms = Math.min(lastAnswer.ms, max);
+  const fill = $('#ltFill');
+  fill.style.width = `${ms / max * 100}%`;
+  fill.className = 'trace-fill' + (lock.waiting || !lastAnswer || lockScene.kind === 'entering' ? '' : lastAnswer.win ? ' win' : ' hot');
+}
+
+// the garden: hedges, two mushrooms, the Caterpillar's door. He thinks in
+// smoke rings, one per tick; Alice walks up, is turned away, or goes through.
+const lockMap = CATERPILLAR_LOCK.rows;
+const LW = lockMap[0].length, LH = lockMap.length;
+const lockCanvas = $('#lockScene');
+const lkctx = lockCanvas.getContext('2d');
+lockCanvas.width = LW * TILE; lockCanvas.height = LH * TILE;
+const lockCellOf = (ch) => { for (let y = 0; y < LH; y++) { const x = lockMap[y].indexOf(ch); if (x >= 0) return [x, y]; } return null; };
+const L_ALICE = lockCellOf('A'), L_DOOR = lockCellOf('D');
+const HEDGES = ['hedge_daisies', 'hedge_wide', 'hedge_roses', 'hedge_wide', 'hedge_daisies', 'hedge_wide'];
+const GRASS = ['floor_grass_clover', 'floor_grass_flowers', 'floor_grass_clover', 'floor_dirt_patch', 'floor_grass_clover'];
+
+function drawLock(now) {
+  lkctx.imageSmoothingEnabled = false;
+  lkctx.clearRect(0, 0, lockCanvas.width, lockCanvas.height);
+  const age = now - lockScene.since;
+  const open = lockScene.kind === 'open';
+
+  for (let y = 0; y < LH; y++) for (let x = 0; x < LW; x++) {
+    const ch = lockMap[y][x];
+    const px = x * TILE, py = y * TILE;
+    lkctx.drawImage(tiles[GRASS[hash2(x, y) % GRASS.length]], px, py, TILE, TILE);
+    if (ch === '#') lkctx.drawImage(tiles[HEDGES[hash2(x, y) % HEDGES.length]], px, py, TILE, TILE);
+    if (ch === 'm') lkctx.drawImage(items[y < LH / 2 ? 'mushroom_red' : 'mushroom_blue_trio'], px, py, TILE, TILE);
+    if (ch === 'D') lkctx.drawImage(tiles[open ? 'door_wood_open' : 'door_wood_closed'], px, py, TILE, TILE);
+  }
+
+  // the Caterpillar thinks: a smoke ring per tick, rising from the door
+  if (lock.waiting) {
+    const ticks = Math.min((now - lock.submittedAt) / lockLevel.tickMs, 9);
+    const cx = (L_DOOR[0] + 0.5) * TILE, base = L_DOOR[1] * TILE - 2;
+    for (let i = 0; i < Math.floor(ticks); i++) {
+      const rise = (i + 1) * 9 + ((now / 40) % 9);
+      lkctx.strokeStyle = `rgba(207, 224, 245, ${Math.max(0.12, 0.6 - i * 0.06)})`;
+      lkctx.lineWidth = 2;
+      lkctx.beginPath();
+      lkctx.ellipse(cx + Math.sin(now / 300 + i) * 4, base - rise, 5 + i * 1.2, 2.5 + i * 0.6, 0, 0, Math.PI * 2);
+      lkctx.stroke();
+    }
+  }
+
+  // Alice: home until the first guess, then at the door - turned away with a
+  // bounce on a no, through it on an enter
+  let ax = L_ALICE[0], dir = 'S', period = 400;
+  const atDoor = L_DOOR[0] - 1;
+  const k = lockScene.kind;
+  if (k === 'entering') { const p = Math.min(age / 500, 1); ax = L_ALICE[0] + (atDoor - L_ALICE[0]) * p; dir = 'E'; period = p < 1 ? 140 : 400; }
+  else if (k === 'waiting') { ax = atDoor; dir = 'E'; }
+  else if (k === 'no') { const p = Math.min(age / 500, 1); ax = atDoor - Math.sin(p * Math.PI) * 0.7; dir = p < 0.5 ? 'W' : 'E'; period = 160; }
+  else if (k === 'open') { const p = Math.min(age / 700, 1); ax = atDoor + p; dir = 'E'; period = 140; lkctx.globalAlpha = 1 - Math.max(0, p - 0.6) / 0.4; }
+  lkctx.drawImage(frameOf(alice, dir, now, period), ax * TILE, L_ALICE[1] * TILE, TILE, TILE);
+  lkctx.globalAlpha = 1;
+}
+
 // ------------------------------------------------------------------ drawing ----
 
 const hash2 = (x, y) => { let h = (x * 73856093) ^ (y * 19349663); h = (h ^ (h >>> 13)) * 1274126177; return Math.abs(h ^ (h >>> 16)); };
@@ -615,13 +824,19 @@ function logTo(sel, text, kind) {
 
 setWatchLevel(RABBIT_WATCH.levels[0]);
 setGlassLevel(LOOKING_GLASS.levels[0]);
+setLockLevel(CATERPILLAR_LOCK.levels[0]);
+// scripted tests read the ranges' state through this (dev hosts; nothing here plays)
+window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; } };
 
 function tick(now) {
   if (run?.open) { const r = run.tick(now); if (r) finishRun(r); }
+  if (lock?.waiting) { const a = lock.tick(now); if (a) lockAnswer(a); }
   drawRabbit(now);
   drawWatchTrace(now);
   drawGlass(now);
   drawListing(now);
+  drawLock(now);
+  drawLockTrace(now);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);

@@ -33,6 +33,7 @@
 <nav id="modes" class="modes" aria-label="what is on screen">
   <button type="button" class="mode" data-mode="watch">Watch</button>
   <button type="button" class="mode" data-mode="glass">Glass</button>
+  <button type="button" class="mode" data-mode="lock">Lock</button>
   <button type="button" class="mode" data-mode="bench">Bench</button>
   <button type="button" class="mode help" data-mode="help" aria-label="how it works">?</button>
 </nav>
@@ -40,7 +41,7 @@
 <main>
   <section class="panel" data-mode="help">
     <h2>The range</h2>
-    <p class="note">Two practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
+    <p class="note">Three practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
       in and press anything — the header lights up when the browser sees it. The published site
       listens to the badge and nothing else; on a local checkout the keyboard stands in: arrows,
       <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for A B X Y, <kbd>Q</kbd> <kbd>E</kbd>
@@ -132,6 +133,51 @@
     <ol id="glassLog" class="log" reversed></ol>
   </section>
 
+  <section class="panel range" id="lockPanel" data-mode="lock">
+    <h2>Range 3 — The Caterpillar's Lock <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Caterpillar's door wants a password and checks it the lazy way: one symbol per
+        tick, in order, stopping at the first one that is wrong. So the time it takes to say <em>no</em>
+        is the number of symbols you had right, plus one — a side channel. <b>START</b> opens a guess,
+        then one press per symbol; the door checks the moment the last one is in. Read the clock, change
+        one symbol, go again.</p>
+      <p class="note">On the badge a guess is a take: record the symbols only (no START), then fire — the
+        trigger's START opens the guess and the take types it. Give the take an offset of 40 ms or so
+        (<b>SELECT+RIGHT</b>) so START lands first. Hold the chord and the same guess goes in every
+        ~600 ms, which is how the jittery levels are beaten: the readout keeps the median.</p>
+    </details>
+
+    <div id="lockTabs" class="tabs"></div>
+    <p id="lockBlurb" class="note"></p>
+
+    <div class="lock">
+      <div class="stage-wrap"><canvas id="lockScene"></canvas></div>
+      <div class="lock-side">
+        <div id="lockGuess" class="combo"></div>
+        <div id="lockTrace" class="trace">
+          <div class="trace-head"><span id="ltHead"></span><span id="ltAnswer"></span></div>
+          <div class="trace-bar"><div id="ltFill" class="trace-fill"></div><div id="ltMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="ltMid"></span><span id="ltEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="lockStatus" class="status">press START, then the password</span>
+          <button id="lockShuffle" class="btn ghost">New password</button>
+          <button id="lockClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>answer · ms</small><b id="lrMs">—</b><small>submit → "no" / "enter"</small></div>
+      <div class="tile"><small>ticks</small><b id="lrTicks">—</b><small>answer ÷ tick</small></div>
+      <div class="tile"><small>samples</small><b id="lrN">—</b><small>of this guess</small></div>
+      <div class="tile"><small>median · ms</small><b id="lrMedian">—</b><small>over the samples</small></div>
+      <div class="tile"><small>verdict</small><b id="lrVerdict">—</b><small id="lrHint">&nbsp;</small></div>
+    </div>
+    <ol id="lockLog" class="log" reversed></ol>
+  </section>
+
   <section class="panel" id="benchPanel" data-mode="bench">
     <h2>Bench</h2>
     <details class="how">
@@ -171,6 +217,11 @@
       the log's <em>offset</em> readout says so, then fire. Nudge and fire again; or hold the chord
       and tap RIGHT between shots to sweep. SELECT+UP shortens the pulse if it is crashing on the
       line after the check.</p>
+    <p class="note"><b>Range 3:</b> record the guess's symbols only, set an offset of ~40 ms so the
+      trigger's START lands before the first symbol, fire. The log says how many ticks the door took;
+      one more tick than last time means the symbol you changed is right. When the level jitters, hold
+      the chord: every ~600 ms the same guess goes in and the readout keeps the median. One symbol per
+      take, and a level with a secret order gives up which position it checks next the same way.</p>
     <p class="note">Firmware, engine tests and the chord table:
       <code>software/controller/README.md</code>. Flashing it: <a href="flash.html">flash.html</a>.</p>
   </section>
