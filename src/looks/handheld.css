@@ -4,9 +4,9 @@
    bar becomes device buttons, the pad is moulded into the body with shoulder
    bumpers and a grille, and nothing scrolls but the screen.
 
-   One file per look: src/looks/index.json lists it, glitch.html loads it on
-   demand when <html data-theme="handheld"> is in force, and the shared phone
-   block in src/glitch.css does the rest. Replace this file to replace the
+   One file per look: src/looks/index.json lists it, src/look-boot.js loads it
+   on demand when <html data-theme="handheld"> is in force, and the shared phone
+   block in styles.css (plus src/glitch.css on the range page) does the rest. Replace this file to replace the
    look; keep the id so bookmarks and the remembered choice still resolve. */
 
 /* the pad's shape: d-pad left, diamond right, a shoulder over each, select/start
@@ -35,7 +35,7 @@ html[data-theme=handheld] .bar {
 }
 html[data-theme=handheld] .brand .mark { font-size: 12px; text-shadow: none; }
 html[data-theme=handheld] .brand b { font-size: 10px; color: var(--dim); font-weight: 400; }
-html[data-theme=handheld] .brand small { display: none; }
+html[data-theme=handheld] .brand small { font-size: 9px; }
 html[data-theme=handheld] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
 html[data-theme=handheld] .pad-device { font-size: 9px; }
 html[data-theme=handheld] .led { width: 6px; height: 6px; border-radius: 50%; border-color: var(--plastic-line); background: var(--plastic-edge); }
@@ -51,6 +51,12 @@ html[data-theme=handheld] main > .panel {
   box-shadow: 0 0 0 1px var(--plastic-edge), inset 0 0 0 1px #1a2742;
 }
 html[data-theme=handheld] main > .panel > h2 { font-size: 9px; letter-spacing: .16em; }
+/* a page with no mode bar (the flash and vault pages), or a mode that shows several
+   panels (the stages' Art): the panels stack, each in its own bezel, and the screen scrolls */
+html[data-theme=handheld] body:not(:has(> nav.modes)) main,
+html[data-theme=handheld] main:has(> .panel:not(.off) ~ .panel:not(.off)) { display: block; overflow: auto; }
+html[data-theme=handheld] body:not(:has(> nav.modes)) main > .panel,
+html[data-theme=handheld] main:has(> .panel:not(.off) ~ .panel:not(.off)) > .panel { flex: none; overflow: visible; margin: 0 0 10px; }
 html[data-theme=handheld] .glass > .listing { max-height: 76px; }
 html[data-theme=handheld] .readout .tile { padding: 5px 7px; }
 html[data-theme=handheld] .readout .tile b { font-size: 12px; }

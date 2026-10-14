@@ -8,6 +8,7 @@
 
 import { Pad } from './pad.js';
 import { hasHid, requestBadgeHid, readVaultHid, writeVaultHid, BeaconDecoder, BEACON, CMD, hex, unhex, KEY_LEN, LABEL_LEN } from './vault.js';
+import { initLooks } from './looks.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -132,6 +133,7 @@ setInterval(() => {
 
 $('#hidState').textContent = hasHid() ? 'WebHID available' : 'no WebHID here - reading needs Chrome or Edge on a computer; the beacon works';
 $('#hidState').classList.toggle('on', hasHid());
+initLooks();   // the look picker in the header
 
 window.__vault = {
   pad, decoder,

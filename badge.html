@@ -1,11 +1,14 @@
 <!doctype html>
-<html lang="en">
+<!-- data-theme: the look in force (src/look-boot.js sets it before paint); data-look-touch: the look a touch screen opens on, any id from src/looks/index.json -->
+<html lang="en" data-theme="classic" data-look-touch="bench">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 8 8 15 1 8z' fill='%236fb0f0'/%3E%3C/svg%3E">
 <meta name="robots" content="noai, noimageai">
 <title>Alice in AI Land — The Vault</title>
 <link rel="stylesheet" href="styles.css">
+<script src="src/look-boot.js"></script>
 </head>
 <body>
 
@@ -20,6 +23,7 @@
 
   <div class="controls pad-status">
     <span id="hidState" class="pad-device">checking for WebHID…</span>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
   </div>
 </header>
 
