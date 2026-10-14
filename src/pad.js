@@ -25,6 +25,8 @@
 // edge from a source not in the set. On the published site that set is
 // {'pad'}: the badge plays, nothing else does. On a dev host (localhost)
 // everything is in, because that is where the pages are driven headless.
+// `muted` is the gate's pause switch on top of that: while the badge is
+// away (src/gate.js) no edge from any source reaches a listener.
 
 export const BUTTONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
 
@@ -88,6 +90,7 @@ export class Pad {
     this.held = new Set();          // what is down right now, both sources merged
     this.listeners = new Set();
     this.sources = sources;         // edge sources that reach the listeners
+    this.muted = false;             // the gate's pause: true while the badge is away, and nothing plays
     this.device = null;             // { id, index, mapping, badge } of the gamepad in use
     this.lastEdgeT = null;
     this.pollMs = pollMs;
@@ -107,7 +110,7 @@ export class Pad {
 
   /** A synthetic edge from the page itself - an on-screen button, say. False if the policy drops it. */
   inject(button, down, t = performance.now()) {
-    if (!this.allows('ui')) return false;
+    if (!this.allows('ui') || this.muted) return false;
     this._emit(button, down, t, 'ui');
     return true;
   }
@@ -130,7 +133,7 @@ export class Pad {
   }
 
   _emit(button, down, t, source) {
-    if (!this.allows(source)) return;
+    if (this.muted || !this.allows(source)) return;
     const was = this.held.has(button);
     if (down) this.held.add(button); else this.held.delete(button);
     if (was === down) return;                    // the other source already had it
