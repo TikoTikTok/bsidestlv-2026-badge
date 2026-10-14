@@ -10,6 +10,7 @@ import { buildLock, summarize, guessKey } from './lock.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
+import { tilt } from './tilt.js';
 
 const $ = (sel) => document.querySelector(sel);
 const span = (cls, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
@@ -86,7 +87,7 @@ if (!padIsMirror) for (const b of tpButtons) {
     b.classList.add('down');
     pad.inject(name, true, stamp(e));
   });
-  b.addEventListener('pointerup', release);
+  b.addEventListener('pointerup', (e) => { release(e); if (tilt.needsPermission) tilt.request(); });   // a tap on the pad is a gesture iOS accepts for the sensors
   b.addEventListener('pointercancel', release);
   b.addEventListener('lostpointercapture', release);
   b.addEventListener('contextmenu', (e) => e.preventDefault());
