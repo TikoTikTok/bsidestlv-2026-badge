@@ -12,6 +12,7 @@
 
 import { parseUf2, planSectors, describe } from './uf2.js';
 import { Picoboot, flashSectors, BOOT_FILTERS, BOOT_VID, BOOT_PID_RP2040 } from './picoboot.js';
+import { isBadgeId, BADGE_PRODUCT } from './pad.js';
 import { initLooks } from './looks.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -25,7 +26,8 @@ const IMAGES = [
     file: 'firmware/glitch.uf2',
     blurb: 'The badge as a wired DualShock 4 with the quick-glitch layer the range is played with: ' +
            'SELECT is the shift key, SELECT+SL records, SELECT+SR fires, and SELECT+START held two ' +
-           'seconds brings the badge back to this page. Built from software/controller.',
+           'seconds brings the badge back to this page. It carries the vault the stages and the range ask for, ' +
+           `and announces itself to the browser as “${BADGE_PRODUCT}”. Built from software/controller.`,
   },
 ];
 
@@ -305,8 +307,13 @@ function watchForController() {
     const gp = [...pads].find(p => p && p.connected);
     if (gp) {
       clearInterval(watchTimer);
-      log(`the browser sees the controller: ${gp.id}`, 'win');
-      setStatus('the badge is back as the controller — the glitch range is a tab away', 'win');
+      if (isBadgeId(gp.id)) {
+        log(`the browser sees the badge: ${gp.id}`, 'win');
+        setStatus('the badge is back, by name — the stages and the glitch range are a tab away', 'win');
+      } else {
+        log(`a controller appeared, but not by the badge's name: ${gp.id} — the flash may not have taken; try again`, 'hot');
+        setStatus('a controller is back, but it is not announcing itself as the badge', 'hot');
+      }
     } else if (performance.now() - t0 > 60000) {
       clearInterval(watchTimer);
       log('no gamepad seen in 60 s; if the LED blinks at 250 ms the badge is waiting for a host - re-plug it');
