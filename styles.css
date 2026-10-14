@@ -69,6 +69,8 @@ canvas { image-rendering: pixelated; display: block; }
 }
 .controls output { color: var(--accent); min-width: 2.2em; }
 .controls .check { text-transform: none; }
+/* the asset sheet's controls live in the Art panel, not the header, so the header holds the brand, the links and the chip */
+.sheet-controls { margin: .5rem 0 .25rem; }
 
 /* -------------------------------------------------------------- panels -- */
 
