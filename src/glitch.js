@@ -120,8 +120,11 @@ await initLooks({
 
 // On the site nothing below runs until a badge has shown its vault; the
 // ranges come through src/seal.js so a sealed copy takes over the moment one
-// is published. On a dev host the gate resolves at once.
-const badge = await openGate({ pad, mode });
+// is published. On a dev host the gate resolves at once. Afterwards the gate
+// keeps watching: when the badge goes it mutes the pad and calls the hooks
+// (filled in at the end of this file) around the pause.
+const hooks = {};
+const badge = await openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
 const [RABBIT_WATCH, LOOKING_GLASS, CATERPILLAR_LOCK] = await Promise.all([
   loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key), loadStage('caterpillar-lock', badge?.key)])
   .catch((e) => { showRefusal(`a range would not open: ${e.message}`); throw e; });
@@ -827,6 +830,23 @@ setGlassLevel(LOOKING_GLASS.levels[0]);
 setLockLevel(CATERPILLAR_LOCK.levels[0]);
 // scripted tests read the ranges' state through this (dev hosts; nothing here plays)
 window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; } };
+
+// The gate's pause (site only). The ranges are timed per attempt, so there
+// is nothing to freeze: a run that was open ends on its own clock (the pad
+// has already released whatever was held), a guess already fired gets its
+// answer. A half-done combo is reset so it is not "too slow" when the badge
+// is back. The bench log keeps the record.
+hooks.pause = (why) => {
+  if (combo?.open && combo.at > 0) { combo.reset(); drawCombo(); $('#wtGaps').textContent = ''; }
+  setWatchStatus(`paused - the badge is ${why}`, 'hot');
+  logTo('#benchLog', `badge ${why} - paused`, 'hot');
+  $('#benchStatus').textContent = `${benchCount} edges · paused`;
+};
+hooks.resume = () => {
+  setWatchStatus('the badge is back - carry on', 'win');
+  logTo('#benchLog', 'badge back', 'win');
+  refreshPad();
+};
 
 function tick(now) {
   if (run?.open) { const r = run.tick(now); if (r) finishRun(r); }

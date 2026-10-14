@@ -72,9 +72,33 @@ browser sees. Both stages on `index.html` are now driven by the badge (d-pad, `Y
 waits a tick, `START` resets; the stage last tapped is the one armed), which
 closes the "wire pad.js into the stages" loose end.
 
+Passing is not the end of it. The badge is the only controller, so a page
+without its badge is a page nobody can play: after the pass the gate keeps
+watching the pad's gamepad record (`BadgeWatch` in `src/gate.js`, a pure
+rule `verify-badge.mjs` proves) and, after a WebHID pass, the device's own
+`disconnect` event. When the badge goes - unplugged, rebooted into the
+bootloader with `SELECT + START`, or a controller that is not the badge put
+in its place - the pad is **muted** (no edge from any source reaches a
+listener), the page is told to pause (`onPause`: the gauntlet's clock, a
+solver's playback and the walk cycle on `index.html` hold still; on
+`glitch.html` a half-done combo is reset and the bench log says so) and the
+same dialog comes back, marked `reconnect`, asking for the same badge. It
+proves itself the same two ways; after a WebHID pass it is read again by
+itself when it is plugged back in, since the grant stands across a replug
+(`navigator.hid`'s `connect` event). The same serial carries on where it was
+(`onResume`); a different badge is a different key, so the page reloads to
+play under it. A short grace (300 ms) keeps a blinking poll from pausing the
+page; Chrome lists no gamepad after a WebHID pass until a button is pressed,
+and the watch does not count that as a loss, it arms once the badge has
+shown.
+
 On a dev host (`localhost`) there is no gate and every source works, because
 that is where the pages are developed and driven headless; `?gate=1` brings
-the dialog up there to try it. On the site the gate is unconditional.
+the dialog up there to try it, and the watch with it. On the site the gate
+is unconditional. `flash.html` and `badge.html` are not gated and not
+watched: the flasher talks to the badge in the bootloader, where it is not
+a gamepad at all, and the vault page is the booth, which handles a badge
+coming and going itself.
 
 `badge.html` is the booth: read a badge, generate the event key once, write
 it to each badge, erase, and a beacon test. It is also a diagnostics page
