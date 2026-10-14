@@ -468,6 +468,34 @@ html:not([data-look=classic]) .items { grid-template-columns: repeat(auto-fill, 
 .touchpad.mirror .tp button { pointer-events: none; opacity: .7; }
 .touchpad.mirror .tp button.down { opacity: 1; }
 
+/* -------------------------------------------------- the phone upside down -- */
+/* src/tilt.js puts data-flip="180" on <html> when gravity says the phone is
+   held the other way up and the OS did not rotate the page (a portrait page
+   on an iPhone or a Samsung never does), or when the player says so in the
+   looks sheet. The body becomes a viewport-sized fixed box and turns a half
+   turn: it is the containing block of everything fixed inside it (the range's
+   pad), so those turn with it, and the page scrolls inside the box. Dialogs
+   live in the top layer, outside the body's turn, so each turns itself; the
+   bottom sheet moves to the top edge first, which is the bottom once turned.
+   The notch is at the bottom now, so the safe-area insets swap ends. */
+html[data-flip="180"] { overflow: hidden; }   /* else the body's overflow would propagate to the viewport and the body itself never scroll */
+html[data-flip="180"] body { position: fixed; inset: 0; overflow: auto; transform: rotate(180deg); }
+html[data-flip="180"] dialog { transform: rotate(180deg); }
+html[data-flip="180"] .look-sheet { inset: 0 0 auto 0; }
+html[data-flip="180"] .bar { padding-top: calc(.75rem + env(safe-area-inset-bottom, 0px)); }
+html[data-flip="180"] .touchpad { padding-bottom: env(safe-area-inset-top, 0px); }
+html[data-flip="180"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-top, 0px)); }
+
+/* the turn-over switch in the looks sheet: auto (the sensors), no, yes */
+.flip-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.flip-row .pick-head { flex: 1 1 100%; }
+.flip-chip {
+  font: inherit; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 99px; height: 26px; padding: 0 12px;
+}
+.flip-chip.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.flip-row small { margin-left: auto; color: var(--dim); font-size: 10px; }
+
 /* ------------------------------------------------------- the look picker -- */
 /* a chip in the header opens a sheet of cards: the themes, then the looks,
    one card per entry in the manifests; a help panel's .look-cards host shows
