@@ -93,10 +93,19 @@ checks exactly that: hand levels fit a hand, badge levels do not, and every
 level is winnable.
 
 The badge is a grip the phone sits in, so a phone held the other way up turns
-the whole controller over. The page notices (the screen reports a "secondary"
-orientation) and turns the badge's buttons back: UP/DOWN, LEFT/RIGHT, A/Y and
-B/X swap, the shoulders and START/SELECT stay. Nothing changes on the badge.
-`?flip=1` / `?flip=0` pins it either way for testing.
+the whole controller over. The page notices and turns the badge's buttons
+back: UP/DOWN, LEFT/RIGHT, A/Y and B/X swap, the shoulders and START/SELECT
+stay. Nothing changes on the badge. Two things tell it: the screen, when the
+OS rotated the page to a "secondary" orientation, and gravity when it did
+not - an iPhone, and most Android phones, never rotate a portrait page to
+upside down, so the page reads the orientation sensor (`src/tilt.js`), turns
+itself a half turn (`data-flip="180"` on `<html>`) and turns the buttons with
+it. It flips past 150° and comes back under 30°, and a phone lying flat
+changes nothing. iOS shares the sensor only after a tap asks: the gate's
+Connect button, the on-screen pad and the sheet's switch all ask. The ◐
+sheet has that switch - *turn over: auto / no / yes*, remembered on the
+device as `alice.flip` - for a phone without a sensor, or a player who wants
+it their way. `?flip=1` / `?flip=0` pins the buttons either way for testing.
 
 Every page has a theme and a look — the ◐ chip in the header opens a sheet of
 cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
