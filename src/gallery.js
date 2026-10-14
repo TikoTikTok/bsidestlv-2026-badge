@@ -24,7 +24,13 @@ const $ = (sel) => document.querySelector(sel);
 const mode = gateMode();
 const pad = new Pad({ sources: gateSources(mode) }).start();
 window.__pad = pad;
-const gatePromise = openGate({ pad, mode });
+
+// While the badge is away the gate mutes the pad and the page holds still:
+// the gauntlet's clock, a solver's playback and the walk cycle all check
+// `paused`. The gate calls the hooks after the module is up (see the end).
+let paused = false;
+const hooks = {};
+const gatePromise = openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
 
 // Which stage the badge's d-pad drives: the one last tapped, or the one the
 // phone looks' mode bar shows; the tea party first.
@@ -353,6 +359,7 @@ function startPlayback(moves) {
   solution = moves;
   playbackAt = 0;
   playTimer = setInterval(() => {
+    if (paused) return;
     if (playbackAt >= solution.length) { stopPlayback(); return; }
     applyMove(solution[playbackAt++]);
   }, playSpeed);
@@ -466,7 +473,7 @@ if (new URLSearchParams(location.search).get('autosolve') === 'tea') {
 let beat = 0, last = performance.now();
 function tick(now) {
   const cycle = active.meta.cycle ?? [0, 1, 0, 2];
-  if (playing() && now - last >= period) { beat = (beat + 1) % cycle.length; last = now; }
+  if (playing() && !paused && now - last >= period) { beat = (beat + 1) % cycle.length; last = now; }
   if (!playing()) beat = 0;
 
   const frame = cycle[beat];
@@ -568,7 +575,7 @@ function chaseTick() {
 
 function startClock() {
   if (chaseTimer) clearInterval(chaseTimer);
-  chaseTimer = setInterval(() => { if ($('#chaseRun').checked) chaseTick(); }, chaseTickMs);
+  chaseTimer = setInterval(() => { if ($('#chaseRun').checked && !paused) chaseTick(); }, chaseTickMs);
 }
 startClock();
 
@@ -673,6 +680,23 @@ $('#chaseSolve').addEventListener('click', () => {
 chaseRestart();
 if (new URLSearchParams(location.search).get('autosolve') === 'chase')
   setTimeout(() => $('#chaseSolve').click(), 400);
+
+// The gate's pause (site only): the badge went, so the world stands still -
+// the gauntlet's cast does not move while nobody can move Alice, a solver's
+// playback holds its place, the walk cycle freezes. The status lines say
+// why, and are redrawn as they were when the badge is back.
+hooks.pause = (why) => {
+  paused = true;
+  queued = null;
+  const text = `paused - the badge is ${why}`;
+  chaseStatus.textContent = text; chaseStatus.className = 'status hot';
+  setStatus(text, 'hot');
+};
+hooks.resume = () => {
+  paused = false;
+  setChaseStatus();
+  refreshStatus();
+};
 
 // The render loop starts last: everything it draws has to exist first.
 requestAnimationFrame(tick);
