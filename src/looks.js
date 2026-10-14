@@ -24,13 +24,13 @@
 //     onMode(mode) are the page's hooks for what CSS cannot do; onTheme fires
 //     once the theme's sheet is in force, so computed colours are the new ones.
 //
-// The sheet also carries the turn-over switch: a phone held upside down in
+// The sheet also carries the page-turn switch: a phone held upside down in
 // the badge's grip is not rotated by the OS when the page is portrait, so
 // src/tilt.js reads gravity and turns the page itself (data-flip="180" on
 // <html>, the rule in styles.css). The switch is the hand override - auto,
 // no, yes - remembered as localStorage alice.flip; src/pad.js turns the
 // badge's buttons by the same decision. On iOS the sensors need asking
-// from a tap, and a tap on the switch is one.
+// from a tap, and a tap on the ◐ chip or on the switch is one.
 //
 // Every path is relative: the site lives under /<repo>/ on Pages.
 
@@ -166,11 +166,12 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   const useDefault = el('button', 'btn ghost', 'use default');
   useDefault.type = 'button';
   foot.append(footNote, useDefault);
-  // the turn-over switch: auto (gravity decides), no, yes - and what the sensors say
+  // the page-turn switch: auto (gravity decides), no, yes - and what the sensors say
   const flipRow = el('div', 'pick flip-row');
   flipRow.dataset.kind = 'flip';
   const flipHead = el('div', 'pick-head');
-  flipHead.append(el('b', '', 'Turn over'), el('small', '', 'the phone held upside down in the grip, when the screen will not follow'));
+  flipHead.append(el('b', '', 'Page turn'),
+                  el('small', '', 'the phone held upside down in the grip: the page turns itself the right way up, since the screen will not. Not the controller - that follows by itself'));
   flipRow.append(flipHead);
   const flipChips = [['auto', 'auto'], ['0', 'no'], ['180', 'yes']].map(([v, label]) => {
     const b = el('button', 'flip-chip', label);
@@ -197,12 +198,11 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
                flipRow, cards, foot);
   sheet.append(inner);
   document.body.append(sheet);
-  tilt.start();                     // every page turns with the phone, pad or no pad
-  tilt.apply();
+  tilt.apply();                     // src/tilt.js listens from load; the switch's remembered say is shown here too
   setInterval(() => { if (sheet.open) markFlip(); }, 500);   // the angle line moves while the sheet is up
 
   for (const host of [cards, ...pageHosts]) fill(host);
-  chip?.addEventListener('click', () => sheet.showModal());
+  chip?.addEventListener('click', () => { if (tilt.needsPermission) tilt.request(); sheet.showModal(); });   // the chip is a tap iOS accepts for the sensors
   close.addEventListener('click', () => sheet.close());
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });   // a tap on the backdrop
   useDefault.addEventListener('click', () => {
