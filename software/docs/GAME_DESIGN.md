@@ -253,7 +253,7 @@ push-into-the-gap puzzles, but a dark floor tile stands in for now.
 
 The badge is a controller, and it is also the closest thing to glitching gear a
 player will hold at the conference. `glitch.html` is a training ground for
-using it that way, built on the tick model above: two rooms with levels that
+using it that way, built on the tick model above: three rooms with levels that
 start inside the human budget and end well outside it.
 
 **The firmware side.** The badge carries a record / replay layer with the
@@ -277,6 +277,9 @@ tuned to that floor, and `tools/verify-range.mjs` refuses one that is not.
 | The Looking-Glass Glitch | 120 ms / tick, target visible | ±60 ms | always |
 | | 40 ms / tick, crash line 2 ticks before | ±20 ms | about half |
 | | 20 ms / tick, source hidden | ±10 ms | a quarter — and no idea where |
+| The Caterpillar's Lock | 4 of 4 symbols, 300 ms / tick, no jitter | ~13 guesses | yes — read the clock |
+| | 5 of 6, 60 ms / tick, jitter ½ tick | ~30 takes × 7 | no — ~1,200 presses; record, fire on repeat, read the median |
+| | 5 of 6, 40 ms / tick, jitter ½ tick, secret compare order | ~45 takes × 7 | no — the order leaks too, one symbol at a time |
 
 The glitch model is deliberately the real one: a pulse does its damage at its
 *rising edge*, so skipping the check means starting the pulse inside a window
@@ -289,6 +292,21 @@ with the badge's repeat.
 The win is the treasure: the routine falls through `door_open(TREASURE)` and
 `alice_jump(TREASURE)` and Alice hops the wall, which is the one thing the
 boulder-pushing rules never let her do.
+
+**The lock** is the side-channel lesson in the same vocabulary. The
+Caterpillar's door compares a password one symbol per tick and stops at the
+first mismatch, so its answer time is the number of symbols it agreed with,
+plus one. Level 1 is the textbook attack by hand. Level 2 adds half a tick of
+jitter: one reading lies often enough that a guess has to be measured several
+times, and the badge's *repeat* is exactly that - record the symbols, fire with
+START as the trigger (the trigger opens the guess, the take types it), hold the
+chord, read the median the page keeps per guess. Level 3 compares in a fixed
+order the player is not told, the first countermeasure anyone reaches for; the
+clock then counts how far along *his* order the guess got, and changing one
+symbol at a time still finds both the symbol and the position. The point the
+level makes: a secret order is not constant time. `src/lock.js` carries a
+reference attacker, and `verify-range.mjs` requires it to clear the hand level
+in a hand's budget and the badge levels in under eighty takes.
 
 ## 11. Open questions
 

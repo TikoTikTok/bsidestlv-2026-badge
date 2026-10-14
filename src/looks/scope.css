@@ -4,9 +4,9 @@
    the verdict as a band, the pad a dock of soft keys. The palette comes
    through the variables styles.css already uses.
 
-   One file per look: src/looks/index.json lists it, glitch.html loads it on
-   demand when <html data-theme="scope"> is in force, and the shared phone
-   block in src/glitch.css does the rest. Replace this file to replace the
+   One file per look: src/looks/index.json lists it, src/look-boot.js loads it
+   on demand when <html data-theme="scope"> is in force, and the shared phone
+   block in styles.css (plus src/glitch.css on the range page) does the rest. Replace this file to replace the
    look; keep the id so bookmarks and the remembered choice still resolve. */
 
 html[data-theme=scope] {
@@ -20,7 +20,7 @@ html[data-theme=scope] body {
 html[data-theme=scope] .bar { background: var(--ink); padding: 8px 14px; }
 html[data-theme=scope] .brand .mark { display: none; }
 html[data-theme=scope] .brand b { font-size: 10px; letter-spacing: .18em; font-weight: 400; color: var(--dim); }
-html[data-theme=scope] .brand small { display: none; }
+html[data-theme=scope] .brand small { font-size: 9px; letter-spacing: .06em; }
 html[data-theme=scope] .pad-status { grid-template-areas: 'dev leds look'; grid-template-columns: auto auto auto; }
 html[data-theme=scope] .pad-device { font-size: 9px; letter-spacing: .08em; }
 html[data-theme=scope] .pad-device.on { color: var(--accent); }

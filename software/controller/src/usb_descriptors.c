@@ -3,6 +3,7 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 #include "ds4.h"
+#include "vault.h"
 
 //--------------------------------------------------------------------+
 // Device Descriptor
@@ -408,17 +409,27 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
 
   if ( report_id == DS4_FEATURE_CALIB ) return ds4_calibration(buffer, reqlen);
 
+  // Report 0xF1 is one of the vendor reports the real controller declares;
+  // on this badge it carries the vault (vault.h), read by src/vault.js.
+  if ( report_id == VAULT_REPORT_ID ) return app_vault_get_report(buffer, reqlen);
+
   // Everything else: a zero-filled reply of the requested length. The stack
   // has already placed the report ID byte ahead of `buffer`.
   memset(buffer, 0, reqlen);
   return reqlen;
 }
 
-// Rumble / lightbar / bluetooth pairing writes. Nothing to drive here.
+// Rumble / lightbar / bluetooth pairing writes: nothing to drive here. The
+// one write that means something is feature report 0xF1, provisioning the
+// vault - gated by physical SELECT in main.c.
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                            hid_report_type_t report_type,
                            uint8_t const *buffer, uint16_t bufsize)
 {
-  (void) instance; (void) report_id; (void) report_type;
-  (void) buffer; (void) bufsize;
+  (void) instance;
+
+  if ( report_type == HID_REPORT_TYPE_FEATURE && report_id == VAULT_REPORT_ID )
+  {
+    app_vault_set_report(buffer, bufsize);
+  }
 }

@@ -15,6 +15,7 @@ __pycache__/
 # --- Pico firmware (CMake) ---
 software/controller/build/
 software/controller/test/test_glitch
+software/controller/test/test_vault
 
 # --- Pages staging ---
 _site/

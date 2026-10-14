@@ -10,8 +10,9 @@ branch `pages.yml` lists while it is in progress; Pages source set to
 "GitHub Actions"): https://tikotiktok.github.io/bsidestlv-2026-badge/
 Upstream: `bsidestlv/bsidestlv-2026-badge` (this checkout is the `TikoTikTok`
 fork; `upstream` remote). The glitch labs merged into the fork's `main` on
-2026-10-06 (fork PR #1), so fork `main` is ahead of upstream `main` and no
-upstream PR exists yet. Branch from `origin/main`; never commit to `main`
+2026-10-06 (fork PR #1), the looks on 2026-10-08 (PR #3) and the badge gate
+with the site-wide looks and the third range after that, so fork `main` is
+well ahead of upstream `main` and no upstream PR exists yet. Branch from `origin/main`; never commit to `main`
 directly, land work there through a PR on the fork.
 
 ## What this is
@@ -28,24 +29,41 @@ One repo, three things:
 ## Layout
 
 ```
-index.html glitch.html flash.html styles.css src/ stages/ assets/   the published site (MIT)
+index.html glitch.html flash.html badge.html styles.css src/ stages/ assets/   the published site (MIT)
+robots.txt rabbit-hole/                                                       also published: the crawler side
 firmware/          NOT in the repo: pages.yml builds glitch.uf2 + index.json there at deploy time
   src/puzzle.js      untimed rules + push-based Dijkstra solver
   src/chase.js       timed rules (periodic hazards) + BFS solver over (Alice, rocks, lever, phase)
   src/gallery.js     the page: both stages, walk-cycle viewer, tile/item sheets
   src/range.js       glitch range rules: combo state machine, guard-routine interpreter, pulse landing
+  src/lock.js        the Caterpillar's Lock: a timing side-channel door (prefix or secret compare order,
+                     jitter), stats per guess, and a reference attacker the verifier runs
   src/pad.js         input: DS4 gamepad (standard mapping, 4 ms poll) or keyboard -> timestamped edges
   src/glitch.js      the glitch range page (glitch.html)
-  src/glitch.css     the range page on top of styles.css: mode bar, timing traces, the look picker,
-                     the block every phone look shares; classic = styles.css alone
+  src/glitch.css     what only the range page adds in the phone looks: the timing traces, how the
+                     range panels and the on-screen pad reshape
+  src/look-boot.js   <head> of every page: applies the chosen look before paint (?look=, then
+                     localStorage alice.look, then data-look-touch on a touch screen), folds the prose
+  src/looks.js       the picker (chip + sheet of cards on every page) and the mode bar; styles.css
+                     carries the picker's styles and the block every phone look shares
   src/looks/         index.json (one entry per look: id, label, blurb, swatch, shape, phone,
                      padAlwaysOut) + <id>.css per phone look, loaded on demand. Add a look = a file
-                     + an entry; replace one = swap its file. verify-looks.mjs checks the two agree
+                     + an entry; replace one = swap its file. verify-looks.mjs checks the manifest,
+                     the files and all four pages agree
   src/uf2.js         UF2 parser + folding into 4 KB sectors; mirrors flash-badge.py's checks
   src/picoboot.js    PICOBOOT over WebUSB (the RP2040 ROM bootloader's protocol, as picotool speaks it)
   src/flash.js       the flash page (flash.html): firmware cards from firmware/index.json, progress, log
-  stages/            one ES module per stage, ASCII map + hazards; rabbit-watch.js and
-                     looking-glass.js are the range's levels
+  src/vault.js       the badge's vault from the browser: feature report 0xF1 over WebHID, the
+                     SELECT+Y stick-axis beacon decoder, wire formats mirrored from vault.h
+  src/seal.js        sealed stages: AES-256-GCM under HKDF(badge key, stage id); loadStage() picks
+                     stages/sealed/<id>.json when stages/sealed.json lists it, else stages/<id>.js
+  src/gate.js        the gate dialog (site only): Connect (WebHID) or the beacon; input policy
+  src/badge.js       the vault page (badge.html): read, provision at the booth, beacon test
+  stages/            one ES module per stage, ASCII map + hazards; rabbit-watch.js,
+                     looking-glass.js and caterpillar-lock.js are the range's levels. sealed.json lists sealed ids
+                     (none yet); sealed/ holds ciphertext only, plaintext of event stages
+                     stays outside the repo
+  rabbit-hole/       the tarpit: one static page, endless generated chapters, canary flags
   assets/characters/ 5 characters x 24 frames (8 dirs x 3), 48x48 + <name>.json
   assets/items/      44 items + items.json      assets/tiles/ 77 tiles + tiles.json
 images/              README photos only, not published
@@ -54,19 +72,24 @@ hardware/            CERN-OHL-S-2.0
   soldering-kit/     BSidesTLV26TinyBadge: 555 + CD4017 LED chaser, all through-hole
 software/            MIT, never published
   controller/        Pico SDK CMake project; src/glitch.c is the quick-glitch record/replay
-                     engine (no SDK deps), test/ builds it on the host with plain cc;
-                     main.c also watches SELECT+START (2 s) -> reset_usb_boot
+                     engine (no SDK deps), src/vault.c the stage key (last flash sector,
+                     feature report 0xF1, SELECT+Y beacon), test/ builds both on the host with
+                     plain cc; main.c also watches SELECT+START (2 s) -> reset_usb_boot
   tools/             slicers (Python, stdlib only) and generators/verifiers (Node ESM);
                      verify-flash.mjs + fake-bootloader.mjs (a model of the ROM; the page can
-                     be driven against it via window.__flash.useDevice),
+                     be driven against it via window.__flash.useDevice), verify-badge.mjs +
+                     fake-badge.mjs (a model of the vault; badge.html takes it via
+                     window.__vault.useDevice), seal-stage.mjs (--new-key, seal, --open),
                      flash-badge.py (UF2 over USB, --fetch takes the CI build, --status),
                      hid-trace.py (Linux HID bench), setup-pico-toolchain.ps1 +
                      build-firmware.ps1 (Windows cross-build)
   references/        source art sheets (15 MB) every asset was cut from
   docs/GAME_DESIGN.md  the five-stage design, tick model, Looking Glass protocol
+  docs/BADGE_GATE.md   the badge-is-the-key design: threat model, what tier 1 stops, server tier
   legacy/            old generated-sprite pass, unused by the page, safe to delete
-.github/workflows/pages.yml     builds the UF2 (build-uf2.yml), runs `npm run verify`, stages the
-                                seven site paths + firmware/, deploys
+.github/workflows/pages.yml     builds the UF2 (build-uf2.yml), runs `npm run verify`, opens sealed
+                                stages with the ALICE_STAGE_KEY secret, stages the site paths +
+                                firmware/, deploys
 .github/workflows/firmware.yml  host test of the glitch engine + cross-build via build-uf2.yml
 .github/workflows/build-uf2.yml the one place the ARM toolchain and pico-sdk version live (reusable)
 ```
@@ -75,9 +98,10 @@ software/            MIT, never published
 
 ```
 ./serve.sh          # http://localhost:8080 - ES modules need http://, not file://
-npm run verify      # solves both stages, checks the range's levels and its looks' manifest, flashes the fake ROM; CI gate before every deploy
+npm run verify      # solves both stages, checks the three ranges' levels (and attacks the lock), the looks on every page, flashes the fake ROM, drives the fake badge; CI gate before every deploy
+npm run seal -- <stage.js>         # ALICE_STAGE_KEY=<64 hex>; writes stages/sealed/<id>.json + updates stages/sealed.json
 npm run validate    # legacy sprite integrity only
-make -C software/controller/test   # quick-glitch engine tests, plain C
+make -C software/controller/test   # quick-glitch engine + vault tests, plain C
 python3 software/tools/flash-badge.py --fetch   # newest green CI UF2 -> badge, no toolchain needed
 ```
 
@@ -91,11 +115,19 @@ from CI there; `flash-badge.py --fetch` closes that gap.
 
 ## Rules that matter
 
-- Only `index.html`, `glitch.html`, `flash.html`, `styles.css`, `src/`,
-  `stages/`, `assets/` are published, plus `firmware/`, which `pages.yml`
-  builds at deploy time and is never committed (`.gitignore`d). Every path
-  inside them must be relative (site lives under `/<repo>/` on Pages). Adding
-  another published path means editing `pages.yml` too.
+- Only `index.html`, `glitch.html`, `flash.html`, `badge.html`, `robots.txt`,
+  `styles.css`, `src/`, `stages/`, `assets/`, `rabbit-hole/` are published,
+  plus `firmware/`, which `pages.yml` builds at deploy time and is never
+  committed (`.gitignore`d). Every path inside them must be relative (site
+  lives under `/<repo>/` on Pages). Adding another published path means
+  editing `pages.yml` too.
+- The published site plays from the badge only: `src/gate.js` gates every
+  page outside a dev host and `src/pad.js` drops keyboard and `ui` edges
+  there. Do not add a bypass for the site; `localhost` (and `?gate=1` on it)
+  is the development path. Event stages are committed sealed only - never
+  commit their plaintext, never commit a sealed blob under a throwaway key.
+- Obfuscating JavaScript is not a defence against a model; sealing is. See
+  `software/docs/BADGE_GATE.md` before adding "anti-AI" measures.
 - No npm dependencies. Node ESM + Python 3 stdlib only. `package.json` has no
   `dependencies` block on purpose.
 - Assets are generated: re-run the slicer in `software/tools/` and commit the
@@ -106,7 +138,7 @@ from CI there; `flash-badge.py --fetch` closes that gap.
   deliberate and must not ship on hardware. Do not "fix" it.
 - Commits: one concern each; describe the change, not the file list.
 
-## Status (as of 2026-10-06)
+## Status (as of 2026-10-14)
 
 Built and live:
 
@@ -115,12 +147,15 @@ Built and live:
 | Stage "A Mad Tea Party" | playable, 13x9, 3 rocks / 3 buttons / gate + lever. Solver: 106 moves. Gate proven load-bearing by the verifier. |
 | Stage "The Queen's Gauntlet" | playable, 9x8, timed at 320 ms/tick, 3 periodic hazards (Queen with sight 3, Cheshire, Rabbit). Par 64 ticks, 5 waits; empty room 41. |
 | Asset pipeline | 5 characters, 44 items, 77 tiles cut from reference sheets, all reproducible from `software/tools/`. |
-| Page | asset sheet + both stages, Solve buttons run the real solver in-browser. `?autosolve=tea|chase`, `?walk=<id>`. |
+| Page | the stages (and the asset sheet below them), Solve buttons run the real solver in-browser. `?autosolve=tea|chase`, `?walk=<id>`. In the phone looks a mode bar (Tea / Gauntlet / Walk / Art / ?) shows one panel at a time and arms the stage on screen. |
 | Badge board | v0.4, fab package in `hardware/badge/production/`. |
 | Soldering kit | schematic generated from `build_badge_sch.py`, fab package present. |
-| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~45 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
+| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~50 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
 | Flashing | `software/tools/flash-badge.py`: waits for `RPI-RP2`, checks the UF2 family, copies, confirms 054c:09cc came back; `--fetch` pulls the newest green Firmware-workflow artifact. No picotool route (no reset interface, on purpose). SWD header `J1` + openocd is the fallback, documented, untried. |
-| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s) and Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements. Keyboard fallback, and an on-screen pad (`#touchPad`, fixed at the bottom, open by default on coarse pointers) feeding `pad.inject` as source `ui`. Map scales to the phone's width. Four looks from the header's ◐ chip (a sheet of cards, the same cards in the ? help) or `?look=` (kept in localStorage; `data-look-touch` on `<html>` names the touch-screen default): classic, and three phone looks - bench, handheld, scope - that show one thing at a time behind a mode bar (Watch / Glass / Bench / ?), fold the prose, reshape the pad (bottom sheet / moulded body / soft-key dock) and add two traces: the routine tick by tick with the pulse's landing, and the tune's window with a mark per press. One DOM, CSS-only differences: the shared phone block in `src/glitch.css`, one file per look in `src/looks/`, described by `src/looks/index.json`. Driven headless in Chromium during development via `window.__pad.inject`. |
+| Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s), Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source) and the Caterpillar's Lock (3 timing side-channel levels: a door that compares a password one symbol per tick and stops at the first mismatch; level 2 adds jitter so a guess is fired repeatedly and the median read, level 3 compares in a secret fixed order). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements; the lock keeps every sample of a guess together (n, median, min-max). On a dev host the keyboard and an on-screen pad (`#touchPad`, source `ui`) drive it; on the site the pad is a read-only mirror of the badge. Map scales to the phone's width. Driven headless via `window.__pad.inject` and read through `window.__range`. |
+| Looks | Four looks on every page from the header's ◐ chip (a sheet of cards; the ? panels show the same cards) or `?look=` (remembered in localStorage `alice.look`; `data-look-touch` on `<html>` names the touch-screen default): classic, and three phone looks - bench, handheld, scope - that show one panel at a time behind a mode bar, fold the prose, reshape the range's pad (bottom sheet / moulded body / soft-key dock) and add the range's two timing traces. One DOM, CSS-only differences: `src/look-boot.js` before paint, `src/looks.js` for the picker and the mode bar, the shared phone block in `styles.css`, the range's part in `src/glitch.css`, one file per look in `src/looks/`. |
+| Badge gate | `src/gate.js` on `index.html` and `glitch.html` (site only): Connect over WebHID (report `0xF1`) or the `SELECT+Y` beacon on the stick axes. Both stages are driven by the badge (d-pad, `Y` waits, `START` resets, last-tapped stage armed); keyboard, on-screen pad and `inject()` are dropped on the site. `badge.html` reads/provisions the vault. Sealed stages via `src/seal.js` + `seal-stage.mjs`; `stages/sealed.json` is empty until event stages exist. Proven headless against `fake-badge.mjs` (verify-badge.mjs, and a Playwright smoke in development). Never seen a real badge. |
+| Crawler side | `robots.txt` (AI crawlers disallowed; only honoured at a host root, so inert on a project page until a custom domain), `noai` meta on every page, `rabbit-hole/` tarpit with per-path canary flags, linked by a hidden door on the real pages. |
 | Browser flashing | `flash.html`: WebUSB to the ROM bootloader (2e8a:0003), PICOBOOT exactly as picotool does it - exclusive access, EXIT_XIP, erase + write per 4 KB sector, read back, REBOOT(0, SRAM_END, 500 ms). One firmware on offer (the quick-glitch build) plus a local `.uf2`; the download link and `flash-badge.py` are the no-WebUSB route. Tested only against `fake-bootloader.mjs`; never run against a board. |
 | CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
 
@@ -135,14 +170,20 @@ Designed but not built (see `software/docs/GAME_DESIGN.md`):
 - The Looking Glass WebSocket protocol (`ws://localhost:7777/looking-glass`),
   server-side simulation, HMAC flag, practice mode, leaderboard.
 - Reference solvers for stages 3–5 (design rule: must clear in < 60% of budget).
-- Gamepad input on the *stages*. `src/pad.js` reads the DS4 for the range;
-  `src/gallery.js` still only reads the keyboard. Wiring pad.js into the two
-  stages is the obvious next step.
+- The server tier of `BADGE_GATE.md` §4: per-badge keys from the serial,
+  challenge-response, revocation, the flag issued server-side. Without it a
+  badge holder who posts the key opens every sealed stage for everyone.
 - Books/mushrooms/teacups/potions/keys/cards exist as art only; no mechanics
   use them yet. Only rocks, buttons, gate, lever and door are implemented.
 
 Known loose ends:
 
+- The vault has never run on real hardware either: `0xF1` over WebHID (Chrome
+  pads feature reports to the declared 63 bytes; Linux needs a udev rule for
+  054c:09cc), the beacon on iOS Safari's axes, and the deferred sector write
+  (~45 ms with interrupts off while 1 ms reports stall) are all argued from
+  the specs and proven against models only. `badge.html` is the diagnostics
+  page for the first board. `BADGE_GATE.md` §7 lists what to check.
 - The quick-glitch firmware has never run on real hardware: it is verified by
   the host test and by a clean cross-build only. First thing to check on a
   badge: that the 1 ms endpoint interval still binds on iOS, and the LED
@@ -162,6 +203,11 @@ Known loose ends:
   commented out; both came from upstream that way (commit 69d933c). The board
   has its own pull-ups (R3..R9, R14, R18 in the BOM), a bare Pico does not.
   Not changed here; ask the board author before "fixing" either.
+- A hidden tab draws no frames: the ranges' render loops pause there. The
+  lock's answer rides a timer so it still lands; the glass's denial after
+  a pulse-less run does not, until the tab is looked at. Headless checks
+  that wait on `requestAnimationFrame` hang in a hidden pane - wait on
+  timers instead.
 - Browsers sample gamepads at ~16 ms, so the range's timing floor is the
   host, not the badge. Chrome's `Gamepad.timestamp` is used when it looks
   sane; Firefox/raw-mapping support is a best guess (hat on axis 9).

@@ -34,17 +34,25 @@
  * Holding SELECT + START for two seconds reboots into the RP2040's UF2
  * bootloader (the RPI-RP2 drive), so new firmware goes on over USB without
  * reaching the BootSel button. software/tools/flash-badge.py does the copy.
+ *
+ * The badge also carries the game's stage key (vault.c): the last flash
+ * sector holds it, HID feature report 0xF1 reads and writes it, and holding
+ * SELECT + Y spells it out on the stick axes for browsers without WebHID.
  */
 
 #include <string.h>
 
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
+#include "pico/unique_id.h"
+#include "hardware/flash.h"
+#include "hardware/sync.h"
 #include "tusb.h"
 
 #include "usb_descriptors.h"
 #include "ds4.h"
 #include "glitch.h"
+#include "vault.h"
 
 //--------------------------------------------------------------------+
 // Pin configuration
@@ -127,6 +135,83 @@ static void bootsel_task(uint16_t physical)
 }
 
 //--------------------------------------------------------------------+
+// The vault
+//--------------------------------------------------------------------+
+
+// The record lives in the last sector of the flash the board is built for.
+// The image is ~45 KB at the start of a 2 MB (pico) layout and the badge's
+// own chip is 16 MB, so the sector is never touched by a UF2 and survives
+// reflashing: a provisioned badge stays provisioned across firmware updates.
+#define VAULT_FLASH_OFFSET  (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+
+static vault_t vault;
+
+// A flash write is deferred to the main loop: the SET report arrives inside
+// a control transfer, and erasing a sector (tens of ms, interrupts off) in
+// the callback would stall the transfer's status stage past what some hosts
+// wait for. The loop writes once the transfer has completed.
+static vault_set_t vault_pending = VAULT_SET_IGNORED;
+
+static void vault_setup(void)
+{
+  pico_unique_board_id_t id;
+  pico_get_unique_board_id(&id);
+  vault_init(&vault, id.id);
+  vault_load(&vault, (const uint8_t *) (XIP_BASE + VAULT_FLASH_OFFSET), VAULT_RECORD_LEN);
+}
+
+static void vault_task(void)
+{
+  if ( vault_pending != VAULT_SET_STORE && vault_pending != VAULT_SET_ERASE ) return;
+  const vault_set_t op = vault_pending;
+  vault_pending = VAULT_SET_IGNORED;
+
+  uint8_t page[FLASH_PAGE_SIZE];
+  memset(page, 0xFF, sizeof(page));
+  if ( op == VAULT_SET_STORE ) vault_record(&vault, page, sizeof(page));
+
+  const uint32_t ints = save_and_disable_interrupts();
+  flash_range_erase(VAULT_FLASH_OFFSET, FLASH_SECTOR_SIZE);
+  if ( op == VAULT_SET_STORE ) flash_range_program(VAULT_FLASH_OFFSET, page, sizeof(page));
+  restore_interrupts(ints);
+}
+
+// GET feature report 0xF1: the vault, and whether SELECT is down right now
+// so a provisioning page can tell the user to hold it.
+uint16_t app_vault_get_report(uint8_t *buffer, uint16_t reqlen)
+{
+  uint8_t report[VAULT_REPORT_LEN];
+  const bool select_held = read_buttons() & GLITCH_BTN_SELECT;
+  vault_report(&vault, select_held, report, sizeof(report));
+  const uint16_t len = reqlen < sizeof(report) ? reqlen : (uint16_t) sizeof(report);
+  memcpy(buffer, report, len);
+  return len;
+}
+
+// SET feature report 0xF1: store or erase, gated by physical SELECT.
+void app_vault_set_report(uint8_t const *buffer, uint16_t bufsize)
+{
+  const bool select_held = read_buttons() & GLITCH_BTN_SELECT;
+  const vault_set_t r = vault_handle_set(&vault, buffer, bufsize, select_held);
+  if ( r == VAULT_SET_STORE || r == VAULT_SET_ERASE ) vault_pending = r;
+}
+
+// The beacon: while SELECT + Y is held the stick axes carry the vault. The
+// engine swallows Y under SELECT (it is no command) and the hold counts as
+// used, so no stray SELECT tap reaches the host afterwards.
+#define BEACON_CHORD  (GLITCH_BTN_SELECT | GLITCH_BTN_Y)
+
+static bool     beacon_on = false;
+static uint32_t beacon_since_ms = 0;
+
+static void beacon_task(uint16_t physical)
+{
+  const bool chord = (physical & BEACON_CHORD) == BEACON_CHORD;
+  if ( chord && !beacon_on ) beacon_since_ms = now_ms();
+  beacon_on = chord;
+}
+
+//--------------------------------------------------------------------+
 // Quick glitch
 //--------------------------------------------------------------------+
 
@@ -143,6 +228,7 @@ static void glitch_task(void)
 {
   uint16_t physical = read_buttons();
   bootsel_task(physical);
+  beacon_task(physical);
   latched_buttons |= glitch_update(&glitch, time_us_32(), physical);
 }
 
@@ -226,9 +312,17 @@ static void build_report(ds4_input_report_t *report, uint16_t buttons,
 {
   memset(report, 0, sizeof(*report));
 
-  // No analog sticks on this board: report both centred and both triggers released.
+  // No analog sticks on this board: report both centred and both triggers
+  // released - unless the beacon is spelling the vault out on them.
   report->lx = report->ly = DS4_STICK_CENTER;
   report->rx = report->ry = DS4_STICK_CENTER;
+  if ( beacon_on )
+  {
+    uint8_t axes[4];
+    vault_beacon_axes(&vault, now_ms() - beacon_since_ms, axes);
+    report->lx = axes[0]; report->ly = axes[1];
+    report->rx = axes[2]; report->ry = axes[3];
+  }
 
   report->buttons0 = compute_hat(
       buttons & GLITCH_BTN_UP,
@@ -350,12 +444,14 @@ int main(void)
 {
   board_setup();
   glitch_init(&glitch);
+  vault_setup();
 
   tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
     tud_task();      // service the USB device stack
+    vault_task();    // a deferred key write, if a SET report asked for one
     glitch_task();   // read buttons through the record / replay layer
     hid_task();      // send what the layer produced
     led_task();      // status / activity LED
