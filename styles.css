@@ -354,6 +354,12 @@ body.touchpad-open { padding-bottom: 16rem; }
 .gate-status.hot { color: var(--hot); }
 .gate-foot { margin: .6rem 0 0; font-size: 11px; color: var(--dim); }
 .gate-device { color: var(--text); }
+.gate-device.on { color: var(--accent-2); }
+.gate-device.hot { color: var(--hot); }
+.gate-device a, .gate-flash a { color: var(--accent); }
+/* the way in for a badge that has no firmware yet: lit up when the gate sees such a controller */
+.gate-flash { margin: .8rem 0 0; padding: .55rem .75rem; border: 1px dashed var(--line); border-radius: 8px; max-width: none; }
+.gate-flash.hot { border-color: var(--hot); border-style: solid; color: var(--text); }
 .refusal { margin: 0 0 1rem; padding: .6rem .9rem; border: 1px solid var(--hot); border-radius: 8px; color: var(--hot); font-size: 12px; }
 @media (max-width: 560px) { .gate-ways { grid-template-columns: 1fr; } }
 

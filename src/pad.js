@@ -28,6 +28,14 @@
 
 export const BUTTONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
 
+// The badge announces itself by name. The firmware keeps the DualShock 4's
+// VID/PID (iOS binds by those) but carries its own manufacturer and product
+// strings, and browsers put the product string in Gamepad.id. A stock
+// controller says "Wireless Controller"; so does a badge still on the stock
+// firmware, which is how the gate knows to send one to the flash page.
+export const BADGE_PRODUCT = 'BSidesTLV 2026 Alice Controller';
+export const isBadgeId = (id) => /bsidestlv|alice controller/i.test(id ?? '');
+
 // "standard" gamepad mapping indices -> badge names. The DualShock 4 diamond
 // lands where a Game Boy's would: cross = A, circle = B, square = X,
 // triangle = Y.
@@ -80,7 +88,7 @@ export class Pad {
     this.held = new Set();          // what is down right now, both sources merged
     this.listeners = new Set();
     this.sources = sources;         // edge sources that reach the listeners
-    this.device = null;             // { id, index, mapping } of the gamepad in use
+    this.device = null;             // { id, index, mapping, badge } of the gamepad in use
     this.lastEdgeT = null;
     this.pollMs = pollMs;
     this.onAxes = null;             // fn(axes, t): every poll's stick values, for the vault beacon
@@ -154,8 +162,10 @@ export class Pad {
       }
       return;
     }
-    if (!this.device || this.device.index !== gp.index) {
-      this.device = { id: gp.id, index: gp.index, mapping: gp.mapping };
+    // a new record when the slot or the name changes: a badge that comes back
+    // from a flash in the same slot must not keep the stock firmware's name
+    if (!this.device || this.device.index !== gp.index || this.device.id !== gp.id) {
+      this.device = { id: gp.id, index: gp.index, mapping: gp.mapping, badge: isBadgeId(gp.id) };
     }
 
     const now = performance.now();

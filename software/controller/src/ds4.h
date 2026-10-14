@@ -15,6 +15,7 @@
 #include "tusb.h"
 
 // Sony Interactive Entertainment / Wireless Controller (CUH-ZCT2U, "v2").
+// Only the numbers are borrowed; the string descriptors name the badge.
 #define DS4_VID   0x054C
 #define DS4_PID   0x09CC
 
