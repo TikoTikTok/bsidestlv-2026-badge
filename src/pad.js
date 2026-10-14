@@ -19,6 +19,17 @@
 // press shorter than that can be missed entirely, and the range's levels
 // are tuned so nothing needs to be shorter.
 //
+// The badge is a grip the phone sits in, so when the phone is held the
+// other way up the whole controller is upside down too: the d-pad's UP is
+// at the bottom and the diamond has turned a half turn. The screen follows
+// the phone, the badge cannot, so the fix is here: while the page is in a
+// "secondary" orientation (screen.orientation, or the old window.orientation
+// of 180) every gamepad edge is turned through FLIP before it is named -
+// UP<->DOWN, LEFT<->RIGHT, A<->Y, B<->X. Only the gamepad is turned: the
+// keyboard and the on-screen pad are already the right way up. `?flip=1`
+// / `?flip=0` pins it for testing, `pad.flip = 'auto' | true | false` at
+// runtime.
+//
 // Who may play is a policy of this module too. Every edge carries a source
 // - 'pad' for a gamepad, 'key' for the keyboard, 'ui' for an on-screen
 // button or a script's inject() - and a Pad built with `sources` drops any
@@ -44,6 +55,24 @@ export const isBadgeId = (id) => /bsidestlv|alice controller/i.test(id ?? '');
 const STANDARD = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'SL', 5: 'SR', 8: 'SELECT', 9: 'START',
                    12: 'UP', 13: 'DOWN', 14: 'LEFT', 15: 'RIGHT' };
 
+// The same badge a half turn round: what each button is called when the
+// phone, and so the grip, is upside down. The shoulders stay put by request;
+// SL is still under the left hand's reach from where the thumbs now are.
+export const FLIP = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT', A: 'Y', Y: 'A', B: 'X', X: 'B' };
+export const flipButton = (name) => FLIP[name] ?? name;
+
+/** Whether the page is being looked at upside down: a "secondary" orientation (screen.orientation), or window.orientation at 180. */
+export function isUpsideDown({ orientation = globalThis.screen?.orientation, angle = globalThis.orientation } = {}) {
+  if (orientation?.type) return /-secondary$/.test(orientation.type);
+  return angle === 180 || angle === -180;
+}
+
+/** The ?flip= override: true / false when pinned, 'auto' otherwise. */
+export function flipFor(search) {
+  const v = new URLSearchParams(search ?? '').get('flip');
+  return v === '1' ? true : v === '0' ? false : 'auto';
+}
+
 // Keyboard stand-in. Arrows or WASD for the d-pad; Z X C V under the left
 // hand for the diamond, Q / E for the shoulders, Enter / Backspace for
 // Start / Select.
@@ -63,14 +92,15 @@ function hatButtons(value) {
   return HAT[i] ?? [];
 }
 
-function readGamepad(gp) {
+export function readGamepad(gp, flipped = false) {
   const held = new Set();
+  const turn = flipped ? flipButton : (n) => n;
   for (const [i, name] of Object.entries(STANDARD)) {
     const b = gp.buttons[i];
-    if (b && (b.pressed || b.value > 0.5)) held.add(name);
+    if (b && (b.pressed || b.value > 0.5)) held.add(turn(name));
   }
   if (gp.mapping !== 'standard' && gp.axes.length > 9) {
-    for (const name of hatButtons(gp.axes[9])) held.add(name);
+    for (const name of hatButtons(gp.axes[9])) held.add(turn(name));
   }
   return held;
 }
@@ -86,8 +116,9 @@ export function sourcesFor(dev) {
 }
 
 export class Pad {
-  constructor({ pollMs = 4, sources = sourcesFor(true) } = {}) {
+  constructor({ pollMs = 4, sources = sourcesFor(true), flip = 'auto' } = {}) {
     this.held = new Set();          // what is down right now, both sources merged
+    this.flip = flip;               // 'auto' follows the screen's orientation; true / false pin it
     this.listeners = new Set();
     this.sources = sources;         // edge sources that reach the listeners
     this.muted = false;             // the gate's pause: true while the badge is away, and nothing plays
@@ -105,6 +136,9 @@ export class Pad {
   /** Subscribe to edges: fn({ button, down, t, source }). Returns unsubscribe. */
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
+  /** True while gamepad buttons are being turned a half turn (the phone is upside down, or flip is pinned). */
+  get flipped() { return this.flip === 'auto' ? isUpsideDown() : !!this.flip; }
+
   /** Whether edges from `source` reach the listeners under this pad's policy. */
   allows(source) { return this.sources.has(source); }
 
@@ -121,6 +155,9 @@ export class Pad {
       addEventListener('keyup', this._boundKeyup);
     }
     addEventListener('gamepadconnected', () => this._poll());
+    // a turn while a button is held: the next poll releases the old name and presses the new
+    globalThis.screen?.orientation?.addEventListener?.('change', () => this._poll());
+    addEventListener('orientationchange', () => this._poll());
     const loop = () => { this._poll(); this._timer = setTimeout(loop, this.pollMs); };
     loop();
     return this;
@@ -172,7 +209,7 @@ export class Pad {
     }
 
     const now = performance.now();
-    const held = readGamepad(gp);
+    const held = readGamepad(gp, this.flipped);
     // the browser's own read time, if it looks like one: same clock, recent
     const stamp = gp.timestamp;
     const t = (stamp > 0 && stamp <= now && now - stamp < 1000 && stamp !== this._lastStamp) ? stamp : now;

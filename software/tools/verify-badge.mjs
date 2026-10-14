@@ -11,7 +11,7 @@
 import { parseVaultReport, buildSetReport, BeaconDecoder, beaconAxes, beaconFrame, crc32,
          CMD, STATE, REPORT_ID, REPORT_LEN, BEACON, hex, unhex } from '../../src/vault.js';
 import { seal, unseal, isSealed } from '../../src/seal.js';
-import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT } from '../../src/pad.js';
+import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT, BUTTONS, FLIP, flipButton, isUpsideDown, flipFor, readGamepad } from '../../src/pad.js';
 import { BadgeWatch } from '../../src/gate.js';
 import { FakeBadge } from './fake-badge.mjs';
 
@@ -233,6 +233,65 @@ console.log('pad: who may play');
   pad.muted = false;
   pad._emit('B', true, 6, 'pad');
   ok(seen.length === 2 && pad.held.has('B'), 'and passes again after');
+}
+
+// ------------------------------------------------- the phone upside down ----
+
+console.log('pad: the phone (and so the badge) upside down');
+{
+  // a half turn is its own inverse, and it only moves the d-pad and the diamond
+  ok(Object.keys(FLIP).every(b => FLIP[FLIP[b]] === b), 'FLIP is an involution');
+  ok(same(Object.keys(FLIP).sort(), ['A', 'B', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'X', 'Y']), 'FLIP turns the d-pad and the diamond only');
+  ok(BUTTONS.filter(b => !(b in FLIP)).every(b => flipButton(b) === b), 'SL, SR, START, SELECT stay where they are');
+  ok(flipButton('UP') === 'DOWN' && flipButton('LEFT') === 'RIGHT' && flipButton('A') === 'Y' && flipButton('B') === 'X', 'UP<->DOWN, LEFT<->RIGHT, A<->Y, B<->X');
+
+  // what the screen says
+  for (const type of ['portrait-secondary', 'landscape-secondary'])
+    ok(isUpsideDown({ orientation: { type } }), `${type} is upside down`);
+  for (const type of ['portrait-primary', 'landscape-primary'])
+    ok(!isUpsideDown({ orientation: { type } }), `${type} is not`);
+  ok(isUpsideDown({ orientation: undefined, angle: 180 }) && isUpsideDown({ orientation: {}, angle: -180 }), 'window.orientation 180 when screen.orientation is missing');
+  ok(!isUpsideDown({ orientation: undefined, angle: 0 }) && !isUpsideDown({ orientation: undefined, angle: 90 }) && !isUpsideDown({ orientation: undefined, angle: undefined }), '0 / 90 / unknown are not');
+  ok(flipFor('?flip=1') === true && flipFor('?flip=0') === false && flipFor('?look=bench') === 'auto' && flipFor('') === 'auto', '?flip= pins, otherwise auto');
+
+  // a standard-mapping gamepad with cross (0) and d-pad UP (12) down, SL (4) too
+  const gp = { mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: [0, 4, 12].includes(i), value: 0 })) };
+  ok(same([...readGamepad(gp)].sort(), ['A', 'SL', 'UP']), 'the right way up: A, SL, UP');
+  ok(same([...readGamepad(gp, true)].sort(), ['DOWN', 'SL', 'Y']), 'upside down: the same presses read DOWN, SL, Y');
+  // the hat (Firefox raw mapping) turns too: north reads DOWN
+  const raw = { mapping: '', axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -1], buttons: [] };
+  ok(same([...readGamepad(raw)], ['UP']) && same([...readGamepad(raw, true)], ['DOWN']), 'the hat turns with it');
+
+  // through a Pad: only gamepad edges turn; the keyboard and inject() are the right way up already
+  const upside = new Pad({ sources: sourcesFor(true), flip: true });
+  const got = [];
+  upside.on(e => got.push(e.button));
+  ok(upside.flipped === true, 'flip pinned on');
+  upside.inject('A', true, 1);
+  upside._emit('UP', true, 2, 'key');
+  ok(same(got, ['A', 'UP']), 'inject and keyboard edges are not turned');
+  ok(new Pad({ flip: false }).flipped === false && new Pad().flip === 'auto', 'pinned off, and auto is the default');
+  const auto = new Pad();
+  ok(auto.flipped === false, 'auto on a host with no screen.orientation: the right way up');
+  const screenWas = globalThis.screen;
+  globalThis.screen = { orientation: { type: 'landscape-secondary' } };
+  ok(auto.flipped === true, 'auto follows screen.orientation');
+  globalThis.screen = screenWas;
+
+  // turned while a button is held: the next poll lets go of the old name and presses the new
+  const gp2 = { id: BADGE_PRODUCT, index: 0, connected: true, mapping: 'standard', timestamp: 0, axes: [0, 0, 0, 0],
+                buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === 12, value: 0 })) };
+  const navWas = globalThis.navigator;
+  Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [gp2] }, configurable: true });
+  const live = new Pad({ flip: false });
+  const edges = [];
+  live.on(e => edges.push(`${e.button}${e.down ? '+' : '-'}`));
+  live._poll();
+  live.flip = true;
+  live._poll();
+  live._poll();
+  ok(same(edges, ['UP+', 'DOWN+', 'UP-']) && live.held.has('DOWN') && !live.held.has('UP'), 'held UP becomes a press of DOWN and a release of UP in the same poll');
+  Object.defineProperty(globalThis, 'navigator', { value: navWas, configurable: true });
 }
 
 // ---------------------------------------------------------- the watch ----

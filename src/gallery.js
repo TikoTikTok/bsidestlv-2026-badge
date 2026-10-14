@@ -7,7 +7,7 @@
 import { parse, step, solve, isGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, solve as solveChase,
          isGoal as isChaseGoal, hazardCells, hazardAt, seenBy } from './chase.js';
-import { Pad } from './pad.js';
+import { Pad, flipFor } from './pad.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
@@ -22,7 +22,7 @@ const $ = (sel) => document.querySelector(sel);
 // sealed copy under stages/sealed/ takes over from the plain module the
 // moment one is published.
 const mode = gateMode();
-const pad = new Pad({ sources: gateSources(mode) }).start();
+const pad = new Pad({ sources: gateSources(mode), flip: flipFor(location.search) }).start();
 window.__pad = pad;
 
 // While the badge is away the gate mutes the pad and the page holds still:
