@@ -1,0 +1,31 @@
+/* Alice in AI Land - the "phosphor" theme: a bench instrument's tube.
+
+   Green phosphor on black, tabular numerals, a little bloom on the readouts,
+   and scanlines over everything with the tube's dark edges. The palette the
+   scope look was first drawn with; it now paints any look.
+
+   One file per theme: src/themes/index.json lists it, src/look-boot.js loads
+   it on demand when <html data-theme="phosphor"> is in force, and styles.css
+   paints from the variables it sets. A theme paints; a look (src/looks/)
+   shapes. Replace this file to replace the theme; keep the id so bookmarks
+   and the remembered choice still resolve. */
+
+html[data-theme=phosphor] {
+  --ink: #050806; --ink-2: #030503; --well: #0a110c;
+  --panel: #0b120d; --panel-2: #0f1a12; --panel-end: #080f0a; --line: #1b2e22;
+  --haze: #0a160e; --bar: rgba(5, 8, 6, .94);
+  --text: #c9f5d3; --dim: #6f9b7c;
+  --accent: #5cf29a; --accent-2: #e8ff7a; --hot: #ff6b6b; --amber: #ffc857; --on-accent: #050806;
+  --r: 4px; --r-s: 4px; --r-xs: 3px;
+}
+html[data-theme=phosphor] body { font-variant-numeric: tabular-nums; }
+html[data-theme=phosphor] .brand .mark { text-shadow: 0 0 10px var(--glow); }
+html[data-theme=phosphor] .panel > h2, html[data-theme=phosphor] .tile b, html[data-theme=phosphor] .hero-meta b,
+html[data-theme=phosphor] .status.win { text-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent); }
+html[data-theme=phosphor] .btn, html[data-theme=phosphor] .tab, html[data-theme=phosphor] .mode { letter-spacing: .16em; }
+/* the tube: scanlines over everything, and its dark edges */
+html[data-theme=phosphor] body::after {
+  content: ''; position: fixed; inset: 0; z-index: 20; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(0, 0, 0, .16) 2px 3px);
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, .55);
+}

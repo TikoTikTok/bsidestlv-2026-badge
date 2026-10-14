@@ -1,0 +1,41 @@
+/* Alice in AI Land - the "bsides" theme: BSidesTLV 2026's own colours.
+
+   The conference site is lime on black with violet body copy, lavender
+   buttons and a fuchsia flash, set in Space Grotesk, square-cornered, with
+   wide-tracked capitals on every call to action. This is that on the console:
+   an olive wash at the top of the page like the site's hero, a lime rule
+   over the header, headings in the grotesque, the pad's keys lit lime. The
+   page's default theme (data-theme-default on <html>).
+
+   One file per theme: src/themes/index.json lists it, src/look-boot.js loads
+   it on demand when <html data-theme="bsides"> is in force, and styles.css
+   paints from the variables it sets. A theme paints; a look (src/looks/)
+   shapes. Replace this file to replace the theme; keep the id so bookmarks
+   and the remembered choice still resolve. */
+
+html[data-theme=bsides] {
+  --ink: #0b0e14; --ink-2: #06080c; --well: #10141c;
+  --panel: #12161f; --panel-2: #181d29; --panel-end: #0e1118; --line: #272d3b;
+  --haze: #2e3f19; --bar: rgba(11, 14, 20, .94);
+  --text: #e3e8ef; --dim: #a78bfa;
+  --accent: #a3e635; --accent-2: #c4b5fd; --hot: #e879f9; --amber: #fbbf24; --on-accent: #0b0e14;
+  --font-display: "Space Grotesk", "Segoe UI Variable Display", "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font: "Space Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --r: 4px; --r-s: 3px; --r-xs: 2px;
+}
+/* the site's hero: a wash of olive green at the top of the page, then black */
+html[data-theme=bsides] body {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--haze) 70%, var(--ink)) 0,
+    color-mix(in srgb, var(--haze) 30%, var(--ink)) 220px,
+    var(--ink) 560px);
+}
+html[data-theme=bsides] .bar { border-top: 3px solid var(--accent); }
+html[data-theme=bsides] .brand .mark { color: var(--accent-2); text-shadow: none; }
+html[data-theme=bsides] .brand b { font-weight: 700; letter-spacing: .04em; }
+html[data-theme=bsides] .panel > h2 { font-weight: 700; letter-spacing: .06em; }
+html[data-theme=bsides] .btn, html[data-theme=bsides] .tab.on, html[data-theme=bsides] .mode.on { font-weight: 700; letter-spacing: .14em; }
+html[data-theme=bsides] .btn.ghost { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 50%, transparent); }
+html[data-theme=bsides] .btn.ghost:hover { color: var(--text); border-color: var(--accent-2); }
+html[data-theme=bsides] .note a, html[data-theme=bsides] .brand small a { color: var(--accent-2); }
+html[data-theme=bsides] .tab, html[data-theme=bsides] .look-chip, html[data-theme=bsides] .tp-mid button { border-radius: 2px; }

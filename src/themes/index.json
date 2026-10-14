@@ -1,0 +1,11 @@
+{
+  "_": "The site's themes: what a page is painted in, on every page and under every look. One entry per theme; each but classic has src/themes/<id>.css, loaded on demand by src/look-boot.js and swapped by src/looks.js, which overrides the palette variables styles.css paints from (html[data-theme=<id>] { --ink: ...; --accent: ...; }) and may add a flourish. swatch is five colours for the picker's card: the page, a panel, the accent, the good colour, the text. The page's default is data-theme-default on <html>. Add a theme = a file + an entry; replace one = swap its file, keep its id. A theme paints; a look (src/looks/) shapes.",
+  "themes": [
+    { "id": "bsides",   "label": "BSidesTLV 2026", "blurb": "the conference's own: lime on black, violet in the margins", "swatch": ["#0b0e14", "#12161f", "#a3e635", "#c4b5fd", "#e3e8ef"] },
+    { "id": "classic",  "label": "classic",        "blurb": "deep blue console plastic, the first palette",             "swatch": ["#05080f", "#0e1729", "#6fb0f0", "#3fd6a3", "#cfe0f5"] },
+    { "id": "teaparty", "label": "tea party",      "blurb": "parchment and rust, the Hatter's table in daylight",       "swatch": ["#efe3c8", "#fbf5e8", "#b5451b", "#2f7d5a", "#2a1b10"] },
+    { "id": "queen",    "label": "Queen's court",  "blurb": "heart red and gold on black; off with their heads",        "swatch": ["#0f0407", "#1d080d", "#ff2d55", "#f2c14e", "#ffe7eb"] },
+    { "id": "cheshire", "label": "Cheshire",       "blurb": "magenta and a teal grin in the purple dark",                "swatch": ["#0c0516", "#180b2b", "#ff4fd8", "#2ee6c5", "#f2e7ff"] },
+    { "id": "phosphor", "label": "phosphor",       "blurb": "green on black with scanlines, a bench instrument",         "swatch": ["#050806", "#0b120d", "#5cf29a", "#e8ff7a", "#c9f5d3"] }
+  ]
+}

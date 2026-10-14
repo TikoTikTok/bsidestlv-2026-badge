@@ -92,17 +92,24 @@ out that level 3 of each cannot be done that way. `software/tools/verify-range.m
 checks exactly that: hand levels fit a hand, badge levels do not, and every
 level is winnable.
 
-Every page has four looks — the ◐ chip in the header opens a sheet of cards
-(the ? panels show the same cards), or `?look=bench`, `handheld`, `scope` in the
-address bar; the choice is remembered on the device. The classic look is the
-whole page. The three phone looks show one panel at a time behind a mode bar
-(on the stages: Tea, Gauntlet, Walk, Art; on the range: Watch, Glass, Lock,
-Bench), fold the prose behind *how it works*, and on the range reshape the
-on-screen pad — a bottom sheet, a handheld's body with the screen in a bezel,
-or a dock of soft keys under big numerals — and draw the guard's routine and
-the door's clock as tick traces. On the published site that pad is a mirror of
-the badge's buttons, never a controller. A look is one file in `src/looks/` plus
-a line in `src/looks/index.json`; replacing or adding one touches nothing else.
+Every page has a theme and a look — the ◐ chip in the header opens a sheet of
+cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
+address bar; both are remembered on the device. The theme is what the page is
+painted in: `bsides`, the conference's own lime on black (the default);
+`classic`, the first deep-blue console; `teaparty`, parchment in daylight;
+`queen`, heart red and gold; `cheshire`, magenta and a teal grin; `phosphor`,
+green on black with scanlines. The look is how it sits on the screen: the
+classic look is the whole page; the three phone looks — `bench`, `handheld`,
+`scope` — show one panel at a time behind a mode bar (on the stages: Tea,
+Gauntlet, Walk, Art; on the range: Watch, Glass, Lock, Bench), fold the prose
+behind *how it works*, and on the range reshape the on-screen pad — a bottom
+sheet, a handheld's body with the screen in a bezel, or a dock of soft keys
+under big numerals — and draw the guard's routine and the door's clock as
+tick traces. On the published site that pad is a mirror of the badge's
+buttons, never a controller. A theme is one file in `src/themes/` plus a line
+in `src/themes/index.json`, a look the same in `src/looks/`; every colour in
+`styles.css` is a variable a theme overrides, so adding either touches nothing
+else.
 
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those
 paths, cross-builds the firmware into `firmware/` beside them (so `flash.html`
