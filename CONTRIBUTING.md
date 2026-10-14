@@ -3,7 +3,8 @@
 ## Layout
 
 ```
-index.html, styles.css, src/, stages/, assets/   the published site - MIT
+index.html, glitch.html, flash.html, badge.html, robots.txt, styles.css,
+  src/, stages/, assets/, rabbit-hole/            the published site - MIT
 images/                                          README renders, not published
 hardware/                                        KiCad 9 projects - CERN-OHL-S-2.0
 software/                                        tools, firmware, sources - MIT
@@ -28,16 +29,17 @@ genuinely both (a tool that reads board files, say), say so in its header.
 
 ```
 ./serve.sh              # http://localhost:8080, serves the repo root
-npm run verify          # both stages still solvable, the glitch range still honest
+npm run verify          # both stages still solvable, the three ranges still honest, the looks and the badge gate still whole
 npm run validate        # legacy sprite/frame integrity
 ```
 
-The site is the repo root: `index.html`, `glitch.html`, `styles.css`, `src/`,
-`stages/` and `assets/`. Those six paths are what the Pages workflow stages and publishes, so
+The site is the repo root: `index.html`, `glitch.html`, `flash.html`,
+`badge.html`, `robots.txt`, `styles.css`, `src/`, `stages/`, `assets/` and
+`rabbit-hole/`. Those paths are what the Pages workflow stages and publishes, so
 keep every path inside them relative — an absolute `/assets/...` works locally
 and breaks under `/<repo>/` on Pages. Anything the page does not load belongs in
-`software/` or, for README artwork, `images/` — neither is staged. Adding a
-seventh *published* path means updating `.github/workflows/pages.yml` too.
+`software/` or, for README artwork, `images/` — neither is staged. Adding
+another *published* path means updating `.github/workflows/pages.yml` too.
 
 No dependencies — Node with ES modules and Python 3 standard library only.
 Keep it that way; `package.json` has no `dependencies` block on purpose.
