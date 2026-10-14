@@ -11,10 +11,13 @@
 
 import { RABBIT_WATCH } from '../../stages/rabbit-watch.js';
 import { LOOKING_GLASS } from '../../stages/looking-glass.js';
+import { CATERPILLAR_LOCK } from '../../stages/caterpillar-lock.js';
 import { comboSequence, Combo, buildLevel, land, idealOffsetMs, Run } from '../../src/range.js';
+import { secretFor, orderFor, comparisons, runAlong, buildLock, Lock, attack, lcg, summarize } from '../../src/lock.js';
 
 const HAND_RATE = 6;          // presses / s
 const HAND_JITTER_MS = 40;    // +/- on a timed press
+const HAND_PRESSES = 150;     // about what a player types into one puzzle before it stops being fun
 const HOST_SAMPLE_MS = 16;    // browser gamepad polling
 const MIN_PRESS_MS = HOST_SAMPLE_MS * 2 + 2;
 
@@ -131,6 +134,113 @@ for (const level of LOOKING_GLASS.levels) {
   const run2 = new Run(built);
   run2.edge({ button: 'START', down: true, t: 5000 });
   ok(run2.tick(5000 + built.totalMs + 60)?.verdict === 'denied', `${level.id}: a run with no pulse is denied`);
+}
+
+// ------------------------------------------------------- the caterpillar's lock ----
+// The leak is exact, the door is deterministic given its seed and noise, and
+// a reference attacker that reads the clock the way the level invites has to
+// clear every level - cheaply by hand on the hand level, only with the
+// badge's repeat on the others.
+
+console.log(`\n${CATERPILLAR_LOCK.name}`);
+const MEASURE_SEEDS = 40;
+for (const level of CATERPILLAR_LOCK.levels) {
+  const n = level.length, pool = level.pool;
+  const secret = secretFor(level), perm = orderFor(level);
+  const space = Math.pow(pool.length, n);
+  console.log(`  ${level.name.padEnd(18)} ${n} of ${pool.length} (${space.toLocaleString('en')} passwords) x ${level.tickMs} ms` +
+              `, jitter ${level.jitterTicks} tick, order ${level.order}${level.order === 'secret' ? ' ' + perm.join('') : ''}` +
+              `; password ${secret.join(' ')}`);
+
+  ok(secret.length === n && secret.every(s => pool.includes(s)), `${level.id}: the password is ${n} symbols from the pool`);
+  ok(secretFor(level).join() === secret.join() && secretFor(level, 1).join() !== secret.join(), `${level.id}: the password is fixed per seed`);
+  ok(perm.length === n && [...perm].sort((a, b) => a - b).every((v, i) => v === i), `${level.id}: the order is a permutation`);
+  if (level.order === 'prefix') ok(perm.every((v, i) => v === i), `${level.id}: prefix order is first to last`);
+  else ok(!perm.every((v, i) => v === i) && orderFor(level).join() === perm.join(), `${level.id}: a secret order is a fixed shuffle, never the identity`);
+
+  // the leak: k symbols right along the order costs k + 1 comparisons (every one when all are right)
+  const off = (s) => pool.find(x => x !== s);
+  for (let k = 0; k <= n; k++) {
+    const guess = secret.slice();
+    for (let j = k; j < n; j++) guess[perm[j]] = off(secret[perm[j]]);
+    const want = k === n ? n : k + 1;
+    ok(comparisons(secret, guess, perm) === want && runAlong(secret, guess, perm) === k,
+       `${level.id}: ${k} right along the order should cost ${want} comparisons, got ${comparisons(secret, guess, perm)}`);
+  }
+
+  // the door: START opens, symbols fill, the last one submits, the answer is due (1 + comparisons) ticks later
+  {
+    const lock = new Lock(level, { secret, perm, rng: () => 0.5 });   // 0.5 x3 - 1.5 = 0: no jitter from the rng
+    ok(lock.edge({ button: pool[0], down: true, t: 0 }) === null && !lock.entering, `${level.id}: a symbol before START is ignored`);
+    ok(lock.edge({ button: 'START', down: true, t: 10 })?.kind === 'open' && lock.entering, `${level.id}: START opens a guess`);
+    ok(lock.edge({ button: 'START', down: false, t: 20 }) === null, `${level.id}: releases do nothing`);
+    ok(lock.edge({ button: 'SELECT', down: true, t: 25 }) === null && lock.guess.length === 0, `${level.id}: a button outside the pool is ignored`);
+    let r = null;
+    secret.forEach((sym, i) => { r = lock.edge({ button: sym, down: true, t: 100 + i * 10 }); });
+    const lastAt = 100 + (n - 1) * 10;
+    ok(r?.kind === 'submitted' && lock.waiting, `${level.id}: the ${n}th symbol submits`);
+    ok(Math.abs(r.answerAt - (lastAt + (n + 1) * level.tickMs)) < 1e-6, `${level.id}: the right password answers after ${n + 1} ticks, got ${r.answerAt - lastAt} ms`);
+    ok(lock.tick(r.answerAt - 1) === null && lock.waiting, `${level.id}: no answer before its time`);
+    const a = lock.tick(r.answerAt);
+    ok(a?.kind === 'answer' && a.win && a.ticks === n + 1 && lock.opened, `${level.id}: the door opens on the right password`);
+    // a wrong last symbol: n comparisons, no
+    const lock2 = new Lock(level, { secret, perm, rng: () => 0.5 });
+    lock2.edge({ button: 'START', down: true, t: 0 });
+    const wrong = secret.slice(); wrong[perm[n - 1]] = off(secret[perm[n - 1]]);
+    wrong.forEach((sym, i) => lock2.edge({ button: sym, down: true, t: 1 + i }));
+    const a2 = lock2.tick(1e9);
+    ok(a2 && !a2.win && a2.ticks === n + 1 && a2.comparisons === n && !lock2.opened, `${level.id}: wrong at the last position still costs every comparison`);
+    // START mid-guess starts over
+    const lock3 = new Lock(level, { secret, perm });
+    lock3.edge({ button: 'START', down: true, t: 0 });
+    lock3.edge({ button: pool[0], down: true, t: 1 });
+    lock3.edge({ button: 'START', down: true, t: 2 });
+    ok(lock3.entering && lock3.guess.length === 0, `${level.id}: START mid-guess starts over`);
+  }
+
+  // jitter: none on a hand level; on the others a single reading is often off by a tick, the median of five rarely
+  if (!level.jitterTicks) {
+    const lock = buildLock(level, 0, { rng: Math.random });
+    lock.edge({ button: 'START', down: true, t: 0 });
+    secret.forEach((sym, i) => lock.edge({ button: sym, down: true, t: 1 + i }));
+    ok(Math.abs(lock.tick(1e9).ms - (n + 1) * level.tickMs) < 1e-6, `${level.id}: no jitter means an exact clock`);
+  } else {
+    const rng = lcg(7);
+    let one = 0, five = 0;
+    const N = 500;
+    for (let i = 0; i < N; i++) {
+      const lock = new Lock(level, { secret, perm, rng });
+      const guess = secret.slice(); guess[perm[2]] = off(secret[perm[2]]);
+      const seen = [];
+      for (let r = 0; r < 5; r++) {
+        lock.edge({ button: 'START', down: true, t: 0 });
+        guess.forEach((sym, k) => lock.edge({ button: sym, down: true, t: 1 + k }));
+        seen.push(Math.round(lock.tick(1e9).ms / level.tickMs));
+      }
+      one += seen[0] === 4; five += summarize(seen).median === 4;
+    }
+    console.log(`      jitter: one reading right ${(one / N * 100).toFixed(0)} %, the median of five ${(five / N * 100).toFixed(0)} %`);
+    ok(one / N < 0.85, `${level.id}: with jitter a single reading should mislead now and then (${(one / N * 100).toFixed(0)} % right)`);
+    ok(five / N > 0.88, `${level.id}: the median of five should be right nearly always (${(five / N * 100).toFixed(0)} %)`);
+  }
+
+  // the attacker: the hand level falls to a hand, the others need the badge's repeat and still fall
+  const repeats = level.jitterTicks ? 7 : 1;
+  let solved = 0, guesses = 0, submissions = 0, presses = 0;
+  for (let seed = 0; seed < MEASURE_SEEDS; seed++) {
+    const r = attack(level, buildLock(level, seed, { rng: lcg(900 + seed) }), { repeats });
+    solved += r.solved; guesses += r.guesses; submissions += r.submissions; presses += r.presses;
+  }
+  const avg = (x) => (x / MEASURE_SEEDS).toFixed(0);
+  console.log(`      attacker x${repeats}: solved ${solved}/${MEASURE_SEEDS}, ${avg(guesses)} distinct guesses (takes), ${avg(submissions)} submissions, ${avg(presses)} presses by hand`);
+  if (level.hand) {
+    ok(solved === MEASURE_SEEDS, `${level.id}: a hand level must always fall to the attacker, fell ${solved}/${MEASURE_SEEDS}`);
+    ok(presses / MEASURE_SEEDS <= HAND_PRESSES, `${level.id}: marked hand but costs ${avg(presses)} presses > ${HAND_PRESSES}`);
+  } else {
+    ok(solved >= MEASURE_SEEDS * 0.9, `${level.id}: the badge attacker should clear it nearly always, cleared ${solved}/${MEASURE_SEEDS}`);
+    ok(presses / MEASURE_SEEDS > HAND_PRESSES * 3, `${level.id}: marked badge-only but a hand types only ${avg(presses)} presses`);
+    ok(guesses / MEASURE_SEEDS <= 80, `${level.id}: ${avg(guesses)} takes is more than a player records in a sitting`);
+  }
 }
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }
