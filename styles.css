@@ -341,6 +341,11 @@ body.touchpad-open { padding-bottom: 16rem; }
   font: inherit;
 }
 .gate::backdrop { background: rgba(5, 8, 15, .86); backdrop-filter: blur(4px); }
+/* back after a disconnect: the page is paused behind it until the same badge proves itself again */
+.gate.reconnect { box-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 0 0 1px rgba(244, 121, 141, .35); }
+.gate.reconnect h2, .gate.reconnect .gate-mark { color: var(--hot); text-shadow: 0 0 12px rgba(244, 121, 141, .5); }
+.gate.reconnect .gate-mark { animation: gate-pulse 1.6s ease-in-out infinite; }
+@keyframes gate-pulse { 50% { opacity: .35; } }
 .gate h2 { margin: 0 0 .4rem; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
 .gate h3 { margin: 0 0 .3rem; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .gate-mark { float: right; color: var(--accent); font-size: 26px; text-shadow: 0 0 12px rgba(111, 176, 240, .6); }
