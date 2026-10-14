@@ -97,6 +97,22 @@ for (const page of PAGES) {
 }
 if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different default themes: ${pages.map(p => `${p.page} ${p.dflt}`).join(', ')}`);
 
+// ----------------------------------------------------- the phone upside down ----
+// src/tilt.js turns the page by data-flip="180" on <html>; the rule lives in
+// styles.css (shared by every look), the boot script honours the remembered
+// hand switch before paint, and the sheet carries the switch. A look or a
+// theme never names data-flip: the turn is the same whatever the page wears.
+
+const src = (p) => readFileSync(resolve(root, p), 'utf8');
+if (!/html\[data-flip="180"\] body \{[^}]*transform: rotate\(180deg\)/.test(src('styles.css'))) say('styles.css: no html[data-flip="180"] body rule turning the page');
+if (!/html\[data-flip="180"\] dialog \{[^}]*rotate\(180deg\)/.test(src('styles.css'))) say('styles.css: dialogs live in the top layer and must turn by themselves');
+if (!/alice\.flip/.test(src('src/look-boot.js'))) say('src/look-boot.js: must honour localStorage alice.flip before paint');
+if (!/data-flip="180"|dataset\.flip = '180'/.test(src('src/look-boot.js'))) say('src/look-boot.js: must set data-flip="180" for a remembered turn');
+if (!/flip-chip/.test(src('src/looks.js')) || !/tilt\.manual = v/.test(src('src/looks.js'))) say('src/looks.js: the sheet needs the turn-over switch (flip-chip) setting tilt.manual');
+for (const [kind, dir] of [['look', 'looks'], ['theme', 'themes']])
+  for (const f of readdirSync(resolve(root, 'src', dir)))
+    if (f.endsWith('.css') && /data-flip/.test(src(`src/${dir}/${f}`))) say(`src/${dir}/${f}: a ${kind} must not name data-flip; the turn is styles.css's`);
+
 // ---------------------------------------------------------------- report ----
 
 console.log('looks');
