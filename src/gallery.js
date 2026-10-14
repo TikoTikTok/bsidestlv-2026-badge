@@ -10,6 +10,7 @@ import { parse as parseChase, step as chaseStep, solve as solveChase,
 import { Pad } from './pad.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
+import { initLooks } from './looks.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -24,6 +25,21 @@ const mode = gateMode();
 const pad = new Pad({ sources: gateSources(mode) }).start();
 window.__pad = pad;
 const gatePromise = openGate({ pad, mode });
+
+// Which stage the badge's d-pad drives: the one last tapped, or the one the
+// phone looks' mode bar shows; the tea party first.
+let armedStage = 'tea';
+function armStage(which) {
+  armedStage = which;
+  $('#teaPanel').classList.toggle('armed', which === 'tea');
+  $('#chasePanel').classList.toggle('armed', which === 'chase');
+}
+$('#teaPanel').addEventListener('pointerdown', () => armStage('tea'));
+$('#chasePanel').addEventListener('pointerdown', () => armStage('chase'));
+
+// the look picker and the mode bar (src/looks.js), up before the gate so a
+// phone can pick its look while the badge is still being asked for
+const looksReady = initLooks({ onMode(m) { if (m === 'tea' || m === 'chase') armStage(m); } });
 
 const state = { zoom: 2, animate: true, backdrop: 'checker' };
 
@@ -74,15 +90,7 @@ const badge = await gatePromise;
 const [TEA_PARTY, QUEENS_GAUNTLET] = await Promise.all([loadStage('tea-party', badge?.key), loadStage('queens-gauntlet', badge?.key)])
   .catch((e) => { showRefusal(`a stage would not open: ${e.message}`); throw e; });
 
-// Which stage the badge's d-pad drives: the one last touched, the tea party first.
-let armedStage = 'tea';
-const armStage = (which) => {
-  armedStage = which;
-  $('#teaPanel').classList.toggle('armed', which === 'tea');
-  $('#chasePanel').classList.toggle('armed', which === 'chase');
-};
-$('#teaPanel').addEventListener('pointerdown', () => armStage('tea'));
-$('#chasePanel').addEventListener('pointerdown', () => armStage('chase'));
+await looksReady;
 
 // --------------------------------------------------------------- controls ----
 

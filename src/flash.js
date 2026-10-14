@@ -12,6 +12,7 @@
 
 import { parseUf2, planSectors, describe } from './uf2.js';
 import { Picoboot, flashSectors, BOOT_FILTERS, BOOT_VID, BOOT_PID_RP2040 } from './picoboot.js';
+import { initLooks } from './looks.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -316,6 +317,7 @@ function watchForController() {
 // ------------------------------------------------------------------ start ----
 
 buildCards();
+initLooks();   // the look picker in the header; the page itself does not change shape
 await loadManifest();
 
 // scripted tests: drop a model of the bootloader in, select, flash

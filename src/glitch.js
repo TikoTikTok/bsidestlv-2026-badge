@@ -8,6 +8,7 @@ import { Pad } from './pad.js';
 import { comboSequence, Combo, buildLevel, idealOffsetMs, Run } from './range.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
+import { initLooks } from './looks.js';
 
 const $ = (sel) => document.querySelector(sel);
 const span = (cls, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
@@ -22,9 +23,108 @@ const mode = gateMode();
 const pad = new Pad({ sources: gateSources(mode) }).start();
 window.__pad = pad;   // scripted tests inject edges through this (dev hosts only; the policy drops it elsewhere)
 
+// ----------------------------------------------------------------- header ----
+
+const ledsEl = $('#padLeds');
+const LED_ORDER = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
+const leds = Object.fromEntries(LED_ORDER.map(b => {
+  const el = document.createElement('span');
+  el.className = 'led';
+  el.textContent = b;
+  ledsEl.append(el);
+  return [b, el];
+}));
+
+const noPadLabel = pad.allows('key') ? 'keyboard' : 'no badge';
+function refreshPad() {
+  $('#padDevice').textContent = pad.device
+    ? `${pad.device.id.replace(/\s*\(.*$/, '').slice(0, 40)}${pad.device.mapping === 'standard' ? '' : ' (raw)'}`
+    : noPadLabel;
+  $('#padDevice').classList.toggle('on', !!pad.device);
+  for (const [b, el] of Object.entries(leds)) el.classList.toggle('on', pad.held.has(b));
+  if (padIsMirror) for (const b of tpButtons) b.classList.toggle('down', pad.held.has(b.dataset.btn));
+}
+setInterval(refreshPad, 100);
+
+// ----------------------------------------------------------- on-screen pad ----
+
+// On a dev host the on-screen pad feeds the same edge stream as source 'ui',
+// stamped with the pointer event's own time, for driving the page from a
+// phone without the badge. On the site the policy is badge-only (src/pad.js
+// drops 'ui'), so nothing on the screen is a controller: the pad stays as a
+// mirror of the badge's buttons - a look that moulds it into the body (the
+// handheld) keeps its shape, and the player sees what the browser sees.
+const touchPad = $('#touchPad');
+const padIsMirror = !pad.allows('ui');
+const tpButtons = [...touchPad.querySelectorAll('button[data-btn]')];
+if (padIsMirror) {
+  touchPad.classList.add('mirror');
+  touchPad.querySelector('.tp-label').textContent = 'the badge, as the browser sees it';
+  touchPad.querySelector('.tp-hint small').textContent = 'lit while a button is down - the badge is the only controller here';
+  $('#glassRun').remove();
+  document.body.classList.add('badge-only');
+  touchPad.open = false;
+} else {
+  touchPad.open = matchMedia('(pointer: coarse)').matches;
+}
+const padOpen = () => document.body.classList.toggle('touchpad-open', touchPad.open);
+touchPad.addEventListener('toggle', padOpen);
+padOpen();
+if (!padIsMirror) for (const b of tpButtons) {
+  const name = b.dataset.btn;
+  const stamp = (e) => (e.timeStamp > 0 && e.timeStamp <= performance.now()) ? e.timeStamp : performance.now();
+  const release = (e) => {
+    if (!b.classList.contains('down')) return;
+    b.classList.remove('down');
+    pad.inject(name, false, stamp(e));
+  };
+  b.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (e.button !== 0) return;
+    try { b.setPointerCapture(e.pointerId); } catch { /* not every pointer can be captured */ }
+    b.classList.add('down');
+    pad.inject(name, true, stamp(e));
+  });
+  b.addEventListener('pointerup', release);
+  b.addEventListener('pointercancel', release);
+  b.addEventListener('lostpointercapture', release);
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+// ------------------------------------------------------------------ arming ----
+
+// Only one range listens at a time. Firing the badge taps START and then
+// replays the take; if both ranges heard it, a combo replayed for range 1
+// would also land as a stray pulse in range 2's log. A tap on a range arms
+// it, and so does the phone looks' mode bar.
+let armed = 'watch';
+function arm(which) {
+  armed = which;
+  $('#watchPanel').classList.toggle('armed', which === 'watch');
+  $('#glassPanel').classList.toggle('armed', which === 'glass');
+}
+$('#watchPanel').addEventListener('pointerdown', () => arm('watch'));
+$('#glassPanel').addEventListener('pointerdown', () => arm('glass'));
+arm('watch');
+
+// ------------------------------------------------------------------- looks ----
+
+// src/looks.js builds the picker and runs the mode bar. What CSS cannot do
+// on this page: keep the handheld's pad out, and arm the range on screen.
+await initLooks({
+  onLook(look) { if (look.padAlwaysOut) touchPad.open = true; padOpen(); },
+  onMode(m) { if (m === 'watch' || m === 'glass') arm(m); },
+});
+
+// -------------------------------------------------------------------- gate ----
+
+// On the site nothing below runs until a badge has shown its vault; the
+// ranges come through src/seal.js so a sealed copy takes over the moment one
+// is published. On a dev host the gate resolves at once.
 const badge = await openGate({ pad, mode });
 const [RABBIT_WATCH, LOOKING_GLASS] = await Promise.all([loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key)])
   .catch((e) => { showRefusal(`a range would not open: ${e.message}`); throw e; });
+
 
 // ------------------------------------------------------------------ assets ----
 
@@ -69,151 +169,7 @@ const frameOf = (ch, dir, now, periodMs) => {
   return ch.images[dir][cyc[Math.floor(now / periodMs) % cyc.length]];
 };
 
-// ----------------------------------------------------------------- header ----
-
-const ledsEl = $('#padLeds');
-const LED_ORDER = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
-const leds = Object.fromEntries(LED_ORDER.map(b => {
-  const el = document.createElement('span');
-  el.className = 'led';
-  el.textContent = b;
-  ledsEl.append(el);
-  return [b, el];
-}));
-
-const noPadLabel = pad.allows('key') ? 'keyboard' : 'no badge';
-function refreshPad() {
-  $('#padDevice').textContent = pad.device
-    ? `${pad.device.id.replace(/\s*\(.*$/, '').slice(0, 40)}${pad.device.mapping === 'standard' ? '' : ' (raw)'}`
-    : noPadLabel;
-  $('#padDevice').classList.toggle('on', !!pad.device);
-  for (const [b, el] of Object.entries(leds)) el.classList.toggle('on', pad.held.has(b));
-}
-setInterval(refreshPad, 100);
-
-// The on-screen pad. On a dev host it feeds the same edge stream as source
-// 'ui', stamped with the pointer event's own time, for driving the page from
-// a phone without the badge. On the site the policy is badge-only, so it is
-// not offered at all - and the policy would drop its edges anyway.
-const touchPad = $('#touchPad');
-if (!pad.allows('ui')) { touchPad.remove(); $('#glassRun').remove(); document.body.classList.add('badge-only'); }
-else { touchPad.open = matchMedia('(pointer: coarse)').matches; }
-const padOpen = () => document.body.classList.toggle('touchpad-open', touchPad.isConnected && touchPad.open);
-touchPad.addEventListener('toggle', padOpen);
-padOpen();
-for (const b of touchPad.querySelectorAll('button[data-btn]')) {
-  const name = b.dataset.btn;
-  const stamp = (e) => (e.timeStamp > 0 && e.timeStamp <= performance.now()) ? e.timeStamp : performance.now();
-  const release = (e) => {
-    if (!b.classList.contains('down')) return;
-    b.classList.remove('down');
-    pad.inject(name, false, stamp(e));
-  };
-  b.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    if (e.button !== 0) return;
-    try { b.setPointerCapture(e.pointerId); } catch { /* not every pointer can be captured */ }
-    b.classList.add('down');
-    pad.inject(name, true, stamp(e));
-  });
-  b.addEventListener('pointerup', release);
-  b.addEventListener('pointercancel', release);
-  b.addEventListener('lostpointercapture', release);
-  b.addEventListener('contextmenu', (e) => e.preventDefault());
-}
-
-// The looks come from src/looks/index.json: id, label, blurb, swatch, shape
-// and flags. The <head> script already applied the chosen id and its
-// stylesheet before first paint; this loads the manifest, builds the picker
-// (the sheet behind the header's chip, and the same cards in the help),
-// swaps the look's stylesheet when the choice changes, and does the two
-// things CSS cannot: fold or unfold the prose, and keep a look's pad out
-// when the look says it is part of the body.
-const LOOK_DIR = 'src/looks/';
-const looks = (await (await fetch(`${LOOK_DIR}index.json`)).json()).looks;
-const lookById = Object.fromEntries(looks.map(l => [l.id, l]));
-const html = document.documentElement;
-const defaultLook = () =>
-  (matchMedia('(pointer: coarse)').matches && lookById[html.dataset.lookTouch]) ? html.dataset.lookTouch : 'classic';
-
-// one <link> carries the look in force; the next one loads before the old one goes, so nothing flashes
-let lookLink = document.querySelector('link[data-look]');
-function loadLookSheet(id) {
-  const old = lookLink;
-  if (id === 'classic') { old?.remove(); lookLink = null; html.dataset.theme = id; return; }
-  if (old?.dataset.look === id) { html.dataset.theme = id; return; }
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = `${LOOK_DIR}${id}.css`;
-  link.dataset.look = id;
-  link.onload = link.onerror = () => { html.dataset.theme = id; old?.remove(); };
-  document.head.append(link);
-  lookLink = link;
-}
-
-function setLook(id, { remember = true } = {}) {
-  if (!lookById[id]) id = 'classic';
-  loadLookSheet(id);
-  if (remember) try { localStorage.setItem('glitch.look', id); } catch { /* storage may be off */ }
-  $('#lookChip .look-name').textContent = lookById[id].label;
-  for (const c of document.querySelectorAll('.look-card')) c.classList.toggle('on', c.dataset.look === id);
-  for (const d of document.querySelectorAll('details.how')) d.open = id === 'classic';
-  if (lookById[id].padAlwaysOut) touchPad.open = true;
-  padOpen();
-}
-
-// the picker: one card per look, its miniature painted in the look's two swatch colours
-function lookCard(l) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'look-card';
-  b.dataset.look = l.id;
-  b.style.setProperty('--ground', l.swatch[0]);
-  b.style.setProperty('--tint', l.swatch[1]);
-  const mini = span('look-mini', '');
-  mini.dataset.shape = l.shape;
-  mini.append(span('mini-bar', ''), span('mini-panel', ''), span('mini-pad', ''));
-  b.append(mini, span('look-label', l.label), span('look-blurb', l.blurb));
-  b.addEventListener('click', () => { setLook(l.id); lookSheet.close(); });
-  return b;
-}
-const lookSheet = $('#lookSheet');
-for (const host of document.querySelectorAll('.look-cards')) for (const l of looks) host.append(lookCard(l));
-$('#lookChip').addEventListener('click', () => lookSheet.showModal());
-$('#lookClose').addEventListener('click', () => lookSheet.close());
-lookSheet.addEventListener('click', (e) => { if (e.target === lookSheet) lookSheet.close(); });   // a tap on the backdrop
-$('#lookDefaultName').textContent = lookById[defaultLook()].label;
-$('#lookDefault').addEventListener('click', () => {
-  try { localStorage.removeItem('glitch.look'); } catch { /* storage may be off */ }
-  setLook(defaultLook(), { remember: false });
-  lookSheet.close();
-});
-setLook(html.dataset.theme, { remember: false });
-
-// The phone looks show one thing at a time: a range (which also arms it),
-// the bench, or the help. The classic look ignores the mode and shows all.
-const modeButtons = [...document.querySelectorAll('#modes .mode')];
-function setMode(mode) {
-  document.documentElement.dataset.mode = mode;
-  for (const b of modeButtons) b.classList.toggle('on', b.dataset.mode === mode);
-  if (mode === 'watch' || mode === 'glass') arm(mode);
-  $('main').scrollTop = 0;
-}
-for (const b of modeButtons) b.addEventListener('click', () => setMode(b.dataset.mode));
-
-// Only one range listens at a time. Firing the badge taps START and then
-// replays the take; if both ranges heard it, a combo replayed for range 1
-// would also land as a stray pulse in range 2's log.
-let armed = 'watch';
-function arm(which) {
-  armed = which;
-  $('#watchPanel').classList.toggle('armed', which === 'watch');
-  $('#glassPanel').classList.toggle('armed', which === 'glass');
-}
-$('#watchPanel').addEventListener('pointerdown', () => arm('watch'));
-$('#glassPanel').addEventListener('pointerdown', () => arm('glass'));
-arm('watch');
-setMode('watch');
+// ------------------------------------------------------------------ wiring ----
 
 // the bench log: raw edges, timed from the last START, for checking the badge
 let benchT0 = null, benchCount = 0;
@@ -221,10 +177,10 @@ pad.on(({ button, down, t, source }) => {
   if (button === 'START' && down) benchT0 = t;
   const rel = benchT0 === null ? null : t - benchT0;
   benchCount++;
-  const li = logTo('#benchLog', `${button.padEnd(6)} ${down ? '▼' : '▲'}  ${rel === null ? '   —   ' : rel.toFixed(1).padStart(8)} ms  ${source}`,
+  const li = logTo('#benchLog', `${button.padEnd(6)} ${down ? '\u25bc' : '\u25b2'}  ${rel === null ? '   \u2014   ' : rel.toFixed(1).padStart(8)} ms  ${source}`,
                    button === 'START' && down ? 'win' : '');
   li.style.whiteSpace = 'pre';
-  $('#benchStatus').textContent = `${benchCount} edges · ${pad.device ? pad.device.id.slice(0, 32) : noPadLabel}`;
+  $('#benchStatus').textContent = `${benchCount} edges \u00b7 ${pad.device ? pad.device.id.slice(0, 32) : noPadLabel}`;
 });
 $('#benchClear').addEventListener('click', () => { $('#benchLog').textContent = ''; benchCount = 0; benchT0 = null; $('#benchStatus').textContent = 'no edges yet'; });
 
@@ -233,6 +189,7 @@ pad.on((edge) => {
   if (armed === 'watch') watchEdge(edge);
   else glassEdge(edge);
 });
+
 
 // ------------------------------------------------------- range 1: the watch ----
 
