@@ -186,9 +186,9 @@ kbd {
 .led.on { background: var(--accent); color: var(--ink); border-color: var(--accent); }
 
 .range { position: relative; border-color: var(--line); }
-.range.armed { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
+.range.armed, .panel.armed { border-color: var(--accent-2); box-shadow: 0 0 0 1px rgba(63, 214, 163, .25) inset; }
 .armed-mark { float: right; font-size: 10px; letter-spacing: .12em; color: var(--accent-2); visibility: hidden; }
-.range.armed .armed-mark { visibility: visible; }
+.range.armed .armed-mark, .panel.armed .armed-mark { visibility: visible; }
 
 .watch { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
 .watch canvas { background: #0a1120; border: 1px solid var(--line); border-radius: 8px; flex: none; }
@@ -325,3 +325,42 @@ body.touchpad-open { padding-bottom: 16rem; }
 .flash-progress { display: block; width: 100%; height: 8px; margin-top: .9rem; accent-color: var(--accent); }
 .flash-log li.dim { opacity: .55; }
 .flash-log li.win { color: var(--accent-2); }
+
+/* ------------------------------------------------------------------ the gate -- */
+/* The dialog src/gate.js raises on the site until a badge has shown its vault. */
+
+.gate {
+  width: min(92vw, 640px); margin: auto; padding: 1.4rem 1.6rem 1.2rem;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 0 0 1px rgba(111, 176, 240, .15);
+  font: inherit;
+}
+.gate::backdrop { background: rgba(5, 8, 15, .86); backdrop-filter: blur(4px); }
+.gate h2 { margin: 0 0 .4rem; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.gate h3 { margin: 0 0 .3rem; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.gate-mark { float: right; color: var(--accent); font-size: 26px; text-shadow: 0 0 12px rgba(111, 176, 240, .6); }
+.gate-ways { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+.gate-way { border: 1px solid var(--line); border-radius: 8px; padding: .8rem .9rem; background: var(--panel-2); }
+.gate-way .note { margin-bottom: .6rem; }
+.gate-beacon { display: block; width: 100%; height: 10px; accent-color: var(--accent-2); }
+.gate-status { margin: .5rem 0 0; font-size: 12px; color: var(--dim); min-height: 1.5em; }
+.gate-status.busy { color: var(--accent); }
+.gate-status.win { color: var(--accent-2); }
+.gate-status.hot { color: var(--hot); }
+.gate-foot { margin: .6rem 0 0; font-size: 11px; color: var(--dim); }
+.gate-device { color: var(--text); }
+.refusal { margin: 0 0 1rem; padding: .6rem .9rem; border: 1px solid var(--hot); border-radius: 8px; color: var(--hot); font-size: 12px; }
+@media (max-width: 560px) { .gate-ways { grid-template-columns: 1fr; } }
+
+/* The badge's vault page (badge.html). */
+.vault-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; margin: .6rem 0 1rem; }
+.vault-field label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: .2rem; }
+.vault-field input { width: 100%; font: inherit; font-size: 12px; color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: .4rem .5rem; }
+.vault-field input:focus { outline: none; border-color: var(--accent); }
+.vault-field output { display: block; font-size: 12px; word-break: break-all; color: var(--text); }
+.vault-field output.on { color: var(--accent-2); }
+
+/* The rabbit hole's hidden door: a link for things that follow every link.
+   Off-canvas, out of the tab order and the accessibility tree, so a person
+   never meets it and a crawler always does. */
+.hole { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }

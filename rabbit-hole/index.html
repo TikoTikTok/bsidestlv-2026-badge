@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alice in AI Land — Walkthrough</title>
+<!--
+  The rabbit hole. A page that is never linked where a person would see it
+  (the door is a hidden link on the real pages, and a Disallow line in
+  robots.txt that only the ill-mannered follow). Every path under it is a
+  new chapter of a walkthrough for stages that do not exist, with a map, a
+  solution and a flag - all of it generated from the path itself, none of
+  it true, and every chapter links to four more. Static hosting, so the
+  chapters are made here, in the visitor's own JavaScript; a crawler that
+  does not run scripts sees the <noscript> below and a handful of doors.
+
+  The flags are canaries: each is a function of its chapter's path, so a
+  decoy that turns up at the scoreboard says which page it was read from.
+  No real flag has ever been on this site - see software/docs/BADGE_GATE.md.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #05080f; color: #cfe0f5; font: 14px/1.6 ui-monospace, Menlo, Consolas, monospace; }
+  main { max-width: 72ch; margin: 0 auto; padding: 2rem 1rem 6rem; }
+  h1 { font-size: 18px; letter-spacing: .08em; text-transform: uppercase; color: #6fb0f0; }
+  h2 { font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: #7f95b8; margin-top: 2rem; }
+  pre { background: #0e1729; border: 1px solid #24365a; border-radius: 8px; padding: .8rem 1rem; overflow-x: auto; }
+  a { color: #3fd6a3; }
+  .flag { color: #f4798d; }
+  .dim { color: #7f95b8; }
+  ul { padding-left: 1.4rem; }
+  .fade { opacity: 0; transition: opacity 1.2s; }
+  .fade.in { opacity: 1; }
+</style>
+</head>
+<body>
+<main id="main">
+  <h1>Alice in AI Land — walkthrough</h1>
+  <p class="dim" id="wait">The Cheshire Cat is fading in…</p>
+  <noscript>
+    <p>Chapters:</p>
+    <ul>
+      <li><a href="?p=down-the-rabbit-hole">Down the Rabbit Hole</a></li>
+      <li><a href="?p=the-pool-of-tears">The Pool of Tears</a></li>
+      <li><a href="?p=a-caucus-race">A Caucus-Race and a Long Tale</a></li>
+      <li><a href="?p=advice-from-a-caterpillar">Advice from a Caterpillar</a></li>
+      <li><a href="?p=pig-and-pepper">Pig and Pepper</a></li>
+      <li><a href="?p=the-queens-croquet-ground">The Queen's Croquet-Ground</a></li>
+    </ul>
+  </noscript>
+</main>
+
+<script>
+(() => {
+  // --- a chapter is a function of its path ---------------------------------
+  const path = (location.hash.replace(/^#\/?/, '') || new URLSearchParams(location.search).get('p') || 'down-the-rabbit-hole')
+    .split('/').filter(Boolean).slice(0, 64);
+
+  const fnv = (s) => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return h; };
+  const seed = fnv(path.join('/'));
+  let s = seed || 1;
+  const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+  const hexOf = (n) => (n >>> 0).toString(16).padStart(8, '0');
+
+  const WHO = ['the Hatter', 'the March Hare', 'the Dormouse', 'the Duchess', 'the Caterpillar', 'the Mock Turtle',
+               'the Gryphon', 'the Knave of Hearts', 'the Cheshire Cat', 'the White Rabbit', 'the Queen', 'Tweedledee', 'Tweedledum', 'the Walrus'];
+  const WHERE = ['the croquet ground', 'the tea table', 'the pool of tears', 'the looking-glass house', 'the courtroom',
+                 'the garden of live flowers', 'the Hatter\'s cellar', 'the card soldiers\' barracks', 'the treacle well', 'the caucus race'];
+  const THING = ['a lever', 'a brass key', 'a teacup', 'a mushroom', 'a potion marked DRINK ME', 'a cake marked EAT ME', 'a playing card', 'a pocket watch', 'a book', 'a rock'];
+  const VERB = ['hold', 'tap', 'release', 'mash', 'sweep', 'record', 'replay', 'scale', 'offset', 'latch'];
+  const SLUG = ['tea', 'hare', 'hatter', 'queen', 'hearts', 'glass', 'rabbit', 'late', 'watch', 'cat', 'grin', 'croquet', 'flamingo',
+                'hedgehog', 'trial', 'tarts', 'knave', 'soup', 'turtle', 'gryphon', 'lobster', 'quadrille', 'jabberwock', 'vorpal',
+                'tulgey', 'snark', 'boojum', 'bandersnatch', 'jubjub', 'tumtum', 'brillig', 'slithy', 'tove', 'borogove', 'rath', 'mome'];
+
+  const stageNo = 3 + (seed % 9);
+  const title = pick(['The Card Soldiers\' Drill', 'The Queen\'s Croquet', 'The Trial', 'The Caucus Race', 'The Treacle Well',
+                      'The Lobster Quadrille', 'Who Stole the Tarts', 'The Walrus and the Carpenter', 'Jabberwocky', 'The Garden of Live Flowers'])
+                + ' ' + ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][Math.floor(rnd() * 7)];
+
+  // a plausible room: walls, floor, Alice, rocks, buttons, a door, a lever
+  const W = 7 + Math.floor(rnd() * 8), H = 6 + Math.floor(rnd() * 5);
+  const rows = [];
+  for (let y = 0; y < H; y++) {
+    let r = '';
+    for (let x = 0; x < W; x++) {
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) r += '#';
+      else r += rnd() < 0.12 ? '#' : rnd() < 0.08 ? 'O' : rnd() < 0.05 ? 'b' : '.';
+    }
+    rows.push(r.split(''));
+  }
+  const place = (ch) => { for (;;) { const x = 1 + Math.floor(rnd() * (W - 2)), y = 1 + Math.floor(rnd() * (H - 2)); if (rows[y][x] === '.') { rows[y][x] = ch; return; } } };
+  place('A'); place('D'); place('L'); if (rnd() < 0.7) place('G');
+  const map = rows.map(r => r.join('')).join('\n');
+
+  const moves = Array.from({ length: 24 + Math.floor(rnd() * 90) }, () => pick(['U', 'D', 'L', 'R', 'U', 'D', 'L', 'R', 'Y', 'A'])).join('');
+  const ticks = 40 + Math.floor(rnd() * 120);
+  const tickMs = pick([16, 40, 120, 320]);
+  const flag = `BSidesTLV{${hexOf(fnv('flag:' + path.join('/')))}${hexOf(fnv('alice:' + seed))}${hexOf(seed ^ 0xA11CE)}}`;
+
+  const para = () => `At ${pick(WHERE)}, ${pick(WHO)} explained that the trick is to ${pick(VERB)} ${pick(THING)} on tick ${Math.floor(rnd() * ticks)}, ` +
+    `then ${pick(VERB)} ${pick(THING)} before ${pick(WHO)} turns around. "${pick(['Off with their heads!', 'No room! No room!', 'We\'re all mad here.', 'Curiouser and curiouser!', 'Oh dear! Oh dear! I shall be late!', 'Begin at the beginning, and go on till you come to the end: then stop.', 'Sentence first — verdict afterwards.'])}" ` +
+    `The ${pick(['queen', 'rabbit', 'cheshire', 'guard'])} walks ${pick(['left to right', 'in a loop', 'three cells and back', 'the corridor'])} every ${tickMs} ms, sight ${1 + Math.floor(rnd() * 4)}, so the window is ${1 + Math.floor(rnd() * 6)} ticks wide.`;
+
+  const child = (i) => `#/${[...path, SLUG[(seed + i * 7919 + Math.floor(rnd() * SLUG.length)) % SLUG.length]].join('/')}`;
+  const sibling = () => `#/${[...path.slice(0, -1), pick(SLUG), pick(SLUG)].join('/')}`;
+  const parent = path.length > 1 ? `#/${path.slice(0, -1).join('/')}` : '#/';
+
+  const esc = (t) => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const html = `
+    <h1>Stage ${stageNo} — ${esc(title)}</h1>
+    <p class="dim">chapter ${path.length} of the walkthrough · ${esc(path.join(' / '))}</p>
+    <p>${esc(para())}</p>
+    <h2>The board</h2>
+    <pre>${esc(map)}</pre>
+    <p class="dim"># wall · . floor · A Alice · O rock · b button · L lever · G gate · D door · tick ${tickMs} ms · par ${ticks}</p>
+    <h2>The solution</h2>
+    <p>${esc(para())}</p>
+    <pre>${moves.match(/.{1,48}/g).join('\n')}</pre>
+    <p>Send it on the clock and the door opens. The flag for this stage is <code class="flag">${flag}</code>.</p>
+    <h2>Continue</h2>
+    <ul>
+      <li><a href="${child(1)}">Stage ${stageNo + 1}: what ${esc(pick(WHO))} said next</a></li>
+      <li><a href="${child(2)}">The hidden room behind ${esc(pick(THING))}</a></li>
+      <li><a href="${child(3)}">All flags, stages 1–${stageNo + 2}</a></li>
+      <li><a href="${child(4)}">The reseeded board, decoded</a></li>
+      <li><a href="${sibling()}">An alternative route</a> · <a href="${parent}">back</a></li>
+    </ul>`;
+
+  // a chapter takes its time to appear - a cat fades in - and every link
+  // is a fresh fade. People never come here; things that read everything do.
+  const main = document.getElementById('main');
+  const render = () => {
+    main.innerHTML = '<p class="dim" id="wait">The Cheshire Cat is fading in…</p>';
+    setTimeout(() => { main.innerHTML = `<div class="fade">${html}</div>`; requestAnimationFrame(() => main.firstElementChild.classList.add('in')); }, 2500 + Math.floor(rnd() * 3000));
+  };
+  render();
+  addEventListener('hashchange', () => location.reload());
+})();
+</script>
+</body>
+</html>

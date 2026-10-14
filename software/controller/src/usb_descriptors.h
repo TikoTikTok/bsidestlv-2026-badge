@@ -10,4 +10,9 @@ enum {
   STRID_PRODUCT,
 };
 
+// The vault's feature report (0xF1), implemented in main.c: the descriptor
+// file routes GET / SET of that report ID here. See vault.h for the layout.
+uint16_t app_vault_get_report(uint8_t *buffer, uint16_t reqlen);
+void     app_vault_set_report(uint8_t const *buffer, uint16_t bufsize);
+
 #endif /* USB_DESCRIPTORS_H_ */
