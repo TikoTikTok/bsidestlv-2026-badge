@@ -229,8 +229,8 @@ install on the host. Get the badge into the bootloader, any of:
   goes dark and the board drops off the host.
 
 It mounts as a small drive called `RPI-RP2`. Copy `controller.uf2` onto it; the
-board reboots and re-enumerates as a "Wireless Controller" by "Sony Interactive
-Entertainment" - see the VID/PID note below. The tool does the waiting, the
+board reboots and re-enumerates as "BSidesTLV 2026 Alice Controller" by
+"BSidesTLV" - with Sony's VID/PID underneath, see the note below. The tool does the waiting, the
 copy, and the check that the controller came back:
 
 ```bash
@@ -284,7 +284,12 @@ native C compiler, which neither route installs; CI runs it on every push.
 
 - Reports Sony's VID `0x054C` / PID `0x09CC` (DualShock 4 CUH-ZCT2U). That is
   what buys iOS support; it is also not a VID/PID this project owns, so do not
-  ship hardware with it.
+  ship hardware with it. The manufacturer and product *strings* are the
+  badge's own (`BSidesTLV` / `BSidesTLV 2026 Alice Controller`): browsers put
+  the product string in `Gamepad.id`, which is how the site tells a badge from
+  a real DualShock 4 - and from a badge still on the stock firmware, which
+  keeps Sony's strings and is sent to `flash.html` by the gate. iOS binds by
+  the numbers, not the strings; confirm on an iPhone when a badge is flashed.
 - **Hardware:** the USB-C receptacle needs a 5.1k Rd pulldown on **both** CC1
   and CC2. CC1 has one (R15 on the controller board); CC2 was left floating,
   which means a USB-C iPhone will not turn on VBUS in one of the two cable

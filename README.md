@@ -143,7 +143,8 @@ re-fabricating the boards.
 ## The firmware
 
 [`software/controller/`](software/controller) is the RP2040 firmware. It
-presents the badge to a host as a **wired DualShock 4**, which is what makes it
+presents the badge to a host as a **wired DualShock 4** (Sony's VID/PID; the
+name is the badge's own), which is what makes it
 work on an iPhone — iOS only binds controllers it recognizes by USB VID/PID, so
 a generic HID gamepad enumerates and is then ignored. Every other host
 understands the same report.
