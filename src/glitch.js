@@ -700,12 +700,14 @@ function drawLock(now) {
     const cx = (L_DOOR[0] + 0.5) * TILE, base = L_DOOR[1] * TILE - 2;
     for (let i = 0; i < Math.floor(ticks); i++) {
       const rise = (i + 1) * 9 + ((now / 40) % 9);
-      lkctx.strokeStyle = `rgba(207, 224, 245, ${Math.max(0.12, 0.6 - i * 0.06)})`;
+      lkctx.strokeStyle = ink('--text');
+      lkctx.globalAlpha = Math.max(0.12, 0.6 - i * 0.06);
       lkctx.lineWidth = 2;
       lkctx.beginPath();
       lkctx.ellipse(cx + Math.sin(now / 300 + i) * 4, base - rise, 5 + i * 1.2, 2.5 + i * 0.6, 0, 0, Math.PI * 2);
       lkctx.stroke();
     }
+    lkctx.globalAlpha = 1;
   }
 
   // Alice: home until the first guess, then at the door - turned away with a
@@ -726,6 +728,8 @@ function drawLock(now) {
 const hash2 = (x, y) => { let h = (x * 73856093) ^ (y * 19349663); h = (h ^ (h >>> 13)) * 1274126177; return Math.abs(h ^ (h >>> 16)); };
 const WALLS = ['wall_blue', 'wall_blue', 'wall_blue', 'pillar_blue', 'wall_blue', 'wall_blue_banner_red'];
 const FLOORS = ['floor_marble_plain', 'floor_marble_veined', 'floor_marble_plain'];
+/** A colour of the theme in force, read live, so the canvases paint in the page's own accent and text. */
+const ink = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#6fb0f0';
 
 function drawGlass(now) {
   gctx.imageSmoothingEnabled = false;
@@ -757,8 +761,10 @@ function drawGlass(now) {
     const e = run.elapsed(now);
     const step = level.honest.findIndex(s => (s.tick + s.ticks) * level.lineMs > e);
     if (step >= 0) {
-      gctx.fillStyle = 'rgba(111, 176, 240, .25)';
+      gctx.fillStyle = ink('--accent');
+      gctx.globalAlpha = 0.25;
       gctx.fillRect(GUARD[0] * TILE, (GUARD[1] - 1) * TILE + 6, TILE * ((step + 1) / level.honest.length), 6);
+      gctx.globalAlpha = 1;
     }
   }
 

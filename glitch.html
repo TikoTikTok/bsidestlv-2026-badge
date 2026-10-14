@@ -1,6 +1,6 @@
 <!doctype html>
-<!-- data-theme: the look in force (src/look-boot.js sets it before paint); data-look-touch: the look a touch screen opens on, any id from src/looks/index.json -->
-<html lang="en" data-theme="classic" data-mode="watch" data-look-touch="bench">
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-mode="watch" data-look-touch="bench">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -50,10 +50,11 @@
       of each is meant for a hand; the last is not, and that is the lesson.</p>
     <p class="note">Elsewhere: <a href="index.html">the stages</a> · <a href="flash.html">flash the badge</a>.</p>
 
-    <h2 style="margin-top: 1.25rem;">Looks</h2>
-    <p class="note">How the site sits on the screen, on every page: the classic page, or a phone look that
-      shows one panel at a time. The <b>◐</b> chip in the header opens these same cards; <code>?look=scope</code>
-      in the address bar picks one too, and the choice is remembered on this device.</p>
+    <h2 style="margin-top: 1.25rem;">Themes and looks</h2>
+    <p class="note">What the site is painted in, on every page — the conference's lime on black, the Queen's
+      court, the tea party in daylight — and how it sits on the screen: the classic page, or a phone look that
+      shows one panel at a time. The <b>◐</b> chip in the header opens these same cards; <code>?theme=queen</code>
+      and <code>?look=scope</code> in the address bar pick too, and the choice is remembered on this device.</p>
     <div class="look-cards"></div>
   </section>
 
@@ -258,7 +259,7 @@
 <script>
 // The handheld look moulds the pad into the body: out before the module
 // runs, so nothing jumps. src/look-boot.js has already folded the prose.
-if (document.documentElement.dataset.theme === 'handheld') document.getElementById('touchPad').open = true;
+if (document.documentElement.dataset.look === 'handheld') document.getElementById('touchPad').open = true;
 </script>
 <script type="module" src="src/glitch.js"></script>
 </body>
