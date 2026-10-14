@@ -55,7 +55,13 @@ in `fake-badge.mjs` is proven to agree with the C.
 ### The gate and the input policy (page)
 
 `src/gate.js` raises a dialog on the published site before anything plays:
-*Connect* (WebHID) or *hold SELECT + Y* (the beacon, with a progress bar).
+*Connect* (WebHID) or *hold SELECT + Y* (the beacon, with a progress bar),
+and a third way for a badge that has neither yet: the firmware names the
+badge (`BSidesTLV 2026 Alice Controller`, Sony's VID/PID underneath), so a
+controller that shows up as a plain "Wireless Controller" is a real
+DualShock 4 or a badge on the stock firmware, and the dialog says so and
+links to `flash.html`, which is never gated. Flash, come back, press a
+button.
 Passing yields the page's `badge` — serial, label, key. `src/pad.js` now
 carries a policy: every edge has a source (`pad`, `key`, `ui`) and the Pad is
 built with the sources it may pass. On the site that is `{pad}`: the keyboard
@@ -200,6 +206,9 @@ revocation makes a cloned badge a nuisance rather than a break.
 - `0xF1` over WebHID on Windows: the DS4 descriptor's `0xF1` is a 63-byte
   feature report; Chrome pads to the report's size. Linux needs a udev rule
   for `054c:09cc` (Steam's is enough). macOS asks nothing.
+- iOS with the badge's own strings: binding is by VID/PID, so the name
+  should not matter, but it has not been seen on an iPhone. If an iPhone
+  stops binding, the strings are the first suspect.
 - The beacon on iOS Safari: the DS4 standard mapping there exposes
   `axes[0..3]`; the decoder tolerates ±5/255 per level and any sampling
   rate from 30 Hz up. Untested on a phone until a badge is flashed.

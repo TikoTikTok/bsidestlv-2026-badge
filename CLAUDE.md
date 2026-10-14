@@ -135,7 +135,9 @@ from CI there; `flash-badge.py --fetch` closes that gap.
 - Hardware: commit `.kicad_sch/.kicad_pcb/.kicad_pro` only, regenerate
   `production/` with Fabrication Toolkit as one commit, pass DRC/ERC first.
 - The firmware reports Sony's VID/PID (0x054C/0x09CC) so iOS binds it. That is
-  deliberate and must not ship on hardware. Do not "fix" it.
+  deliberate and must not ship on hardware. Do not "fix" it. The string
+  descriptors are the badge's own and `src/pad.js` recognises them
+  (`isBadgeId`); keep the two in step.
 - Commits: one concern each; describe the change, not the file list.
 
 ## Status (as of 2026-10-14)
@@ -150,11 +152,11 @@ Built and live:
 | Page | the stages (and the asset sheet below them), Solve buttons run the real solver in-browser. `?autosolve=tea|chase`, `?walk=<id>`. In the phone looks a mode bar (Tea / Gauntlet / Walk / Art / ?) shows one panel at a time and arms the stage on screen. |
 | Badge board | v0.4, fab package in `hardware/badge/production/`. |
 | Soldering kit | schematic generated from `build_badge_sch.py`, fab package present. |
-| Firmware | DualShock 4 HID, 14 inputs + status LED, builds to a ~50 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
+| Firmware | DualShock 4 HID (Sony's VID/PID; the strings are ours: "BSidesTLV 2026 Alice Controller" by "BSidesTLV", which is how the site knows a badge by `Gamepad.id`), 14 inputs + status LED, builds to a ~50 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |
 | Flashing | `software/tools/flash-badge.py`: waits for `RPI-RP2`, checks the UF2 family, copies, confirms 054c:09cc came back; `--fetch` pulls the newest green Firmware-workflow artifact. No picotool route (no reset interface, on purpose). SWD header `J1` + openocd is the fallback, documented, untried. |
 | Glitch range | `glitch.html`: Rabbit's Pocket Watch (4 combo levels, 1.5-18 presses/s), Looking-Glass Glitch (3 fault-injection levels, 120/40/20 ms ticks, last one hidden source) and the Caterpillar's Lock (3 timing side-channel levels: a door that compares a password one symbol per tick and stops at the first mismatch; level 2 adds jitter so a guess is fired repeatedly and the median read, level 3 compares in a secret fixed order). Rising-edge glitch model, crash lines, brown-out, per-attempt measurements; the lock keeps every sample of a guess together (n, median, min-max). On a dev host the keyboard and an on-screen pad (`#touchPad`, source `ui`) drive it; on the site the pad is a read-only mirror of the badge. Map scales to the phone's width. Driven headless via `window.__pad.inject` and read through `window.__range`. |
 | Looks | Four looks on every page from the header's ◐ chip (a sheet of cards; the ? panels show the same cards) or `?look=` (remembered in localStorage `alice.look`; `data-look-touch` on `<html>` names the touch-screen default): classic, and three phone looks - bench, handheld, scope - that show one panel at a time behind a mode bar, fold the prose, reshape the range's pad (bottom sheet / moulded body / soft-key dock) and add the range's two timing traces. One DOM, CSS-only differences: `src/look-boot.js` before paint, `src/looks.js` for the picker and the mode bar, the shared phone block in `styles.css`, the range's part in `src/glitch.css`, one file per look in `src/looks/`. |
-| Badge gate | `src/gate.js` on `index.html` and `glitch.html` (site only): Connect over WebHID (report `0xF1`) or the `SELECT+Y` beacon on the stick axes. Both stages are driven by the badge (d-pad, `Y` waits, `START` resets, last-tapped stage armed); keyboard, on-screen pad and `inject()` are dropped on the site. `badge.html` reads/provisions the vault. Sealed stages via `src/seal.js` + `seal-stage.mjs`; `stages/sealed.json` is empty until event stages exist. Proven headless against `fake-badge.mjs` (verify-badge.mjs, and a Playwright smoke in development). Never seen a real badge. |
+| Badge gate | `src/gate.js` on `index.html` and `glitch.html` (site only): Connect over WebHID (report `0xF1`) or the `SELECT+Y` beacon on the stick axes. Both stages are driven by the badge (d-pad, `Y` waits, `START` resets, last-tapped stage armed); keyboard, on-screen pad and `inject()` are dropped on the site. A controller that does not announce itself as the badge (a real DualShock 4, or a badge on the stock firmware) is told so and sent to `flash.html`, which is never gated. `badge.html` reads/provisions the vault. Sealed stages via `src/seal.js` + `seal-stage.mjs`; `stages/sealed.json` is empty until event stages exist. Proven headless against `fake-badge.mjs` (verify-badge.mjs, and a Playwright smoke in development). Never seen a real badge. |
 | Crawler side | `robots.txt` (AI crawlers disallowed; only honoured at a host root, so inert on a project page until a custom domain), `noai` meta on every page, `rabbit-hole/` tarpit with per-path canary flags, linked by a hidden door on the real pages. |
 | Browser flashing | `flash.html`: WebUSB to the ROM bootloader (2e8a:0003), PICOBOOT exactly as picotool does it - exclusive access, EXIT_XIP, erase + write per 4 KB sector, read back, REBOOT(0, SRAM_END, 500 ms). One firmware on offer (the quick-glitch build) plus a local `.uf2`; the download link and `flash-badge.py` are the no-WebUSB route. Tested only against `fake-bootloader.mjs`; never run against a board. |
 | CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
@@ -192,7 +194,9 @@ Known loose ends:
   board (the tool's drive scan, UF2 check and status probe were run on
   Windows with no board attached).
 - The badge the user holds may be running the upstream firmware (no quick
-  glitch, no chord): the first flash goes through BootSel.
+  glitch, no chord, no vault, Sony's strings): the first flash goes through
+  BootSel; the gate points there. Whether iOS still binds with the badge's
+  own strings is unverified.
 - The WebUSB flasher has never seen a real bootloader: the protocol is
   transcribed from picotool and the ROM source and proven against a model.
   First things to check on a board: Chrome's chooser lists "RP2 Boot" on
