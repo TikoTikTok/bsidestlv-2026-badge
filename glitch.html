@@ -1,35 +1,15 @@
 <!doctype html>
-<!-- data-look-touch: the look a touch screen opens on; any id from src/looks/index.json -->
+<!-- data-theme: the look in force (src/look-boot.js sets it before paint); data-look-touch: the look a touch screen opens on, any id from src/looks/index.json -->
 <html lang="en" data-theme="classic" data-mode="watch" data-look-touch="bench">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 8 8 15 1 8z' fill='%236fb0f0'/%3E%3C/svg%3E">
 <title>Alice in AI Land — Glitch Range</title>
+<meta name="robots" content="noai, noimageai">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="src/glitch.css">
-<script>
-// The look, before first paint: ?look= in the URL, else the one chosen last
-// time, else data-look-touch on a touch screen and the classic page
-// elsewhere. A phone look is one stylesheet in src/looks/<id>.css, added
-// here so the page never paints in the wrong shape. src/glitch.js owns
-// everything else about looks (the manifest, the picker, switching).
-(function () {
-  try {
-    var html = document.documentElement;
-    var q = new URLSearchParams(location.search).get('look');
-    var look = q || localStorage.getItem('glitch.look') ||
-               (matchMedia('(pointer: coarse)').matches ? html.dataset.lookTouch : 'classic') || 'classic';
-    html.dataset.theme = look;
-    if (look !== 'classic') {
-      var link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'src/looks/' + encodeURIComponent(look) + '.css';
-      link.dataset.look = look;
-      document.head.appendChild(link);
-    }
-  } catch (e) { /* keep the classic look */ }
-})();
-</script>
+<script src="src/look-boot.js"></script>
 </head>
 <body>
 
@@ -38,7 +18,7 @@
     <span class="mark">◆</span>
     <span>
       <b>ALICE IN AI LAND</b>
-      <small>glitch range · <a href="index.html">back to the stages</a> · <a href="flash.html">flash the badge</a></small>
+      <small>glitch range · <a href="index.html">back to the stages</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a></small>
     </span>
   </div>
 
@@ -53,6 +33,7 @@
 <nav id="modes" class="modes" aria-label="what is on screen">
   <button type="button" class="mode" data-mode="watch">Watch</button>
   <button type="button" class="mode" data-mode="glass">Glass</button>
+  <button type="button" class="mode" data-mode="lock">Lock</button>
   <button type="button" class="mode" data-mode="bench">Bench</button>
   <button type="button" class="mode help" data-mode="help" aria-label="how it works">?</button>
 </nav>
@@ -60,17 +41,18 @@
 <main>
   <section class="panel" data-mode="help">
     <h2>The range</h2>
-    <p class="note">Two practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
-      in and press anything — the header lights up when the browser sees it. Without one, the
-      keyboard stands in: arrows, <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for
-      A B X Y, <kbd>Q</kbd> <kbd>E</kbd> for the shoulders, <kbd>Enter</kbd> for START.</p>
+    <p class="note">Three practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
+      in and press anything — the header lights up when the browser sees it. The published site
+      listens to the badge and nothing else; on a local checkout the keyboard stands in: arrows,
+      <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for A B X Y, <kbd>Q</kbd> <kbd>E</kbd>
+      for the shoulders, <kbd>Enter</kbd> for START.</p>
     <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
       of each is meant for a hand; the last is not, and that is the lesson.</p>
     <p class="note">Elsewhere: <a href="index.html">the stages</a> · <a href="flash.html">flash the badge</a>.</p>
 
     <h2 style="margin-top: 1.25rem;">Looks</h2>
-    <p class="note">How the range sits on the screen: the classic page, or a phone look that shows
-      one range at a time. The <b>◐</b> chip in the header opens these same cards; <code>?look=scope</code>
+    <p class="note">How the site sits on the screen, on every page: the classic page, or a phone look that
+      shows one panel at a time. The <b>◐</b> chip in the header opens these same cards; <code>?look=scope</code>
       in the address bar picks one too, and the choice is remembered on this device.</p>
     <div class="look-cards"></div>
   </section>
@@ -151,6 +133,51 @@
     <ol id="glassLog" class="log" reversed></ol>
   </section>
 
+  <section class="panel range" id="lockPanel" data-mode="lock">
+    <h2>Range 3 — The Caterpillar's Lock <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Caterpillar's door wants a password and checks it the lazy way: one symbol per
+        tick, in order, stopping at the first one that is wrong. So the time it takes to say <em>no</em>
+        is the number of symbols you had right, plus one — a side channel. <b>START</b> opens a guess,
+        then one press per symbol; the door checks the moment the last one is in. Read the clock, change
+        one symbol, go again.</p>
+      <p class="note">On the badge a guess is a take: record the symbols only (no START), then fire — the
+        trigger's START opens the guess and the take types it. Give the take an offset of 40 ms or so
+        (<b>SELECT+RIGHT</b>) so START lands first. Hold the chord and the same guess goes in every
+        ~600 ms, which is how the jittery levels are beaten: the readout keeps the median.</p>
+    </details>
+
+    <div id="lockTabs" class="tabs"></div>
+    <p id="lockBlurb" class="note"></p>
+
+    <div class="lock">
+      <div class="stage-wrap"><canvas id="lockScene"></canvas></div>
+      <div class="lock-side">
+        <div id="lockGuess" class="combo"></div>
+        <div id="lockTrace" class="trace">
+          <div class="trace-head"><span id="ltHead"></span><span id="ltAnswer"></span></div>
+          <div class="trace-bar"><div id="ltFill" class="trace-fill"></div><div id="ltMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="ltMid"></span><span id="ltEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="lockStatus" class="status">press START, then the password</span>
+          <button id="lockShuffle" class="btn ghost">New password</button>
+          <button id="lockClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>answer · ms</small><b id="lrMs">—</b><small>submit → "no" / "enter"</small></div>
+      <div class="tile"><small>ticks</small><b id="lrTicks">—</b><small>answer ÷ tick</small></div>
+      <div class="tile"><small>samples</small><b id="lrN">—</b><small>of this guess</small></div>
+      <div class="tile"><small>median · ms</small><b id="lrMedian">—</b><small>over the samples</small></div>
+      <div class="tile"><small>verdict</small><b id="lrVerdict">—</b><small id="lrHint">&nbsp;</small></div>
+    </div>
+    <ol id="lockLog" class="log" reversed></ol>
+  </section>
+
   <section class="panel" id="benchPanel" data-mode="bench">
     <h2>Bench</h2>
     <details class="how">
@@ -178,6 +205,7 @@
       <tr><th>SELECT + UP / DOWN</th><td>speed ×2 / ÷2, from 1/4× to 32×. Scales gaps and hold times alike.</td></tr>
       <tr><th>SELECT + LEFT / RIGHT</th><td>offset −/+ 1 ms; hold to repeat, and the step grows to 10 ms after twenty.</td></tr>
       <tr><th>SELECT + B</th><td>forget the take, offset 0, speed 1×.</td></tr>
+      <tr><th>SELECT + Y, held</th><td>the <b>beacon</b>: the badge spells its vault — serial and stage key — on the stick axes, for browsers without WebHID. The gate on these pages reads it; <a href="badge.html">the vault page</a> shows it.</td></tr>
       <tr><th>SELECT + START, held 2 s</th><td>reboot into the UF2 bootloader (the <code>RPI-RP2</code> drive) to take a new firmware — <a href="flash.html">the flash page</a> writes one from this browser, <code>software/tools/flash-badge.py</code> from a checkout.</td></tr>
     </table>
     <p class="note"><b>Range 1:</b> record the tune at a comfortable pace, stop, then fire. Too slow?
@@ -189,27 +217,16 @@
       the log's <em>offset</em> readout says so, then fire. Nudge and fire again; or hold the chord
       and tap RIGHT between shots to sweep. SELECT+UP shortens the pulse if it is crashing on the
       line after the check.</p>
+    <p class="note"><b>Range 3:</b> record the guess's symbols only, set an offset of ~40 ms so the
+      trigger's START lands before the first symbol, fire. The log says how many ticks the door took;
+      one more tick than last time means the symbol you changed is right. When the level jitters, hold
+      the chord: every ~600 ms the same guess goes in and the readout keeps the median. One symbol per
+      take, and a level with a secret order gives up which position it checks next the same way.</p>
     <p class="note">Firmware, engine tests and the chord table:
       <code>software/controller/README.md</code>. Flashing it: <a href="flash.html">flash.html</a>.</p>
   </section>
+<a class="hole" href="rabbit-hole/" tabindex="-1" aria-hidden="true">down the rabbit hole</a>
 </main>
-
-<!-- the look picker: a bottom sheet with one card per look in src/looks/index.json -->
-<dialog id="lookSheet" class="look-sheet" aria-labelledby="lookTitle">
-  <div class="sheet">
-    <span class="handle" aria-hidden="true"></span>
-    <div class="sheet-head">
-      <b id="lookTitle">Look</b>
-      <button type="button" id="lookClose" class="btn ghost" aria-label="close">✕</button>
-    </div>
-    <p class="note">How the range sits on this screen. Tap to switch — the page keeps running. Remembered on this device.</p>
-    <div class="look-cards"></div>
-    <div class="sheet-foot">
-      <small>Default here: <span id="lookDefaultName"></span> · <code>?look=scope</code> in the address bar overrides.</small>
-      <button type="button" id="lookDefault" class="btn ghost">use default</button>
-    </div>
-  </div>
-</dialog>
 
 <details id="touchPad" class="touchpad">
   <summary>
@@ -239,13 +256,9 @@
 </details>
 
 <script>
-// The module below waits for the art before it runs; until then, fold the
-// prose for the phone looks and keep the handheld's pad out, so nothing jumps.
-(function () {
-  var look = document.documentElement.dataset.theme;
-  for (var d of document.querySelectorAll('details.how')) d.open = look === 'classic';
-  if (look === 'handheld') document.getElementById('touchPad').open = true;
-})();
+// The handheld look moulds the pad into the body: out before the module
+// runs, so nothing jumps. src/look-boot.js has already folded the prose.
+if (document.documentElement.dataset.theme === 'handheld') document.getElementById('touchPad').open = true;
 </script>
 <script type="module" src="src/glitch.js"></script>
 </body>
