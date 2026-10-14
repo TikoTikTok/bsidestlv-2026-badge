@@ -4,7 +4,7 @@
 // src/range.js; this file is the rendering, the input plumbing (src/pad.js)
 // and the words the log says.
 
-import { Pad } from './pad.js';
+import { Pad, flipFor } from './pad.js';
 import { comboSequence, Combo, buildLevel, idealOffsetMs, Run } from './range.js';
 import { buildLock, summarize, guessKey } from './lock.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
@@ -21,7 +21,7 @@ const TILE = 48;
 // The pad first: on the site the gate needs its poll to hear the beacon, and
 // the page does not listen to anything else (see src/gate.js, src/pad.js).
 const mode = gateMode();
-const pad = new Pad({ sources: gateSources(mode) }).start();
+const pad = new Pad({ sources: gateSources(mode), flip: flipFor(location.search) }).start();
 window.__pad = pad;   // scripted tests inject edges through this (dev hosts only; the policy drops it elsewhere)
 
 // ----------------------------------------------------------------- header ----
