@@ -48,7 +48,9 @@ Chrome or Edge, or hold `SELECT`+`Y` on the badge and it spells its vault on
 the stick axes for any browser with a Gamepad API, phones included. The vault
 is a 32-byte stage key written at the booth; the stages that matter are
 sealed under it (`src/seal.js`, `npm run seal`), so a crawler, a script or a
-model reading this site gets ciphertext. `badge.html` reads and provisions
+model reading this site gets ciphertext. Unplug the badge and the page pauses
+with it — the gauntlet's clock, a solver's playback, the range's pad — and
+the gate comes back for the same badge. `badge.html` reads and provisions
 it. What this stops, what it does not, and the server tier beyond it:
 [`software/docs/BADGE_GATE.md`](software/docs/BADGE_GATE.md). Crawlers also
 meet `robots.txt`, `noai` tags and a rabbit hole they can follow for as long
