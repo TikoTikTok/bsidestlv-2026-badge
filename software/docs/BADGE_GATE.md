@@ -59,8 +59,10 @@ in `fake-badge.mjs` is proven to agree with the C.
 Passing yields the page's `badge` — serial, label, key. `src/pad.js` now
 carries a policy: every edge has a source (`pad`, `key`, `ui`) and the Pad is
 built with the sources it may pass. On the site that is `{pad}`: the keyboard
-is never attached, the on-screen pad is not offered, `inject()` returns
-false. Both stages on `index.html` are now driven by the badge (d-pad, `Y`
+is never attached, `inject()` returns false, and the range's on-screen pad has
+no pointer handlers - it stays on the page as a read-only mirror of the badge's
+buttons, so the phone looks keep their shape and the player sees what the
+browser sees. Both stages on `index.html` are now driven by the badge (d-pad, `Y`
 waits a tick, `START` resets; the stage last tapped is the one armed), which
 closes the "wire pad.js into the stages" loose end.
 

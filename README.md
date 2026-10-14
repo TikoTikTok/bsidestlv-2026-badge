@@ -65,8 +65,9 @@ where the pages are developed; `?gate=1` brings the gate up there to try it.
 
 ### The glitch range
 
-`glitch.html` is the training ground for the badge as a *fault-injection* tool.
-Two rooms, each with levels that start hand-playable and end badge-only:
+`glitch.html` is the training ground for the badge as a *fault-injection* and
+*side-channel* tool. Three rooms, each with levels that start hand-playable and
+end badge-only:
 
 - **The Rabbit's Pocket Watch** — a fixed tune of buttons to enter inside a
   window. Level 1 is 4 presses in 2 s; level 4 is 12 presses in 600 ms, three
@@ -77,21 +78,29 @@ Two rooms, each with levels that start hand-playable and end badge-only:
   the treasure. Every other landing is reported as a measurement — which line,
   how many lines and milliseconds off — and the last level hides the source so
   the only way in is to sweep the offset and read the guard's reactions.
+- **The Caterpillar's Lock** — a door that checks a password one symbol per
+  tick and stops at the first wrong one, so the time it takes to say *no* is
+  how many symbols you had right: a timing side channel. Level 1 is read off
+  the clock by hand; level 2 jitters, so a guess is recorded once and fired
+  on repeat while the page keeps the median; level 3 compares in a secret
+  order and still leaks, because a secret order is not constant time.
 
 On a local checkout the page works from the keyboard too, which is how you find
 out that level 3 of each cannot be done that way. `software/tools/verify-range.mjs`
 checks exactly that: hand levels fit a hand, badge levels do not, and every
 level is winnable.
 
-On a phone the page has three looks besides the classic one — the ◐ chip in the
-header opens a sheet of cards (the ? help shows the same cards), or `?look=bench`,
-`handheld`, `scope` in the address bar. Each shows one range at a
-time, folds the prose behind *how it works*, and reshapes the on-screen pad: a
-bottom sheet, a handheld's body with the screen in a bezel, or a dock of soft
-keys under big offset/width numerals. All three draw the guard's routine as a
-tick trace with the pulse's landing on it, so a miss says how far off it was at
-a glance. A look is one file in `src/looks/` plus a line in `src/looks/index.json`;
-replacing or adding one touches nothing else.
+Every page has four looks — the ◐ chip in the header opens a sheet of cards
+(the ? panels show the same cards), or `?look=bench`, `handheld`, `scope` in the
+address bar; the choice is remembered on the device. The classic look is the
+whole page. The three phone looks show one panel at a time behind a mode bar
+(on the stages: Tea, Gauntlet, Walk, Art; on the range: Watch, Glass, Lock,
+Bench), fold the prose behind *how it works*, and on the range reshape the
+on-screen pad — a bottom sheet, a handheld's body with the screen in a bezel,
+or a dock of soft keys under big numerals — and draw the guard's routine and
+the door's clock as tick traces. On the published site that pad is a mirror of
+the badge's buttons, never a controller. A look is one file in `src/looks/` plus
+a line in `src/looks/index.json`; replacing or adding one touches nothing else.
 
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those
 paths, cross-builds the firmware into `firmware/` beside them (so `flash.html`
