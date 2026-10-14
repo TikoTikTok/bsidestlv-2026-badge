@@ -6,9 +6,9 @@
 // never rotate to "portrait-secondary". screen.orientation stays where it
 // was, the page stays on its head, and src/pad.js's orientation test never
 // fires. So this module reads gravity instead and says whether the device
-// is upside down *relative to what the screen shows*; src/pad.js turns the
-// badge's buttons by it and src/looks.js turns the page (data-flip="180" on
-// <html>, styles.css does the rest).
+// is upside down *relative to what the screen shows* and turns the page by
+// it: data-flip="180" on <html>, styles.css does the rest. src/pad.js turns
+// the badge's buttons by the same decision; the page turn does not need it.
 //
 // Gravity comes from `deviceorientation`, not `devicemotion`: iOS Safari
 // reports accelerationIncludingGravity with the opposite sign to Android
@@ -33,9 +33,14 @@
 // in the looks sheet sets it, src/look-boot.js honours '180' before paint,
 // and both the page turn and the pad read `turned`.
 //
+// Listening starts with the page: this module calls tilt.start() as soon as
+// it is loaded in a browser, so every page turns from its first reading,
+// with or without a pad, a gate or a badge. Android needs nothing more.
 // iOS asks before it shares the sensors: DeviceOrientationEvent.requestPermission
-// must be called from a user gesture. request() is that call; the gate's
-// Connect button, the sheet's turn-over chip and the on-screen pad make it.
+// must be called from a user gesture, so start() waits there until request()
+// has been granted. request() is that call; the first tap anywhere sensible
+// makes it - the header's ◐ chip, the sheet's page-turn switch, the gate's
+// Connect button and the on-screen pad.
 
 export const FLIP_KEY = 'alice.flip';
 export const FLIP_AT = 150;   // degrees from upright past which the phone counts as upside down
@@ -126,20 +131,42 @@ export class Tilt {
     if (this.turned) html.dataset.flip = '180'; else delete html.dataset.flip;
   }
 
-  /** True where the sensors need asking first (iOS 13+). */
+  /** True where the sensors still need a tap to ask for them (iOS 13+, and any browser with requestPermission that has not said yes). */
   get needsPermission() { return typeof globalThis.DeviceOrientationEvent?.requestPermission === 'function' && this.permission !== 'granted'; }
 
-  /** Listen to the sensors. Idempotent; on iOS it does nothing until request() has been granted. */
+  /**
+   * Listen to the sensors. Idempotent. The listener goes on whether or not
+   * the browser has been asked: where no asking is needed the readings come
+   * at once, and where it is (iOS) they simply do not come until request()
+   * has been granted - a listener without permission is harmless.
+   */
   start() {
     if (this._started || typeof addEventListener !== 'function') return this;
-    if (this.needsPermission) return this;
     this._started = true;
     addEventListener('deviceorientation', (e) => this.orientation(e.beta, e.gamma));
     this.apply();
     return this;
   }
 
-  /** Ask iOS for the sensors - from a user gesture only - then start. Resolves true when readings will come. */
+  /**
+   * Try the permission without a gesture, at load. Chrome (152 on, Android
+   * included) has requestPermission too and answers at once, 'granted' where
+   * the page may read the sensors; iOS rejects outside a gesture. Only a
+   * 'granted' is kept: a refusal here is not the player's, so a tap still
+   * asks. Resolves to whether readings will come without one.
+   */
+  async probe() {
+    if (!this.needsPermission) { this.start(); return true; }
+    let answer = null;
+    try { answer = await DeviceOrientationEvent.requestPermission(); } catch { answer = null; }
+    if (answer !== 'granted') return false;
+    this.permission = 'granted';
+    this._tell();
+    this.start();
+    return true;
+  }
+
+  /** Ask for the sensors from a user gesture (the iOS prompt), then listen. Resolves true when readings will come. */
   async request() {
     if (!this.needsPermission) { this.start(); return this._started; }
     try { this.permission = await DeviceOrientationEvent.requestPermission(); }
@@ -153,3 +180,9 @@ export class Tilt {
 
 /** The one Tilt every module on a page shares. */
 export const tilt = new Tilt();
+
+// In a browser the page listens from the moment this module loads (and shows
+// a remembered '180' at once), and tries the permission without a tap; where
+// a tap is needed (iOS) the first one on the chip, the switch, the gate or
+// the pad asks. In Node (the verifiers) there is no document and nothing happens.
+if (globalThis.document) { tilt.apply(); tilt.start(); tilt.probe(); }
