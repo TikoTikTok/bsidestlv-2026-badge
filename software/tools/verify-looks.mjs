@@ -97,18 +97,48 @@ for (const page of PAGES) {
 }
 if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different default themes: ${pages.map(p => `${p.page} ${p.dflt}`).join(', ')}`);
 
-// ----------------------------------------------------- the phone upside down ----
-// src/tilt.js turns the page by data-flip="180" on <html>; the rule lives in
-// styles.css (shared by every look), the boot script honours the remembered
-// hand switch before paint, and the sheet carries the switch. A look or a
-// theme never names data-flip: the turn is the same whatever the page wears.
+// ------------------------------------------------------------- the page turn ----
+// src/tilt.js turns the page by data-flip="180" on <html> when the phone is
+// upside down; the rule lives in styles.css (shared by every look), the boot
+// script honours the remembered hand switch before paint, and the sheet
+// carries the switch. A look or a theme never names data-flip: the turn is
+// the same whatever the page wears. Every page must reach src/tilt.js from
+// its own module (it listens from load, no pad or gate needed), and on iOS
+// the first tap on the ◐ chip must be the one that asks for the sensors.
 
 const src = (p) => readFileSync(resolve(root, p), 'utf8');
-if (!/html\[data-flip="180"\] body \{[^}]*transform: rotate\(180deg\)/.test(src('styles.css'))) say('styles.css: no html[data-flip="180"] body rule turning the page');
-if (!/html\[data-flip="180"\] dialog \{[^}]*rotate\(180deg\)/.test(src('styles.css'))) say('styles.css: dialogs live in the top layer and must turn by themselves');
+const css = src('styles.css');
+const rule = (sel, body, what) => { if (!new RegExp(`${sel.replace(/[.[\]"]/g, '\\$&')} \\{[^}]*${body}`).test(css)) say(`styles.css: ${what}`); };
+rule('html[data-flip="180"] body', 'transform: rotate\\(180deg\\)', 'no html[data-flip="180"] body rule turning the page');
+rule('html[data-flip="180"] body', 'position: fixed', 'the turned body must be a fixed, viewport-sized box (fixed descendants turn with it)');
+rule('html[data-flip="180"]', 'overflow: hidden', 'the root must hide its overflow while turned, else the body\'s is propagated to the viewport and the body never scrolls');
+rule('html[data-flip="180"] dialog', 'rotate\\(180deg\\)', 'dialogs live in the top layer and must turn by themselves');
+rule('html[data-flip="180"] .look-sheet', 'inset: 0 0 auto 0', 'the looks sheet must move to the top edge, the player\'s bottom once turned');
+rule('html[data-flip="180"] .bar', 'safe-area-inset-bottom', 'the header must pad for the notch at its new end (safe-area-inset-bottom)');
+rule('html[data-flip="180"] .touchpad', 'safe-area-inset-top', 'the on-screen pad must pad for the notch at its new end (safe-area-inset-top)');
 if (!/alice\.flip/.test(src('src/look-boot.js'))) say('src/look-boot.js: must honour localStorage alice.flip before paint');
 if (!/data-flip="180"|dataset\.flip = '180'/.test(src('src/look-boot.js'))) say('src/look-boot.js: must set data-flip="180" for a remembered turn');
-if (!/flip-chip/.test(src('src/looks.js')) || !/tilt\.manual = v/.test(src('src/looks.js'))) say('src/looks.js: the sheet needs the turn-over switch (flip-chip) setting tilt.manual');
+const looksJs = src('src/looks.js');
+if (!/flip-chip/.test(looksJs) || !/tilt\.manual = v/.test(looksJs)) say('src/looks.js: the sheet needs the page-turn switch (flip-chip) setting tilt.manual');
+if (!/'Page turn'/.test(looksJs)) say('src/looks.js: the switch is about the page, and must say so ("Page turn")');
+if (!/chip\?\.addEventListener\('click', [^\n]*tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the ◐ chip must ask iOS for the sensors (tilt.request) on its tap');
+const tiltJs = src('src/tilt.js');
+if (!/^if \(globalThis\.document\) \{[^}]*tilt\.start\(\)/m.test(tiltJs)) say('src/tilt.js: must start listening when loaded in a browser, not wait for a pad or a gate');
+if (!/tilt\.request\(\)/.test(src('src/gate.js'))) say('src/gate.js: the gate\'s Connect tap must ask iOS for the sensors');
+if (!/tilt\.request\(\)/.test(src('src/glitch.js'))) say('src/glitch.js: a tap on the on-screen pad must ask iOS for the sensors');
+for (const page of PAGES) {
+  const mod = /<script type="module" src="([^"]+)"><\/script>/.exec(src(page))?.[1];
+  if (!mod) { say(`${page}: loads no module script`); continue; }
+  const seen = new Set();
+  const reaches = (file) => {
+    if (seen.has(file)) return false;
+    seen.add(file);
+    if (file === 'src/tilt.js') return true;
+    const text = src(file);
+    return [...text.matchAll(/from '\.\/([a-z-]+\.js)'/g)].some(m => reaches(`src/${m[1]}`));
+  };
+  if (!reaches(mod)) say(`${page}: ${mod} never reaches src/tilt.js, so the page would not turn with the phone`);
+}
 for (const [kind, dir] of [['look', 'looks'], ['theme', 'themes']])
   for (const f of readdirSync(resolve(root, 'src', dir)))
     if (f.endsWith('.css') && /data-flip/.test(src(`src/${dir}/${f}`))) say(`src/${dir}/${f}: a ${kind} must not name data-flip; the turn is styles.css's`);

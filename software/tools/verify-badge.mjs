@@ -380,6 +380,98 @@ console.log('tilt: the phone upside down by gravity');
   ok(new Pad({ flip: false }).flipped === false, 'a pinned flip ignores it');
 }
 
+// ------------------------------------------- the page turn, on a page ----
+// src/tilt.js on its own, with a document and a window to listen on: the page
+// turns from the first reading after load, with no pad, gate or badge, and
+// the hand switch overrides what the sensors say. A fresh copy of the module
+// is loaded per case (the query string defeats the module cache) so its
+// load-time start runs against the fakes.
+
+console.log('page turn: listening from load, the switch, the iOS prompt');
+{
+  const fresh = (tag) => import(`../../src/tilt.js?${tag}`);
+  const page = () => {
+    const listeners = {};
+    globalThis.document = { documentElement: { dataset: {} } };
+    globalThis.addEventListener = (type, fn) => (listeners[type] ??= []).push(fn);
+    const send = (beta, gamma) => { for (const fn of listeners.deviceorientation ?? []) fn({ beta, gamma }); };
+    return { listeners, send, html: globalThis.document.documentElement };
+  };
+  const leave = () => { delete globalThis.document; delete globalThis.addEventListener; delete globalThis.DeviceOrientationEvent; };
+
+  // Android, or any browser that needs no asking: the listener is on before any module asks for it
+  let p = page();
+  let m = await fresh('page');
+  ok((p.listeners.deviceorientation ?? []).length === 1, 'the module listens to deviceorientation as soon as it loads');
+  ok(p.html.dataset.flip === undefined, 'upright until a reading says otherwise');
+  m.tilt.start();
+  ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'a reading of upside down turns the page: data-flip="180"');
+  p.send(-22.6, -20.3);   // 140 deg from upright, leaning
+  ok(Math.round(Math.abs(m.tilt.angle)) === 140 && p.html.dataset.flip === '180', 'still turned at 140 deg from upright (hysteresis)');
+  p.send(90, 0);
+  ok(p.html.dataset.flip === undefined, 'upright again: the attribute goes');
+  p.send(0, 0);
+  ok(p.html.dataset.flip === undefined && m.tilt.angle === null, 'lying flat: no opinion, nothing changes');
+  // the hand switch: '180' turns an upright page, '0' holds an upside-down one, 'auto' hands back to the sensors
+  m.tilt.manual = '180';
+  ok(p.html.dataset.flip === '180' && m.tilt.turned === true, 'the switch on yes turns the page though the phone is upright');
+  m.tilt.manual = '0';
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === undefined && m.tilt.upsideDown === true, 'the switch on no keeps the page still though the phone is upside down');
+  m.tilt.manual = 'auto';
+  ok(p.html.dataset.flip === '180', 'back on auto the sensors have it again');
+  ok(m.tilt.needsPermission === false, 'nothing to ask where there is no requestPermission');
+  leave();
+
+  // a browser with requestPermission that answers 'granted' without a tap (Chrome on Android): readings come with no tap
+  const settle = () => new Promise(r => setTimeout(r, 0));
+  p = page();
+  let asked = 0;
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { asked++; return 'granted'; } };
+  m = await fresh('chrome-granted');
+  await settle();
+  ok(p.listeners.deviceorientation.length === 1, 'the listener is on from load even where there is a prompt (harmless until granted)');
+  ok(asked === 1 && m.tilt.permission === 'granted' && m.tilt.needsPermission === false, 'the load-time probe asked once and was granted: no tap needed');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'the page turns with no tap');
+  ok(await m.tilt.request() === true && asked === 1, 'a later tap has nothing left to ask');
+  leave();
+
+  // iOS: the probe rejects outside a gesture; a tap asks for real
+  p = page();
+  let gesture = false;
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { if (!gesture) throw new Error('not from a gesture'); return 'granted'; } };
+  m = await fresh('ios-granted');
+  await settle();
+  ok(p.listeners.deviceorientation.length === 1 && m.tilt.permission === null && m.tilt.needsPermission === true, 'iOS: listening, but the probe outside a gesture leaves the question open');
+  m.tilt.start();
+  ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
+  gesture = true;
+  ok(await m.tilt.request() === true && m.tilt.permission === 'granted' && m.tilt.needsPermission === false, 'request() from a tap: granted');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'the page turns on iOS once granted');
+  leave();
+
+  // a 'denied' without a gesture (desktop Chrome, no sensor) is not the player's answer; a tap's refusal is
+  p = page();
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => 'denied' };
+  m = await fresh('denied');
+  await settle();
+  ok(m.tilt.permission === null && m.tilt.needsPermission === true, 'a probe answered denied leaves the question open for a tap');
+  ok(await m.tilt.request() === false && m.tilt.permission === 'denied', 'request() refused from a tap: says so');
+  m.tilt.manual = '180';
+  ok(p.html.dataset.flip === '180', 'the switch still turns the page without the sensors');
+  leave();
+
+  p = page();
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { throw new Error('not from a gesture'); } };
+  m = await fresh('throws');
+  ok(await m.tilt.request() === false && m.tilt.permission === 'denied', 'a tap\'s prompt that throws counts as refused');
+  leave();
+}
+
 // ---------------------------------------------------------- the watch ----
 
 console.log('gate: when the badge has gone');
