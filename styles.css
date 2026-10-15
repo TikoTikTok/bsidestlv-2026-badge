@@ -469,22 +469,59 @@ html:not([data-look=classic]) .items { grid-template-columns: repeat(auto-fill, 
 .touchpad.mirror .tp button.down { opacity: 1; }
 
 /* -------------------------------------------------- the phone upside down -- */
-/* src/tilt.js puts data-flip="180" on <html> when gravity says the phone is
-   held the other way up and the OS did not rotate the page (a portrait page
-   on an iPhone or a Samsung never does), or when the player says so in the
-   looks sheet. The body becomes a viewport-sized fixed box and turns a half
-   turn: it is the containing block of everything fixed inside it (the range's
-   pad), so those turn with it, and the page scrolls inside the box. Dialogs
-   live in the top layer, outside the body's turn, so each turns itself; the
-   bottom sheet moves to the top edge first, which is the bottom once turned.
-   The notch is at the bottom now, so the safe-area insets swap ends. */
-html[data-flip="180"] { overflow: hidden; }   /* else the body's overflow would propagate to the viewport and the body itself never scroll */
-html[data-flip="180"] body { position: fixed; inset: 0; overflow: auto; transform: rotate(180deg); }
+/* src/tilt.js puts data-flip on <html> when gravity says the phone is held
+   the other way up and the OS did not turn the page to match (a portrait page
+   on an iPhone or a Samsung never goes upside down), or when the player says
+   so in the looks sheet. The value is the turn the page still needs, clockwise:
+   180 when the OS left the page where it was, 90 or 270 when auto-rotate took
+   it to landscape on the way round and stopped there, that being as far as it
+   goes. The body becomes a fixed box the size of the viewport - its sides
+   swapped for a quarter turn - and turns: it is the containing block of
+   everything fixed inside it (the range's pad), so those turn with it, and the
+   page scrolls inside the box. Dialogs live in the top layer, outside the
+   body's turn, so each turns itself; the bottom sheet moves to the player's
+   bottom edge first. The notch moves with the phone, so the safe-area insets
+   follow it. */
+html[data-flip] { overflow: hidden; }   /* else the body's overflow would propagate to the viewport and the body itself never scroll */
+html[data-flip] body { position: fixed; overflow: auto; }
+html[data-flip="180"] body { inset: 0; transform: rotate(180deg); }
+/* a quarter turn: a box the viewport's height wide and its width tall, turned
+   about its top-left corner and pushed back into view by its own size */
+html[data-flip="90"] body, html[data-flip="270"] body { top: 0; left: 0; width: 100vh; height: 100vw; width: 100dvh; height: 100dvw; transform-origin: 0 0; }
+html[data-flip="90"] body { transform: rotate(90deg) translateY(-100%); }
+html[data-flip="270"] body { transform: rotate(-90deg) translateX(-100%); }
+/* dialogs: a half turn in place; a quarter turn about the dialog's own top-left
+   corner, put at the viewport's centre (the sheet: at the edge that is the
+   player's bottom) and pulled back by half (the sheet: all) of its own size */
 html[data-flip="180"] dialog { transform: rotate(180deg); }
 html[data-flip="180"] .look-sheet { inset: 0 0 auto 0; }
+html[data-flip="90"] dialog, html[data-flip="270"] dialog { inset: 50% auto auto 50%; margin: 0; transform-origin: 0 0; }
+html[data-flip="90"] dialog { transform: rotate(90deg) translate(-50%, -50%); }
+html[data-flip="270"] dialog { transform: rotate(-90deg) translate(-50%, -50%); }
+html[data-flip="90"] .gate, html[data-flip="270"] .gate { width: min(92vh, 640px); width: min(92dvh, 640px); max-height: calc(100vw - 2em - 6px); max-height: calc(100dvw - 2em - 6px); }
+html[data-flip="90"] .look-sheet, html[data-flip="270"] .look-sheet { width: min(100vh, 560px); width: min(100dvh, 560px); max-height: 92vw; max-height: 92dvw; }
+html[data-flip="90"] .look-sheet { left: 0; transform: rotate(90deg) translate(-50%, -100%); }
+html[data-flip="270"] .look-sheet { left: 100%; transform: rotate(-90deg) translate(-50%, -100%); }
+/* the notch: at the bottom after a half turn; at the viewport's left (90) or
+   right (270) edge after a quarter, which is the player's bottom either way */
 html[data-flip="180"] .bar { padding-top: calc(.75rem + env(safe-area-inset-bottom, 0px)); }
 html[data-flip="180"] .touchpad { padding-bottom: env(safe-area-inset-top, 0px); }
 html[data-flip="180"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-top, 0px)); }
+html[data-flip="90"] .bar { padding-top: calc(.75rem + env(safe-area-inset-right, 0px)); }
+html[data-flip="90"] .touchpad { padding-bottom: env(safe-area-inset-left, 0px); }
+html[data-flip="90"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-left, 0px)); }
+html[data-flip="270"] .bar { padding-top: calc(.75rem + env(safe-area-inset-left, 0px)); }
+html[data-flip="270"] .touchpad { padding-bottom: env(safe-area-inset-right, 0px); }
+html[data-flip="270"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-right, 0px)); }
+html[data-flip="90"] .bar, html[data-flip="270"] .bar { padding-left: clamp(.75rem, 3vh, 2rem); padding-right: clamp(.75rem, 3vh, 2rem); }   /* the header's side padding scales with the player's width, which is the viewport's height now */
+/* a quarter-turned page sits in a landscape viewport, which the width queries
+   above take for a wide screen: the phone breakpoints hold here regardless */
+html[data-flip="90"] .walk-stage, html[data-flip="270"] .walk-stage,
+html[data-flip="90"] .glass, html[data-flip="270"] .glass,
+html[data-flip="90"] .lock, html[data-flip="270"] .lock,
+html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways { grid-template-columns: 1fr; }
+html[data-flip="90"] .panel .pick .cards, html[data-flip="270"] .panel .pick .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: none; }
+html[data-flip="90"] .panel .pick[data-kind=theme] .cards, html[data-flip="270"] .panel .pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 /* the turn-over switch in the looks sheet: auto (the sensors), no, yes */
 .flip-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

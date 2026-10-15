@@ -103,31 +103,43 @@ testing.
 ### The page turns with the phone
 
 A phone held upside down shows its page upside down: an iPhone, a Samsung
-and most other Android phones never rotate a portrait page a half turn, so
-the OS leaves it on its head. Every page here rights itself instead. From
-the moment a page loads, `src/tilt.js` reads the orientation sensor
-(`deviceorientation`'s beta and gamma, which both platforms agree on, where
-`devicemotion`'s gravity sign differs between iOS and Android), takes out any
-turn the OS did make, and decides whether the phone is upside down relative
-to what the screen shows: past 150° it is, back under 30° it is not, and a
-phone lying flat has no opinion, so the page does not flap while it is waved
-about. When it is, `data-flip="180"` goes on `<html>` and `styles.css` turns
-the whole view a half turn: header, panels, the mode bar, the bottom sheet,
-the on-screen pad, the canvases and every dialog, in every look and theme,
-with the safe-area insets and the scrolling following the player's up. It
-needs no badge, no gate and no pad; it is the same on every page. Android
-needs no tap. iOS shares the sensor only after a tap asks, and the first tap
-on anything sensible asks: the ◐ chip, the sheet's switch, the gate's
-Connect button, the on-screen pad.
+and most other Android phones never rotate a portrait page a half turn. What
+the OS does instead depends on auto-rotate. Locked, it leaves the page on its
+head. Unlocked, it turns the page to landscape as the phone passes a quarter
+turn and leaves it there, since that is as far as it goes - so a player who
+turns the phone right over sees the page on its side, stuck at the quarter
+turn. Every page here rights itself either way. From the moment a page
+loads, `src/tilt.js` reads the orientation sensor (`deviceorientation`'s
+beta and gamma, which both platforms agree on, where `devicemotion`'s
+gravity sign differs between iOS and Android) and decides whether the *phone*
+is upside down, whatever the OS did with the page: past 150° it is, back
+under 30° it is not, and a phone lying flat has no opinion, so the page does
+not flap while it is waved about. When it is, the page gets the turn the OS
+left undone: `data-flip` on `<html>` is `180` where the OS did nothing, `90`
+or `270` where it stopped at landscape, and nothing at all on the phones that
+do turn a page upside down. `styles.css` turns the whole view by it: header,
+panels, the mode bar, the bottom sheet, the on-screen pad, the canvases and
+every dialog, in every look and theme, with the safe-area insets and the
+scrolling following the player's up; for a quarter turn the page is laid out
+as tall as the landscape viewport is wide, and the phone breakpoints hold
+though the viewport is wide. When the OS turns the page while the phone is
+upside down (to the other landscape, or back to portrait as the phone comes
+round) the turn is redone at once from the same reading. It needs no badge,
+no gate and no pad; it is the same on every page. Android needs no tap. iOS
+shares the sensor only after a tap asks, and the first tap on anything
+sensible asks: the ◐ chip, the sheet's switch, the gate's Connect button,
+the on-screen pad.
 
 The ◐ sheet has the hand switch, *page turn: auto / no / yes* - for a phone
 without a sensor, a browser that refused it, or a player who wants the page
 their way - remembered on the device as `alice.flip` and honoured before the
-first paint. The badge's buttons follow the same decision, so the switch
+first paint, by the same arithmetic (a half turn, or a quarter when the page
+is in landscape). The badge's buttons follow the same decision, so the switch
 never has to be set for the controller separately. `software/tools/verify-badge.mjs`
-checks the sensor maths, the hysteresis, the switch, the listener from load
-and the permission paths; `verify-looks.mjs` checks the rule, the boot
-script, the sheet and that every page reaches the module.
+checks the sensor maths, the turn for each thing the OS may have done, the
+hysteresis, the switch, the listener from load and the permission paths;
+`verify-looks.mjs` checks the rules, the boot script, the sheet and that
+every page reaches the module.
 
 Every page has a theme and a look — the ◐ chip in the header opens a sheet of
 cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
