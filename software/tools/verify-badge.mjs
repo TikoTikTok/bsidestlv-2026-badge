@@ -12,7 +12,7 @@ import { parseVaultReport, buildSetReport, BeaconDecoder, beaconAxes, beaconFram
          CMD, STATE, REPORT_ID, REPORT_LEN, BEACON, hex, unhex } from '../../src/vault.js';
 import { seal, unseal, isSealed } from '../../src/seal.js';
 import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT, BUTTONS, FLIP, flipButton, isUpsideDown, flipFor, readGamepad, autoFlipped } from '../../src/pad.js';
-import { Tilt, tilt, upVector, screenAngle, screenTurn, FLIP_AT, BACK_AT, FLAT } from '../../src/tilt.js';
+import { Tilt, tilt, upVector, deviceAngle, pageTurn, screenTurn, FLIP_AT, BACK_AT, FLAT } from '../../src/tilt.js';
 import { BadgeWatch } from '../../src/gate.js';
 import { FakeBadge } from './fake-badge.mjs';
 
@@ -308,50 +308,78 @@ console.log('tilt: the phone upside down by gravity');
   u = upVector(0, -90);     ok(near(u.x, 1), 'gamma -90: up is +x');
   u = upVector(90, 89);     ok(near(u.y, 1) && Math.abs(u.x) < 0.02, 'at vertical gamma hardly matters: no gimbal trouble');
 
-  // the angle in the screen's frame, with the OS's own turn taken out
-  ok(screenAngle(0, 1, 0) === 0, 'upright, no turn: 0');
-  ok(screenAngle(0, -1, 0) === 180, 'upside down, no turn: 180');
-  ok(screenAngle(1, 0, 0) === 90 && screenAngle(-1, 0, 0) === -90, 'on its side: +-90');
-  ok(screenAngle(1, 0, 90) === 0, 'rotated to landscape (angle 90) and held that way: upright on the screen');
-  ok(screenAngle(-1, 0, 270) === 0 && screenAngle(-1, 0, -90) === 0, 'the other landscape, as angle 270 or window.orientation -90');
-  ok(screenAngle(0, -1, 180) === 0, 'portrait-secondary (the OS turned it): the screen is upright, nothing to do');
-  ok(screenAngle(0, 1, 180) === 180, 'turned by the OS but held upright: upside down on the screen');
-  ok(screenAngle(0, 0.1, 0) === null && screenAngle(0.2, 0.2, 0) === null, `lying flat (|up| in the plane < ${FLAT}): no opinion`);
-  ok(screenAngle(NaN, 1, 0) === null && screenAngle(0, undefined, 0) === null, 'no reading: no opinion');
-  ok(screenAngle(0.01, -1, 0) > 170 && screenAngle(-0.01, -1, 0) < -170, 'either side of 180 stays near 180');
+  // the phone's own angle from upright, whatever the OS did with the page
+  ok(deviceAngle(0, 1) === 0, 'upright: 0');
+  ok(deviceAngle(0, -1) === 180, 'upside down: 180');
+  ok(deviceAngle(1, 0) === 90 && deviceAngle(-1, 0) === -90, 'on its side: +-90 (top to the left is +)');
+  ok(deviceAngle(0, 0.1) === null && deviceAngle(0.2, 0.2) === null, `lying flat (|up| in the plane < ${FLAT}): no opinion`);
+  ok(deviceAngle(NaN, 1) === null && deviceAngle(0, undefined) === null, 'no reading: no opinion');
+  ok(deviceAngle(0.01, -1) > 170 && deviceAngle(-0.01, -1) < -170, 'either side of 180 stays near 180');
   ok(screenTurn({ orientation: { angle: 90 }, angle: 0 }) === 90, 'screen.orientation.angle first');
   ok(screenTurn({ orientation: undefined, angle: -90 }) === -90 && screenTurn({ orientation: {}, angle: undefined }) === 0, 'then window.orientation, else 0');
 
-  // hysteresis: over FLIP_AT to turn, under BACK_AT to come back, nothing in between or flat
+  // the turn the page needs: a half turn, less what the OS already did
+  ok(pageTurn(false, 0) === 0 && pageTurn(false, 90) === 0, 'the right way up: no turn, whatever the OS did');
+  ok(pageTurn(true, 0) === 180, 'upside down, the OS did nothing: a half turn');
+  ok(pageTurn(true, 90) === 90, 'upside down, the OS went to landscape (angle 90) on the way round and stopped: a quarter turn on');
+  ok(pageTurn(true, 270) === 270 && pageTurn(true, -90) === 270, 'the other landscape, as angle 270 or window.orientation -90: a quarter turn back');
+  ok(pageTurn(true, 180) === 0, 'portrait-secondary (the OS turned it all the way): nothing left to do');
+  ok(pageTurn(true, undefined) === 180 && pageTurn(true, NaN) === 180, 'no word from the OS counts as no turn by it');
+
+  // hysteresis, on the phone's own angle: over FLIP_AT to turn, under BACK_AT to come back, nothing in between or flat
   const t = new Tilt();
   const deg = (a) => [Math.sin(a * Math.PI / 180), Math.cos(a * Math.PI / 180)];   // up at angle a from upright
   ok(FLIP_AT === 150 && BACK_AT === 30, 'the thresholds');
   ok(t.feed(...deg(0), 0) === false && t.feed(...deg(100), 0) === false && t.feed(...deg(149), 0) === false, 'tilted short of 150: still upright');
-  ok(t.feed(...deg(150), 0) === true && t.upsideDown, 'past 150: upside down');
+  ok(t.feed(...deg(150), 0) === true && t.upsideDown && t.turn === 180, 'past 150: upside down, the page needs a half turn');
   ok(t.feed(...deg(100), 0) === true && t.feed(...deg(31), 0) === true, 'back to 31: still upside down (hysteresis)');
   ok(t.feed(0, 0.05, 0) === true && t.angle === null, 'lying flat keeps the state');
-  ok(t.feed(...deg(30), 0) === false, 'under 30: upright again');
+  ok(t.feed(...deg(30), 0) === false && t.turn === 0, 'under 30: upright again, no turn');
   ok(t.feed(...deg(-160), 0) === true && t.feed(...deg(-20), 0) === false, 'the other way round works the same');
   ok(t.orientation(-90, 0, 0) === true && t.orientation(90, 0, 0) === false, 'from beta / gamma');
-  ok(t.orientation(90, 0, 180) === true && t.orientation(-90, 0, 180) === false, 'the OS turn is taken out of a beta / gamma reading too');
-  ok(t.orientation(null, 0, 0) === false && t.readings === 14, 'a reading without beta is ignored');
+  // the OS's own turn changes what the page needs, not what the phone is doing
+  ok(t.orientation(-90, 0, 90) === true && t.turn === 90 && t.screen === 90, 'upside down with the page in landscape (angle 90): a quarter turn finishes the job');
+  ok(t.orientation(-90, 0, 270) === true && t.turn === 270, 'the other landscape: three quarters');
+  ok(t.orientation(-90, 0, -90) === true && t.turn === 270, 'as window.orientation -90: the same');
+  ok(t.orientation(-90, 0, 180) === true && t.turn === 0, 'the OS turned the page all the way: upside down, and nothing left for the page');
+  ok(t.orientation(90, 0, 180) === false && t.turn === 0, 'held upright: not upside down, whatever the OS says');
+  ok(t.orientation(null, 0, 0) === false && t.readings === 17, 'a reading without beta is ignored');
   let told = 0;
   t.on(() => told++);
   t.orientation(-90, 0, 0); t.orientation(-90, 0, 0); t.orientation(90, 0, 0);
   ok(told === 2, 'listeners hear a change, not every reading');
+  t.orientation(-90, 0, 0); told = 0;
+  t.orientation(-90, 0, 90);
+  ok(told === 1 && t.turn === 90, 'and the OS turning the page between readings, since the page needs a different turn now');
+
+  // the OS turning the page reads the state again: upside down only if the phone still is past FLIP_AT
+  t.feed(...deg(100), 90);
+  ok(t.upsideDown && t.turn === 90, 'held at 100 on the way back, the page still in landscape: upside down by hysteresis, a quarter turn');
+  told = 0;
+  ok(t.screenChanged(0) === false && t.turn === 0 && told === 1, 'the OS going back to portrait with the phone at 100: upright now, no turn (no half turn in the moment before BACK_AT)');
+  t.feed(...deg(160), 90);
+  ok(t.screenChanged(180) === true && t.turn === 0, 'the OS turning the page all the way with the phone at 160: still upside down, nothing left for the page');
+  ok(t.screenChanged(90) === true && t.turn === 90, 'and back to landscape at 160: a quarter turn again');
+  told = 0;
+  ok(t.screenChanged(90) === true && told === 0, 'the same angle again: nothing to tell');
+  t.feed(0, 0.05, 90);
+  ok(t.screenChanged(0) === true && t.turn === 180, 'lying flat (no reading to go by) keeps the state, the turn follows the OS');
 
   // the hand switch: auto follows the sensors, 0 / 180 override them
-  ok(t.manual === 'auto' && t.turned === false, 'auto, upright: not turned');
+  t.feed(...deg(0), 0);
+  ok(t.manual === 'auto' && t.turned === false && t.turn === 0, 'auto, upright: not turned');
   t.orientation(-90, 0, 0);
-  ok(t.turned === true, 'auto, upside down: turned');
+  ok(t.turned === true && t.turn === 180, 'auto, upside down: turned');
   t.manual = '0';
-  ok(t.turned === false && t.upsideDown === true, 'no: never turned, the sensors still read');
+  ok(t.turned === false && t.turn === 0 && t.upsideDown === true, 'no: never turned, the sensors still read');
   t.manual = '180';
-  ok(t.turned === true, 'yes: always turned');
+  ok(t.turned === true && t.turn === 180, 'yes: always turned');
   t.orientation(90, 0, 0);
-  ok(t.turned === true && !t.upsideDown, 'yes, held upright: still turned');
+  ok(t.turned === true && t.turn === 180 && !t.upsideDown, 'yes, held upright: still turned');
+  t.orientation(90, 0, 90);
+  ok(t.turned === true && t.turn === 90, 'yes, with the page in landscape: by a quarter, as the sensors would');
   t.manual = 'bogus';
-  ok(t.manual === 'auto' && t.turned === false, 'anything else is auto');
+  ok(t.manual === 'auto' && t.turned === false && t.turn === 0, 'anything else is auto');
   ok(!t.needsPermission, 'nothing to ask on a host without DeviceOrientationEvent.requestPermission');
 
   // through the pad: auto flips on the screen's say-so or gravity's, and the hand switch wins
@@ -359,6 +387,8 @@ console.log('tilt: the phone upside down by gravity');
   ok(autoFlipped(padTilt) === false, 'upright, no turn: not flipped');
   padTilt.orientation(-90, 0, 0);
   ok(autoFlipped(padTilt) === true, 'gravity says upside down: flipped');
+  padTilt.orientation(-90, 0, 90);
+  ok(autoFlipped(padTilt) === true, 'upside down with the page in landscape: flipped all the same');
   padTilt.manual = '0';
   ok(autoFlipped(padTilt) === false, 'the hand switch says no: not flipped');
   padTilt.orientation(90, 0, 0);
@@ -368,8 +398,8 @@ console.log('tilt: the phone upside down by gravity');
   const screenWas2 = globalThis.screen;
   globalThis.screen = { orientation: { type: 'portrait-secondary', angle: 180 } };
   ok(autoFlipped(padTilt) === true, 'the OS turned the page: flipped by the screen alone');
-  padTilt.orientation(-90, 0);                       // the reading takes the screen's turn: upright on the screen
-  ok(padTilt.upsideDown === false && autoFlipped(padTilt) === true, 'and gravity agrees the screen is upright, the pad still turns');
+  padTilt.orientation(-90, 0);                       // the reading takes the screen's turn from screen.orientation
+  ok(padTilt.upsideDown === true && padTilt.turn === 0 && autoFlipped(padTilt) === true, 'and gravity agrees: upside down, nothing for the page, the pad turns');
   globalThis.screen = screenWas2;
   // the shared tilt is what a Pad reads
   const shared = new Pad();
@@ -381,28 +411,36 @@ console.log('tilt: the phone upside down by gravity');
 }
 
 // ------------------------------------------- the page turn, on a page ----
-// src/tilt.js on its own, with a document and a window to listen on: the page
-// turns from the first reading after load, with no pad, gate or badge, and
-// the hand switch overrides what the sensors say. A fresh copy of the module
-// is loaded per case (the query string defeats the module cache) so its
-// load-time start runs against the fakes.
+// src/tilt.js on its own, with a document, a window and a screen to listen
+// on: the page turns from the first reading after load, with no pad, gate or
+// badge, by what the OS left undone, and the hand switch overrides what the
+// sensors say. A fresh copy of the module is loaded per case (the query
+// string defeats the module cache) so its load-time start runs against the fakes.
 
-console.log('page turn: listening from load, the switch, the iOS prompt');
+console.log('page turn: listening from load, the OS\'s own turn, the switch, the iOS prompt');
 {
   const fresh = (tag) => import(`../../src/tilt.js?${tag}`);
   const page = () => {
     const listeners = {};
     globalThis.document = { documentElement: { dataset: {} } };
     globalThis.addEventListener = (type, fn) => (listeners[type] ??= []).push(fn);
+    const orientation = { angle: 0, type: 'portrait-primary', addEventListener: (type, fn) => (listeners[`screen:${type}`] ??= []).push(fn) };
+    globalThis.screen = { orientation };
     const send = (beta, gamma) => { for (const fn of listeners.deviceorientation ?? []) fn({ beta, gamma }); };
-    return { listeners, send, html: globalThis.document.documentElement };
+    const turnScreen = (angle) => {   // the OS turns the page: the angle moves, then its change event
+      orientation.angle = angle;
+      orientation.type = { 0: 'portrait-primary', 90: 'landscape-primary', 180: 'portrait-secondary', 270: 'landscape-secondary' }[angle];
+      for (const fn of listeners['screen:change'] ?? []) fn({});
+    };
+    return { listeners, send, turnScreen, html: globalThis.document.documentElement };
   };
-  const leave = () => { delete globalThis.document; delete globalThis.addEventListener; delete globalThis.DeviceOrientationEvent; };
+  const leave = () => { delete globalThis.document; delete globalThis.addEventListener; delete globalThis.DeviceOrientationEvent; delete globalThis.screen; };
 
   // Android, or any browser that needs no asking: the listener is on before any module asks for it
   let p = page();
   let m = await fresh('page');
   ok((p.listeners.deviceorientation ?? []).length === 1, 'the module listens to deviceorientation as soon as it loads');
+  ok((p.listeners['screen:change'] ?? []).length === 1 && (p.listeners.orientationchange ?? []).length === 1, 'and to the OS turning the page');
   ok(p.html.dataset.flip === undefined, 'upright until a reading says otherwise');
   m.tilt.start();
   ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
@@ -414,9 +452,30 @@ console.log('page turn: listening from load, the switch, the iOS prompt');
   ok(p.html.dataset.flip === undefined, 'upright again: the attribute goes');
   p.send(0, 0);
   ok(p.html.dataset.flip === undefined && m.tilt.angle === null, 'lying flat: no opinion, nothing changes');
+  // the OS took the page to landscape on the way round (an iPhone, a Samsung) and stopped there: a quarter turn finishes the job
+  p.turnScreen(90);
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '90', 'upside down with the page in landscape (angle 90): data-flip="90"');
+  p.turnScreen(270);
+  ok(p.html.dataset.flip === '270', 'the OS switching to the other landscape: data-flip="270" at once, no reading needed');
+  p.turnScreen(180);
+  ok(p.html.dataset.flip === undefined && m.tilt.upsideDown, 'the OS turning the page all the way itself: nothing left, the attribute goes');
+  p.turnScreen(0);
+  ok(p.html.dataset.flip === '180', 'portrait again under an upside-down phone: a half turn');
+  p.turnScreen(90);
+  p.send(-22.6, -20.3);   // 140, on the way back
+  ok(p.html.dataset.flip === '90', 'coming back round at 140 with the page in landscape: still a quarter turn (hysteresis)');
+  p.turnScreen(0);
+  ok(p.html.dataset.flip === undefined && !m.tilt.upsideDown, 'the OS going back to portrait at 140: the state is read again, upright, no turn - no half turn flashes while the phone comes round');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'upside down once more');
   // the hand switch: '180' turns an upright page, '0' holds an upside-down one, 'auto' hands back to the sensors
+  p.send(90, 0);
   m.tilt.manual = '180';
   ok(p.html.dataset.flip === '180' && m.tilt.turned === true, 'the switch on yes turns the page though the phone is upright');
+  p.turnScreen(90);
+  ok(p.html.dataset.flip === '90', 'yes, with the page in landscape: a quarter turn, as the sensors would');
+  p.turnScreen(0);
   m.tilt.manual = '0';
   p.send(-90, 0);
   ok(p.html.dataset.flip === undefined && m.tilt.upsideDown === true, 'the switch on no keeps the page still though the phone is upside down');

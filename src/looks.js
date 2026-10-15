@@ -26,8 +26,9 @@
 //
 // The sheet also carries the page-turn switch: a phone held upside down in
 // the badge's grip is not rotated by the OS when the page is portrait, so
-// src/tilt.js reads gravity and turns the page itself (data-flip="180" on
-// <html>, the rule in styles.css). The switch is the hand override - auto,
+// src/tilt.js reads gravity and turns the page itself (data-flip on <html>:
+// the turn the OS left undone, 180 or a quarter; the rules in styles.css).
+// The switch is the hand override - auto,
 // no, yes - remembered as localStorage alice.flip; src/pad.js turns the
 // badge's buttons by the same decision. On iOS the sensors need asking
 // from a tap, and a tap on the ◐ chip or on the switch is one.
@@ -188,7 +189,7 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
     flipState.textContent = tilt.permission === 'denied' ? 'sensors refused'
       : tilt.needsPermission ? 'tap auto to allow the sensors'
       : tilt.angle === null ? (tilt.readings ? 'lying flat' : 'no reading yet')
-      : `${tilt.upsideDown ? 'upside down' : 'upright'} · ${Math.round(Math.abs(tilt.angle))}°`;
+      : `${tilt.upsideDown ? 'upside down' : 'upright'} · ${Math.round(Math.abs(tilt.angle))}°${tilt.screen ? ` · the screen at ${tilt.screen}°` : ''}`;
   }
   tilt.on(markFlip);
   markFlip();
