@@ -98,26 +98,42 @@ for (const page of PAGES) {
 if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different default themes: ${pages.map(p => `${p.page} ${p.dflt}`).join(', ')}`);
 
 // ------------------------------------------------------------- the page turn ----
-// src/tilt.js turns the page by data-flip="180" on <html> when the phone is
-// upside down; the rule lives in styles.css (shared by every look), the boot
-// script honours the remembered hand switch before paint, and the sheet
-// carries the switch. A look or a theme never names data-flip: the turn is
-// the same whatever the page wears. Every page must reach src/tilt.js from
-// its own module (it listens from load, no pad or gate needed), and on iOS
-// the first tap on the ◐ chip must be the one that asks for the sensors.
+// src/tilt.js turns the page by data-flip on <html> when the phone is upside
+// down: 180 when the OS left the page alone, 90 or 270 when auto-rotate took
+// it to landscape on the way round and stopped there. The rules live in
+// styles.css (shared by every look), the boot script honours the remembered
+// hand switch before paint by the same arithmetic, and the sheet carries the
+// switch. A look or a theme never names data-flip: the turn is the same
+// whatever the page wears. Every page must reach src/tilt.js from its own
+// module (it listens from load, no pad or gate needed), and on iOS the first
+// tap on the ◐ chip must be the one that asks for the sensors.
 
 const src = (p) => readFileSync(resolve(root, p), 'utf8');
 const css = src('styles.css');
-const rule = (sel, body, what) => { if (!new RegExp(`${sel.replace(/[.[\]"]/g, '\\$&')} \\{[^}]*${body}`).test(css)) say(`styles.css: ${what}`); };
-rule('html[data-flip="180"] body', 'transform: rotate\\(180deg\\)', 'no html[data-flip="180"] body rule turning the page');
-rule('html[data-flip="180"] body', 'position: fixed', 'the turned body must be a fixed, viewport-sized box (fixed descendants turn with it)');
-rule('html[data-flip="180"]', 'overflow: hidden', 'the root must hide its overflow while turned, else the body\'s is propagated to the viewport and the body never scrolls');
+const rule = (sel, body, what) => { if (!new RegExp(`${sel.replace(/[.[\]"()]/g, '\\$&')} \\{[^}]*${body}`).test(css)) say(`styles.css: ${what}`); };
+rule('html[data-flip="180"] body', 'transform: rotate\\(180deg\\)', 'no html[data-flip="180"] body rule turning the page a half turn');
+rule('html[data-flip] body', 'position: fixed', 'the turned body must be a fixed box (fixed descendants turn with it)');
+rule('html[data-flip]', 'overflow: hidden', 'the root must hide its overflow while turned, else the body\'s is propagated to the viewport and the body never scrolls');
+rule('html[data-flip="90"] body, html[data-flip="270"] body', 'width: 100dvh; height: 100dvw', 'a quarter-turned body must be the viewport\'s height wide and its width tall (the OS parked the page in landscape)');
+rule('html[data-flip="90"] body', 'rotate\\(90deg\\)', 'no html[data-flip="90"] body rule: a phone whose OS went to landscape on the way round needs a quarter turn on');
+rule('html[data-flip="270"] body', 'rotate\\(-90deg\\)', 'no html[data-flip="270"] body rule: the other landscape needs a quarter turn back');
 rule('html[data-flip="180"] dialog', 'rotate\\(180deg\\)', 'dialogs live in the top layer and must turn by themselves');
-rule('html[data-flip="180"] .look-sheet', 'inset: 0 0 auto 0', 'the looks sheet must move to the top edge, the player\'s bottom once turned');
+rule('html[data-flip="90"] dialog', 'rotate\\(90deg\\)', 'dialogs must turn a quarter too');
+rule('html[data-flip="270"] dialog', 'rotate\\(-90deg\\)', 'dialogs must turn a quarter back too');
+rule('html[data-flip="180"] .look-sheet', 'inset: 0 0 auto 0', 'the looks sheet must move to the top edge, the player\'s bottom once turned a half turn');
+rule('html[data-flip="90"] .look-sheet', 'left: 0', 'the looks sheet must move to the left edge, the player\'s bottom under a quarter turn on');
+rule('html[data-flip="270"] .look-sheet', 'left: 100%', 'the looks sheet must move to the right edge, the player\'s bottom under a quarter turn back');
+rule('html[data-flip="90"] .gate, html[data-flip="270"] .gate', '92dvh', 'a quarter-turned gate dialog is sized by the viewport\'s height');
 rule('html[data-flip="180"] .bar', 'safe-area-inset-bottom', 'the header must pad for the notch at its new end (safe-area-inset-bottom)');
 rule('html[data-flip="180"] .touchpad', 'safe-area-inset-top', 'the on-screen pad must pad for the notch at its new end (safe-area-inset-top)');
-if (!/alice\.flip/.test(src('src/look-boot.js'))) say('src/look-boot.js: must honour localStorage alice.flip before paint');
-if (!/data-flip="180"|dataset\.flip = '180'/.test(src('src/look-boot.js'))) say('src/look-boot.js: must set data-flip="180" for a remembered turn');
+rule('html[data-flip="90"] .bar', 'safe-area-inset-right', 'under a quarter turn on the header is at the viewport\'s right edge (safe-area-inset-right)');
+rule('html[data-flip="90"] .touchpad', 'safe-area-inset-left', 'under a quarter turn on the notch is at the viewport\'s left edge (safe-area-inset-left)');
+rule('html[data-flip="270"] .bar', 'safe-area-inset-left', 'under a quarter turn back the header is at the viewport\'s left edge (safe-area-inset-left)');
+rule('html[data-flip="270"] .touchpad', 'safe-area-inset-right', 'under a quarter turn back the notch is at the viewport\'s right edge (safe-area-inset-right)');
+rule('html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways', 'grid-template-columns: 1fr', 'a quarter-turned page sits in a landscape viewport, so the phone breakpoints must be forced (the gate\'s two ways in one column)');
+const bootJs = src('src/look-boot.js');
+if (!/alice\.flip/.test(bootJs)) say('src/look-boot.js: must honour localStorage alice.flip before paint');
+if (!/screen\.orientation/.test(bootJs) || !/dataset\.flip = String\(turn\)/.test(bootJs)) say('src/look-boot.js: must set data-flip to the turn a remembered half turn still needs (180, or 90 / 270 when the page is in landscape), from screen.orientation');
 const looksJs = src('src/looks.js');
 if (!/flip-chip/.test(looksJs) || !/tilt\.manual = v/.test(looksJs)) say('src/looks.js: the sheet needs the page-turn switch (flip-chip) setting tilt.manual');
 if (!/'Page turn'/.test(looksJs)) say('src/looks.js: the switch is about the page, and must say so ("Page turn")');

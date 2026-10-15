@@ -38,10 +38,20 @@
   var theme = pick('theme', 'alice.theme', html.dataset.themeDefault);
   html.dataset.look = look;
   html.dataset.theme = theme;
-  // the hand switch for a phone held upside down (src/tilt.js): '180' turns the page before paint
+  // the hand switch for a phone held upside down (src/tilt.js): '180' turns the
+  // page before paint, by what the OS has not already turned it - a half turn,
+  // or a quarter when auto-rotate parked the page in landscape on the way round
   var flip = null;
   try { flip = localStorage.getItem('alice.flip'); } catch (e) { flip = null; }
-  if (flip === '180') html.dataset.flip = '180';
+  if (flip === '180') {
+    var angle = 0;
+    try {
+      angle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle
+        : typeof window.orientation === 'number' ? window.orientation : 0;
+    } catch (e) { angle = 0; }
+    var turn = ((180 - angle) % 360 + 360) % 360;
+    if (turn) html.dataset.flip = String(turn);
+  }
 
   function sheet(kind, dir, id) {
     if (id === 'classic') return;
