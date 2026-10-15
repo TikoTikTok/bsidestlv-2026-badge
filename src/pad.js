@@ -21,14 +21,17 @@
 //
 // The badge is a grip the phone sits in, so when the phone is held the
 // other way up the whole controller is upside down too: the d-pad's UP is
-// at the bottom and the diamond has turned a half turn. The screen follows
-// the phone, the badge cannot, so the fix is here: while the page is in a
-// "secondary" orientation (screen.orientation, or the old window.orientation
-// of 180) every gamepad edge is turned through FLIP before it is named -
-// UP<->DOWN, LEFT<->RIGHT, A<->Y, B<->X. Only the gamepad is turned: the
-// keyboard and the on-screen pad are already the right way up. `?flip=1`
-// / `?flip=0` pins it for testing, `pad.flip = 'auto' | true | false` at
-// runtime.
+// at the bottom and the diamond has turned a half turn. The badge cannot
+// know, so the fix is here: while the phone is upside down every gamepad
+// edge is turned through FLIP before it is named - UP<->DOWN, LEFT<->RIGHT,
+// A<->Y, B<->X. Two things say it is: the screen, when the OS rotated the
+// page to a "secondary" orientation (screen.orientation, or the old
+// window.orientation of 180), and gravity (src/tilt.js), when the OS would
+// not rotate a portrait page and src/looks.js has turned the page itself.
+// The hand switch in the looks sheet (localStorage alice.flip) overrides
+// both. Only the gamepad is turned: the keyboard and the on-screen pad are
+// already the right way up. `?flip=1` / `?flip=0` pins it for testing,
+// `pad.flip = 'auto' | true | false` at runtime.
 //
 // Who may play is a policy of this module too. Every edge carries a source
 // - 'pad' for a gamepad, 'key' for the keyboard, 'ui' for an on-screen
@@ -38,6 +41,8 @@
 // everything is in, because that is where the pages are driven headless.
 // `muted` is the gate's pause switch on top of that: while the badge is
 // away (src/gate.js) no edge from any source reaches a listener.
+
+import { tilt } from './tilt.js';
 
 export const BUTTONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
 
@@ -65,6 +70,16 @@ export const flipButton = (name) => FLIP[name] ?? name;
 export function isUpsideDown({ orientation = globalThis.screen?.orientation, angle = globalThis.orientation } = {}) {
   if (orientation?.type) return /-secondary$/.test(orientation.type);
   return angle === 180 || angle === -180;
+}
+
+/**
+ * Whether the badge is upside down when nothing pins it: the hand switch
+ * (alice.flip '0' / '180') if set, else the screen's orientation or gravity.
+ * `t` is the page's Tilt; the default is the shared one.
+ */
+export function autoFlipped(t = tilt) {
+  if (t.manual !== 'auto') return t.manual === '180';
+  return isUpsideDown() || t.upsideDown;
 }
 
 /** The ?flip= override: true / false when pinned, 'auto' otherwise. */
@@ -118,7 +133,7 @@ export function sourcesFor(dev) {
 export class Pad {
   constructor({ pollMs = 4, sources = sourcesFor(true), flip = 'auto' } = {}) {
     this.held = new Set();          // what is down right now, both sources merged
-    this.flip = flip;               // 'auto' follows the screen's orientation; true / false pin it
+    this.flip = flip;               // 'auto' follows the screen, gravity and the hand switch; true / false pin it
     this.listeners = new Set();
     this.sources = sources;         // edge sources that reach the listeners
     this.muted = false;             // the gate's pause: true while the badge is away, and nothing plays
@@ -137,7 +152,7 @@ export class Pad {
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
 
   /** True while gamepad buttons are being turned a half turn (the phone is upside down, or flip is pinned). */
-  get flipped() { return this.flip === 'auto' ? isUpsideDown() : !!this.flip; }
+  get flipped() { return this.flip === 'auto' ? autoFlipped() : !!this.flip; }
 
   /** Whether edges from `source` reach the listeners under this pad's policy. */
   allows(source) { return this.sources.has(source); }
@@ -158,6 +173,7 @@ export class Pad {
     // a turn while a button is held: the next poll releases the old name and presses the new
     globalThis.screen?.orientation?.addEventListener?.('change', () => this._poll());
     addEventListener('orientationchange', () => this._poll());
+    tilt.start().on(() => this._poll());
     const loop = () => { this._poll(); this._timer = setTimeout(loop, this.pollMs); };
     loop();
     return this;

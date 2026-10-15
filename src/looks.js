@@ -24,7 +24,17 @@
 //     onMode(mode) are the page's hooks for what CSS cannot do; onTheme fires
 //     once the theme's sheet is in force, so computed colours are the new ones.
 //
+// The sheet also carries the page-turn switch: a phone held upside down in
+// the badge's grip is not rotated by the OS when the page is portrait, so
+// src/tilt.js reads gravity and turns the page itself (data-flip="180" on
+// <html>, the rule in styles.css). The switch is the hand override - auto,
+// no, yes - remembered as localStorage alice.flip; src/pad.js turns the
+// badge's buttons by the same decision. On iOS the sensors need asking
+// from a tap, and a tap on the ◐ chip or on the switch is one.
+//
 // Every path is relative: the site lives under /<repo>/ on Pages.
+
+import { tilt } from './tilt.js';
 
 const KIND = {
   look:  { dir: 'src/looks/',  key: 'alice.look',  list: 'looks',  title: 'Look',  note: 'how the page sits on this screen' },
@@ -156,18 +166,48 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   const useDefault = el('button', 'btn ghost', 'use default');
   useDefault.type = 'button';
   foot.append(footNote, useDefault);
+  // the page-turn switch: auto (gravity decides), no, yes - and what the sensors say
+  const flipRow = el('div', 'pick flip-row');
+  flipRow.dataset.kind = 'flip';
+  const flipHead = el('div', 'pick-head');
+  flipHead.append(el('b', '', 'Page turn'),
+                  el('small', '', 'the phone held upside down in the grip: the page turns itself the right way up, since the screen will not. Not the controller - that follows by itself'));
+  flipRow.append(flipHead);
+  const flipChips = [['auto', 'auto'], ['0', 'no'], ['180', 'yes']].map(([v, label]) => {
+    const b = el('button', 'flip-chip', label);
+    b.type = 'button';
+    b.dataset.flip = v;
+    b.addEventListener('click', () => { tilt.manual = v; if (v === 'auto') tilt.request(); });
+    flipRow.append(b);
+    return b;
+  });
+  const flipState = el('small');
+  flipRow.append(flipState);
+  function markFlip() {
+    for (const b of flipChips) b.classList.toggle('on', b.dataset.flip === tilt.manual);
+    flipState.textContent = tilt.permission === 'denied' ? 'sensors refused'
+      : tilt.needsPermission ? 'tap auto to allow the sensors'
+      : tilt.angle === null ? (tilt.readings ? 'lying flat' : 'no reading yet')
+      : `${tilt.upsideDown ? 'upside down' : 'upright'} · ${Math.round(Math.abs(tilt.angle))}°`;
+  }
+  tilt.on(markFlip);
+  markFlip();
+
   inner.append(el('span', 'handle'), head,
                el('p', 'note', 'What the page is painted in, and how it sits on this screen. Tap to switch — the page keeps running. Remembered on this device.'),
-               cards, foot);
+               flipRow, cards, foot);
   sheet.append(inner);
   document.body.append(sheet);
+  tilt.apply();                     // src/tilt.js listens from load; the switch's remembered say is shown here too
+  setInterval(() => { if (sheet.open) markFlip(); }, 500);   // the angle line moves while the sheet is up
 
   for (const host of [cards, ...pageHosts]) fill(host);
-  chip?.addEventListener('click', () => sheet.showModal());
+  chip?.addEventListener('click', () => { if (tilt.needsPermission) tilt.request(); sheet.showModal(); });   // the chip is a tap iOS accepts for the sensors
   close.addEventListener('click', () => sheet.close());
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });   // a tap on the backdrop
   useDefault.addEventListener('click', () => {
     try { for (const k of [KIND.look.key, KIND.theme.key, 'glitch.look']) localStorage.removeItem(k); } catch { /* storage may be off */ }
+    tilt.manual = 'auto';
     setTheme(defaultThemeFor(themes), { remember: false });
     setLook(defaultLookFor(looks), { remember: false });
     sheet.close();
@@ -201,5 +241,6 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
     get look() { return byId.look[current.look]; },
     get theme() { return byId.theme[current.theme]; },
     get mode() { return html.dataset.mode; },
+    tilt,
   };
 }
