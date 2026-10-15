@@ -45,6 +45,7 @@
 
 import { isDevHost, sourcesFor, BADGE_PRODUCT } from './pad.js';
 import { hasHid, requestBadgeHid, grantedBadgesHid, readVaultHid, BeaconDecoder, BEACON, BADGE_VID, BADGE_PID } from './vault.js';
+import { tilt } from './tilt.js';
 
 /** 'dev' or 'site': how this page should behave, from where it is served. */
 export function gateMode(loc = location) {
@@ -174,6 +175,13 @@ function ask(pad, again = null) {
       html: `A <b>new badge</b>, or one still on the stock firmware, has no vault and no beacon yet - it shows up as a plain “Wireless Controller”. ` +
             `<a href="flash.html">Flash the firmware from this browser</a> (hold BootSel while plugging it in), then come back here and press a button on it.` });
     const who = again ? (again.label ? `“${again.label}” (${again.serialHex})` : `badge ${again.serialHex}`) : null;
+    // iOS shares the gravity sensor only after a tap asks for it: the page turns with the phone (src/tilt.js) once this is granted
+    const tiltBtn = el('button', { class: 'btn ghost', id: 'gateTilt', type: 'button' }, 'let the page turn with the phone');
+    tiltBtn.addEventListener('click', async () => {
+      tiltBtn.disabled = true;
+      const granted = await tilt.request();
+      tiltBtn.textContent = granted ? 'the page turns with the phone' : 'the sensors were refused';
+    });
 
     const dialog = el('dialog', { class: `gate${again ? ' reconnect' : ''}`, id: 'gate', 'aria-labelledby': 'gateTitle' },
       el('div', { class: 'gate-mark', 'aria-hidden': 'true' }, '◆'),
@@ -196,6 +204,7 @@ function ask(pad, again = null) {
       status,
       el('p', { class: 'gate-foot' }, 'gamepad: ', device),
     );
+    if (tilt.needsPermission) dialog.append(el('p', { class: 'gate-foot' }, tiltBtn));
     if (!again) dialog.append(flashNote);   // a badge that has come back once had the firmware already
     document.body.append(dialog);
     dialog.addEventListener('cancel', (e) => e.preventDefault());   // Esc does not open the gate
@@ -249,6 +258,7 @@ function ask(pad, again = null) {
     const onConnect = (e) => { if (!done && isBadgeDevice(e.device)) readHid(e.device); };
     connect.addEventListener('click', async () => {
       connect.disabled = true;
+      tilt.request();   // the same tap serves the sensors, before the chooser takes it
       try {
         const dev = await requestBadgeHid();
         if (!dev) say('no device chosen', '');

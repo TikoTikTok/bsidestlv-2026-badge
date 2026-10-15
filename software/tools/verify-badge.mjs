@@ -11,7 +11,8 @@
 import { parseVaultReport, buildSetReport, BeaconDecoder, beaconAxes, beaconFrame, crc32,
          CMD, STATE, REPORT_ID, REPORT_LEN, BEACON, hex, unhex } from '../../src/vault.js';
 import { seal, unseal, isSealed } from '../../src/seal.js';
-import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT, BUTTONS, FLIP, flipButton, isUpsideDown, flipFor, readGamepad } from '../../src/pad.js';
+import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT, BUTTONS, FLIP, flipButton, isUpsideDown, flipFor, readGamepad, autoFlipped } from '../../src/pad.js';
+import { Tilt, tilt, upVector, screenAngle, screenTurn, FLIP_AT, BACK_AT, FLAT } from '../../src/tilt.js';
 import { BadgeWatch } from '../../src/gate.js';
 import { FakeBadge } from './fake-badge.mjs';
 
@@ -292,6 +293,183 @@ console.log('pad: the phone (and so the badge) upside down');
   live._poll();
   ok(same(edges, ['UP+', 'DOWN+', 'UP-']) && live.held.has('DOWN') && !live.held.has('UP'), 'held UP becomes a press of DOWN and a release of UP in the same poll');
   Object.defineProperty(globalThis, 'navigator', { value: navWas, configurable: true });
+}
+
+// ------------------------------------------------ gravity, when the OS will not turn ----
+
+console.log('tilt: the phone upside down by gravity');
+{
+  const near = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+  // the device's up from deviceorientation: upright, upside down, flat, on either side
+  let u = upVector(90, 0);  ok(near(u.x, 0) && near(u.y, 1) && near(u.z, 0), 'beta 90: up is +y (upright)');
+  u = upVector(-90, 0);     ok(near(u.x, 0) && near(u.y, -1), 'beta -90: up is -y (upside down)');
+  u = upVector(0, 0);       ok(near(u.x, 0) && near(u.y, 0) && near(u.z, 1), 'flat, screen up: up is +z');
+  u = upVector(0, 90);      ok(near(u.x, -1) && near(u.y, 0), 'gamma 90: up is -x (lying on its right side)');
+  u = upVector(0, -90);     ok(near(u.x, 1), 'gamma -90: up is +x');
+  u = upVector(90, 89);     ok(near(u.y, 1) && Math.abs(u.x) < 0.02, 'at vertical gamma hardly matters: no gimbal trouble');
+
+  // the angle in the screen's frame, with the OS's own turn taken out
+  ok(screenAngle(0, 1, 0) === 0, 'upright, no turn: 0');
+  ok(screenAngle(0, -1, 0) === 180, 'upside down, no turn: 180');
+  ok(screenAngle(1, 0, 0) === 90 && screenAngle(-1, 0, 0) === -90, 'on its side: +-90');
+  ok(screenAngle(1, 0, 90) === 0, 'rotated to landscape (angle 90) and held that way: upright on the screen');
+  ok(screenAngle(-1, 0, 270) === 0 && screenAngle(-1, 0, -90) === 0, 'the other landscape, as angle 270 or window.orientation -90');
+  ok(screenAngle(0, -1, 180) === 0, 'portrait-secondary (the OS turned it): the screen is upright, nothing to do');
+  ok(screenAngle(0, 1, 180) === 180, 'turned by the OS but held upright: upside down on the screen');
+  ok(screenAngle(0, 0.1, 0) === null && screenAngle(0.2, 0.2, 0) === null, `lying flat (|up| in the plane < ${FLAT}): no opinion`);
+  ok(screenAngle(NaN, 1, 0) === null && screenAngle(0, undefined, 0) === null, 'no reading: no opinion');
+  ok(screenAngle(0.01, -1, 0) > 170 && screenAngle(-0.01, -1, 0) < -170, 'either side of 180 stays near 180');
+  ok(screenTurn({ orientation: { angle: 90 }, angle: 0 }) === 90, 'screen.orientation.angle first');
+  ok(screenTurn({ orientation: undefined, angle: -90 }) === -90 && screenTurn({ orientation: {}, angle: undefined }) === 0, 'then window.orientation, else 0');
+
+  // hysteresis: over FLIP_AT to turn, under BACK_AT to come back, nothing in between or flat
+  const t = new Tilt();
+  const deg = (a) => [Math.sin(a * Math.PI / 180), Math.cos(a * Math.PI / 180)];   // up at angle a from upright
+  ok(FLIP_AT === 150 && BACK_AT === 30, 'the thresholds');
+  ok(t.feed(...deg(0), 0) === false && t.feed(...deg(100), 0) === false && t.feed(...deg(149), 0) === false, 'tilted short of 150: still upright');
+  ok(t.feed(...deg(150), 0) === true && t.upsideDown, 'past 150: upside down');
+  ok(t.feed(...deg(100), 0) === true && t.feed(...deg(31), 0) === true, 'back to 31: still upside down (hysteresis)');
+  ok(t.feed(0, 0.05, 0) === true && t.angle === null, 'lying flat keeps the state');
+  ok(t.feed(...deg(30), 0) === false, 'under 30: upright again');
+  ok(t.feed(...deg(-160), 0) === true && t.feed(...deg(-20), 0) === false, 'the other way round works the same');
+  ok(t.orientation(-90, 0, 0) === true && t.orientation(90, 0, 0) === false, 'from beta / gamma');
+  ok(t.orientation(90, 0, 180) === true && t.orientation(-90, 0, 180) === false, 'the OS turn is taken out of a beta / gamma reading too');
+  ok(t.orientation(null, 0, 0) === false && t.readings === 14, 'a reading without beta is ignored');
+  let told = 0;
+  t.on(() => told++);
+  t.orientation(-90, 0, 0); t.orientation(-90, 0, 0); t.orientation(90, 0, 0);
+  ok(told === 2, 'listeners hear a change, not every reading');
+
+  // the hand switch: auto follows the sensors, 0 / 180 override them
+  ok(t.manual === 'auto' && t.turned === false, 'auto, upright: not turned');
+  t.orientation(-90, 0, 0);
+  ok(t.turned === true, 'auto, upside down: turned');
+  t.manual = '0';
+  ok(t.turned === false && t.upsideDown === true, 'no: never turned, the sensors still read');
+  t.manual = '180';
+  ok(t.turned === true, 'yes: always turned');
+  t.orientation(90, 0, 0);
+  ok(t.turned === true && !t.upsideDown, 'yes, held upright: still turned');
+  t.manual = 'bogus';
+  ok(t.manual === 'auto' && t.turned === false, 'anything else is auto');
+  ok(!t.needsPermission, 'nothing to ask on a host without DeviceOrientationEvent.requestPermission');
+
+  // through the pad: auto flips on the screen's say-so or gravity's, and the hand switch wins
+  const padTilt = new Tilt();
+  ok(autoFlipped(padTilt) === false, 'upright, no turn: not flipped');
+  padTilt.orientation(-90, 0, 0);
+  ok(autoFlipped(padTilt) === true, 'gravity says upside down: flipped');
+  padTilt.manual = '0';
+  ok(autoFlipped(padTilt) === false, 'the hand switch says no: not flipped');
+  padTilt.orientation(90, 0, 0);
+  padTilt.manual = '180';
+  ok(autoFlipped(padTilt) === true, 'the hand switch says yes: flipped though upright');
+  padTilt.manual = 'auto';
+  const screenWas2 = globalThis.screen;
+  globalThis.screen = { orientation: { type: 'portrait-secondary', angle: 180 } };
+  ok(autoFlipped(padTilt) === true, 'the OS turned the page: flipped by the screen alone');
+  padTilt.orientation(-90, 0);                       // the reading takes the screen's turn: upright on the screen
+  ok(padTilt.upsideDown === false && autoFlipped(padTilt) === true, 'and gravity agrees the screen is upright, the pad still turns');
+  globalThis.screen = screenWas2;
+  // the shared tilt is what a Pad reads
+  const shared = new Pad();
+  tilt.orientation(-90, 0, 0);
+  ok(shared.flipped === true, 'a pad follows the shared tilt');
+  tilt.orientation(90, 0, 0);
+  ok(shared.flipped === false, 'and back');
+  ok(new Pad({ flip: false }).flipped === false, 'a pinned flip ignores it');
+}
+
+// ------------------------------------------- the page turn, on a page ----
+// src/tilt.js on its own, with a document and a window to listen on: the page
+// turns from the first reading after load, with no pad, gate or badge, and
+// the hand switch overrides what the sensors say. A fresh copy of the module
+// is loaded per case (the query string defeats the module cache) so its
+// load-time start runs against the fakes.
+
+console.log('page turn: listening from load, the switch, the iOS prompt');
+{
+  const fresh = (tag) => import(`../../src/tilt.js?${tag}`);
+  const page = () => {
+    const listeners = {};
+    globalThis.document = { documentElement: { dataset: {} } };
+    globalThis.addEventListener = (type, fn) => (listeners[type] ??= []).push(fn);
+    const send = (beta, gamma) => { for (const fn of listeners.deviceorientation ?? []) fn({ beta, gamma }); };
+    return { listeners, send, html: globalThis.document.documentElement };
+  };
+  const leave = () => { delete globalThis.document; delete globalThis.addEventListener; delete globalThis.DeviceOrientationEvent; };
+
+  // Android, or any browser that needs no asking: the listener is on before any module asks for it
+  let p = page();
+  let m = await fresh('page');
+  ok((p.listeners.deviceorientation ?? []).length === 1, 'the module listens to deviceorientation as soon as it loads');
+  ok(p.html.dataset.flip === undefined, 'upright until a reading says otherwise');
+  m.tilt.start();
+  ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'a reading of upside down turns the page: data-flip="180"');
+  p.send(-22.6, -20.3);   // 140 deg from upright, leaning
+  ok(Math.round(Math.abs(m.tilt.angle)) === 140 && p.html.dataset.flip === '180', 'still turned at 140 deg from upright (hysteresis)');
+  p.send(90, 0);
+  ok(p.html.dataset.flip === undefined, 'upright again: the attribute goes');
+  p.send(0, 0);
+  ok(p.html.dataset.flip === undefined && m.tilt.angle === null, 'lying flat: no opinion, nothing changes');
+  // the hand switch: '180' turns an upright page, '0' holds an upside-down one, 'auto' hands back to the sensors
+  m.tilt.manual = '180';
+  ok(p.html.dataset.flip === '180' && m.tilt.turned === true, 'the switch on yes turns the page though the phone is upright');
+  m.tilt.manual = '0';
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === undefined && m.tilt.upsideDown === true, 'the switch on no keeps the page still though the phone is upside down');
+  m.tilt.manual = 'auto';
+  ok(p.html.dataset.flip === '180', 'back on auto the sensors have it again');
+  ok(m.tilt.needsPermission === false, 'nothing to ask where there is no requestPermission');
+  leave();
+
+  // a browser with requestPermission that answers 'granted' without a tap (Chrome on Android): readings come with no tap
+  const settle = () => new Promise(r => setTimeout(r, 0));
+  p = page();
+  let asked = 0;
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { asked++; return 'granted'; } };
+  m = await fresh('chrome-granted');
+  await settle();
+  ok(p.listeners.deviceorientation.length === 1, 'the listener is on from load even where there is a prompt (harmless until granted)');
+  ok(asked === 1 && m.tilt.permission === 'granted' && m.tilt.needsPermission === false, 'the load-time probe asked once and was granted: no tap needed');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'the page turns with no tap');
+  ok(await m.tilt.request() === true && asked === 1, 'a later tap has nothing left to ask');
+  leave();
+
+  // iOS: the probe rejects outside a gesture; a tap asks for real
+  p = page();
+  let gesture = false;
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { if (!gesture) throw new Error('not from a gesture'); return 'granted'; } };
+  m = await fresh('ios-granted');
+  await settle();
+  ok(p.listeners.deviceorientation.length === 1 && m.tilt.permission === null && m.tilt.needsPermission === true, 'iOS: listening, but the probe outside a gesture leaves the question open');
+  m.tilt.start();
+  ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
+  gesture = true;
+  ok(await m.tilt.request() === true && m.tilt.permission === 'granted' && m.tilt.needsPermission === false, 'request() from a tap: granted');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'the page turns on iOS once granted');
+  leave();
+
+  // a 'denied' without a gesture (desktop Chrome, no sensor) is not the player's answer; a tap's refusal is
+  p = page();
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => 'denied' };
+  m = await fresh('denied');
+  await settle();
+  ok(m.tilt.permission === null && m.tilt.needsPermission === true, 'a probe answered denied leaves the question open for a tap');
+  ok(await m.tilt.request() === false && m.tilt.permission === 'denied', 'request() refused from a tap: says so');
+  m.tilt.manual = '180';
+  ok(p.html.dataset.flip === '180', 'the switch still turns the page without the sensors');
+  leave();
+
+  p = page();
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { throw new Error('not from a gesture'); } };
+  m = await fresh('throws');
+  ok(await m.tilt.request() === false && m.tilt.permission === 'denied', 'a tap\'s prompt that throws counts as refused');
+  leave();
 }
 
 // ---------------------------------------------------------- the watch ----
