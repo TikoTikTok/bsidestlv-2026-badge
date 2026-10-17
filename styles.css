@@ -429,7 +429,7 @@ details.how > summary::-webkit-details-marker { display: none; }
 html:not([data-look=classic]) body {
   display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; padding-bottom: 0;
 }
-html:not([data-look=classic]) .bar { position: static; flex: none; }
+html:not([data-look=classic]) .bar { position: relative; flex: none; }   /* not sticky: the column does not scroll; positioned, for the page-turn popover */
 html:not([data-look=classic]) .brand small { font-size: 10px; }
 html:not([data-look=classic]) .modes {
   display: flex; flex: none; width: calc(100% - 28px); max-width: 532px; margin: 10px auto 0; padding: 2px;
@@ -545,6 +545,44 @@ html[data-flip="90"] .panel .pick[data-kind=theme] .cards, html[data-flip="270"]
   background: var(--panel); border: 1px solid var(--accent); border-radius: 99px; height: 26px; padding: 0 10px; cursor: pointer;
 }
 .look-chip:hover { background: var(--panel-2); }
+
+/* the page-turn icon beside the chip (src/looks.js fills the glyph and keeps
+   the state): dim on auto, lit while the page is turned, filled on "yes",
+   struck through on "no"; a dot while iOS still has to be asked for the
+   sensors (red once refused). Its popover hangs under the header, anchored
+   to the icon by --caret, and is the first-visit tip too. */
+.turn-btn {
+  position: relative; flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  color: var(--dim); background: var(--panel); border: 1px solid var(--line); border-radius: 99px; cursor: pointer;
+}
+.turn-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.turn-btn svg .no { display: none; }
+.turn-btn:hover, .turn-btn[aria-expanded=true] { color: var(--accent); border-color: var(--accent); }
+.turn-btn[data-turned=yes] { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--glow); }
+.turn-btn[data-state=on] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.turn-btn[data-state=off] { color: var(--dim); box-shadow: none; }
+.turn-btn[data-state=off] svg .no { display: block; }
+.turn-btn[data-ask]::after {
+  content: ''; position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--amber); box-shadow: 0 0 0 2px var(--panel);
+}
+.turn-btn[data-ask=denied]::after { background: var(--hot); }
+.turn-pop {
+  position: absolute; z-index: 11; top: calc(100% + 8px); left: 0;   /* src/looks.js sets left under the icon, inside the header */
+  width: min(300px, calc(100vw - 1.5rem)); padding: 10px 12px;
+  color: var(--text); background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r);
+  box-shadow: 0 10px 30px var(--shade); font: 12px/1.4 var(--font);
+}
+.turn-pop[hidden] { display: none; }
+.turn-pop::before {
+  content: ''; position: absolute; top: -6px; left: calc(var(--caret, 90%) - 5px); width: 10px; height: 10px;
+  background: var(--panel); border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); transform: rotate(45deg);
+}
+.turn-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.turn-head b { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.turn-head small, .turn-note { font-size: 10px; color: var(--dim); }
+.turn-note { margin: 6px 0 8px; }
+.turn-choice { display: flex; gap: 6px; }
 
 .look-sheet {
   border: 0; padding: 0; background: transparent; color: var(--text);
