@@ -80,6 +80,15 @@ for (const page of PAGES) {
   else if (!themes.ids.has(dflt)) say(`${page}: data-theme-default="${dflt}" is not a listed theme`);
   if (!/<script src="src\/look-boot\.js"><\/script>/.test(html)) say(`${page}: <head> must load src/look-boot.js before the body`);
   if (!/id="lookChip"/.test(html)) say(`${page}: the header needs the look chip (#lookChip)`);
+  // the page-turn icon sits before the chip: a real button, labelled, with its popover named
+  const turn = /<button\b[^>]*id="turnBtn"[^>]*>/.exec(html)?.[0];
+  if (!turn) say(`${page}: the header needs the page-turn icon (#turnBtn) beside the chip`);
+  else {
+    if (html.indexOf(turn) > html.indexOf('id="lookChip"')) say(`${page}: the page-turn icon (#turnBtn) goes before the chip (#lookChip)`);
+    for (const a of ['aria-label="Page turn', 'aria-expanded="false"', 'aria-controls="turnPop"', 'data-state="auto"']) if (!turn.includes(a)) say(`${page}: #turnBtn needs ${a}…"`);
+    if (!/type="button"/.test(turn)) say(`${page}: #turnBtn must be type="button"`);
+  }
+  if (/id="turnPop"/.test(html)) say(`${page}: the page-turn popover is built by src/looks.js; do not put it in the page`);
   if (/id="lookSheet"/.test(html)) say(`${page}: the picker sheet is built by src/looks.js; do not put it in the page`);
 
   // a mode bar: every panel's mode has a button, and the page opens on one of them
@@ -105,8 +114,12 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
 // hand switch before paint by the same arithmetic, and the sheet carries the
 // switch. A look or a theme never names data-flip: the turn is the same
 // whatever the page wears. Every page must reach src/tilt.js from its own
-// module (it listens from load, no pad or gate needed), and on iOS the first
-// tap on the ◐ chip must be the one that asks for the sensors.
+// module (it listens from load, no pad or gate needed). The control is a
+// small icon beside the ◐ chip in every header (#turnBtn: the state, a dot
+// while iOS still has to be asked, a popover of auto / no / yes that doubles
+// as the first-visit tip) plus the same row in the sheet; on iOS the tap on
+// the icon, or on the chip, is the one that asks for the sensors. The gate
+// carries no page-turn button of its own any more.
 
 const src = (p) => readFileSync(resolve(root, p), 'utf8');
 const css = src('styles.css');
@@ -138,6 +151,19 @@ const looksJs = src('src/looks.js');
 if (!/flip-chip/.test(looksJs) || !/tilt\.manual = v/.test(looksJs)) say('src/looks.js: the sheet needs the page-turn switch (flip-chip) setting tilt.manual');
 if (!/'Page turn'/.test(looksJs)) say('src/looks.js: the switch is about the page, and must say so ("Page turn")');
 if (!/chip\?\.addEventListener\('click', [^\n]*tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the ◐ chip must ask iOS for the sensors (tilt.request) on its tap');
+if (!/turnBtn\.addEventListener\('click', \(\) => \{\n\s*if \(tilt\.needsPermission\) tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the page-turn icon\'s tap must ask iOS for the sensors (tilt.request) first thing');
+if (!/pop\.id = 'turnPop'/.test(looksJs) || !/setAttribute\('aria-expanded', 'true'\)/.test(looksJs)) say('src/looks.js: the icon opens a popover #turnPop and says so with aria-expanded');
+if (!/setAttribute\('aria-pressed', String\(on\)\)/.test(looksJs)) say('src/looks.js: the auto / no / yes chips must carry aria-pressed');
+if (!/TIP_KEY = 'alice\.flip\.tip'/.test(looksJs) || !/matchMedia\('\(pointer: coarse\)'\)\.matches/.test(looksJs)) say('src/looks.js: the first-visit tip is once per device (localStorage alice.flip.tip) and only on a touch screen');
+if (!/tilt\.manual === 'auto' && matchMedia/.test(looksJs)) say('src/looks.js: a switch set by hand means no tip');
+if (!/dataset\.state = state/.test(looksJs) || !/dataset\.ask = 'yes'/.test(looksJs)) say('src/looks.js: the icon must show the state (data-state) and whether iOS still has to be asked (data-ask)');
+for (const sel of ['.turn-btn', '.turn-btn[data-state=on]', '.turn-btn[data-state=off] svg .no', '.turn-btn[data-ask]::after', '.turn-pop', '.turn-pop[hidden]'])
+  if (!css.includes(`${sel} {`)) say(`styles.css: no ${sel} rule (the page-turn icon and its popover)`);
+if (/gateTilt/.test(src('src/gate.js'))) say('src/gate.js: the gate carries no page-turn button; the header icon asks');
+const glitchCss = src('src/glitch.css');
+if (!/grid-template-areas: 'dev turn look' 'leds turn look'/.test(glitchCss) || !/\.turn-btn \{ grid-area: turn; \}/.test(glitchCss)) say('src/glitch.css: the range header\'s grid needs a column for the page-turn icon (area "turn")');
+for (const look of ['handheld', 'scope'])
+  if (!/grid-template-areas: 'dev leds turn look'/.test(src(`src/looks/${look}.css`))) say(`src/looks/${look}.css: the range header's grid must place the page-turn icon (area "turn")`);
 const tiltJs = src('src/tilt.js');
 if (!/^if \(globalThis\.document\) \{[^}]*tilt\.start\(\)/m.test(tiltJs)) say('src/tilt.js: must start listening when loaded in a browser, not wait for a pad or a gate');
 if (!/tilt\.request\(\)/.test(src('src/gate.js'))) say('src/gate.js: the gate\'s Connect tap must ask iOS for the sensors');

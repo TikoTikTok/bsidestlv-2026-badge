@@ -127,19 +127,30 @@ upside down (to the other landscape, or back to portrait as the phone comes
 round) the turn is redone at once from the same reading. It needs no badge,
 no gate and no pad; it is the same on every page. Android needs no tap. iOS
 shares the sensor only after a tap asks, and the first tap on anything
-sensible asks: the ◐ chip, the sheet's switch, the gate's Connect button,
-the on-screen pad.
+sensible asks: the page-turn icon, the ◐ chip, a switch, the gate's Connect
+button, the on-screen pad.
 
-The ◐ sheet has the hand switch, *page turn: auto / no / yes* - for a phone
-without a sensor, a browser that refused it, or a player who wants the page
-their way - remembered on the device as `alice.flip` and honoured before the
-first paint, by the same arithmetic (a half turn, or a quarter when the page
-is in landscape). The badge's buttons follow the same decision, so the switch
-never has to be set for the controller separately. `software/tools/verify-badge.mjs`
-checks the sensor maths, the turn for each thing the OS may have done, the
-hysteresis, the switch, the listener from load and the permission paths;
-`verify-looks.mjs` checks the rules, the boot script, the sheet and that
-every page reaches the module.
+The control is a small icon beside the ◐ chip in every header, a phone with
+an arrow round it. It shows the state - dim on auto, lit while the page is
+turned, filled on *yes*, struck through on *no* - and a small dot while iOS
+still has to be asked for the sensor (red once refused). A tap on it is the
+gesture iOS wants, so the prompt comes from the icon itself, and opens a
+popover under it: one line on what the turn is and the hand switch, *auto /
+no / yes* - for a phone without a sensor, a browser that refused it, or a
+player who wants the page their way. The ◐ sheet carries the same switch as
+a row. Either way it is remembered on the device as `alice.flip` and honoured
+before the first paint, by the same arithmetic (a half turn, or a quarter
+when the page is in landscape). On a touch screen the popover opens once by
+itself, as a tip, on the first visit (`alice.flip.tip`; `?tip=1` / `?tip=0`
+force it either way), goes on any tap outside it and never comes back; a
+switch set by hand means no tip. It is not a dialog: nothing waits on it. The
+badge's buttons follow the same decision, so the switch never has to be set
+for the controller separately. `software/tools/verify-badge.mjs` checks the
+sensor maths, the turn for each thing the OS may have done, the hysteresis,
+the switch, the listener from load and the permission paths;
+`verify-looks.mjs` checks the rules, the boot script, the icon on every page
+(before the chip, labelled, with its popover and states), the sheet's row,
+the tip's gating and that every page reaches the module.
 
 Every page has a theme and a look — the ◐ chip in the header opens a sheet of
 cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
