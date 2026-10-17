@@ -43,6 +43,11 @@ body {
 
 canvas { image-rendering: pixelated; display: block; }
 
+/* the bench's chrome - the walk and art panels, Solve, the playback and tick
+   sliders, the keyboard prose - is class dev-only and goes on the site
+   (html[data-host=site], set by src/look-boot.js before paint) */
+html[data-host=site] .dev-only { display: none !important; }
+
 /* ---------------------------------------------------------------- bar -- */
 
 .bar {

@@ -106,6 +106,26 @@ for (const page of PAGES) {
 }
 if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different default themes: ${pages.map(p => `${p.page} ${p.dflt}`).join(', ')}`);
 
+// ------------------------------------------------------- the bench's chrome ----
+// What only a local checkout shows - the walk and art panels and their mode
+// buttons, Solve, the playback and tick sliders, the clock switch, the
+// keyboard prose - is class dev-only; the boot script sets data-host on
+// <html> before paint and styles.css hides the class on the site.
+{
+  const html = readFileSync(resolve(root, 'index.html'), 'utf8');
+  for (const id of ['solveBtn', 'chaseSolve']) if (!new RegExp(`id="${id}" class="[^"]*dev-only`).test(html)) say(`index.html: #${id} (Solve) is the bench's: class dev-only`);
+  for (const m of ['walk', 'art']) {
+    if (!new RegExp(`class="mode dev-only" data-mode="${m}"`).test(html)) say(`index.html: the ${m} mode button is the bench's: class dev-only`);
+    if (/<section class="panel" data-mode="(walk|art)"/.test(html)) say('index.html: every walk and art panel is the bench\'s: class dev-only');
+  }
+  for (const id of ['playSpeed', 'chaseSpeed', 'chaseRun']) if (!new RegExp(`<label class="[^"]*dev-only[^"]*">[^<]*<input id="${id}"`).test(html)) say(`index.html: the label around #${id} is the bench's: class dev-only`);
+  if (!/html\[data-host=site\] \.dev-only \{ display: none !important; \}/.test(readFileSync(resolve(root, 'styles.css'), 'utf8'))) say('styles.css: no html[data-host=site] .dev-only rule hiding the bench\'s chrome on the site');
+  const boot = readFileSync(resolve(root, 'src/look-boot.js'), 'utf8');
+  if (!/var dev = \(h === '' \|\| h === 'localhost' \|\| h === '127\.0\.0\.1' \|\| h === '\[::1\]'\) && !\(query && query\.get\('gate'\) === '1'\)/.test(boot) || !/html\.dataset\.host = dev \? 'dev' : 'site'/.test(boot))
+    say('src/look-boot.js: must set data-host as gateMode would: the four dev hosts of isDevHost (src/pad.js), ?gate=1 on one of them being the site');
+  if (!/hostname === '' \|\| hostname === 'localhost' \|\| hostname === '127\.0\.0\.1' \|\| hostname === '\[::1\]'/.test(readFileSync(resolve(root, 'src/pad.js'), 'utf8'))) say('src/pad.js: isDevHost changed; keep src/look-boot.js\'s data-host in step');
+}
+
 // ------------------------------------------------------------- the page turn ----
 // src/tilt.js turns the page by data-flip on <html> when the phone is upside
 // down: 180 when the OS left the page alone, 90 or 270 when auto-rotate took
@@ -151,7 +171,7 @@ const looksJs = src('src/looks.js');
 if (!/flip-chip/.test(looksJs) || !/tilt\.manual = v/.test(looksJs)) say('src/looks.js: the sheet needs the page-turn switch (flip-chip) setting tilt.manual');
 if (!/'Page turn'/.test(looksJs)) say('src/looks.js: the switch is about the page, and must say so ("Page turn")');
 if (!/chip\?\.addEventListener\('click', [^\n]*tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the ◐ chip must ask iOS for the sensors (tilt.request) on its tap');
-if (!/turnBtn\.addEventListener\('click', \(\) => \{\n\s*if \(tilt\.needsPermission\) tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the page-turn icon\'s tap must ask iOS for the sensors (tilt.request) first thing');
+if (!/turnBtn\.addEventListener\('click', \(\) => \{\s*if \(tilt\.needsPermission\) tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the page-turn icon\'s tap must ask iOS for the sensors (tilt.request) first thing');
 if (!/pop\.id = 'turnPop'/.test(looksJs) || !/setAttribute\('aria-expanded', 'true'\)/.test(looksJs)) say('src/looks.js: the icon opens a popover #turnPop and says so with aria-expanded');
 if (!/setAttribute\('aria-pressed', String\(on\)\)/.test(looksJs)) say('src/looks.js: the auto / no / yes chips must carry aria-pressed');
 if (!/TIP_KEY = 'alice\.flip\.tip'/.test(looksJs) || !/matchMedia\('\(pointer: coarse\)'\)\.matches/.test(looksJs)) say('src/looks.js: the first-visit tip is once per device (localStorage alice.flip.tip) and only on a touch screen');
