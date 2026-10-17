@@ -56,12 +56,13 @@
 /* --------------------------------------------- the phone looks, range part -- */
 
 html:not([data-look=classic]) .pad-status {
-  display: grid; grid-template-columns: auto auto; grid-template-areas: 'dev look' 'leds look';
-  gap: 4px 10px; align-items: center; justify-items: end;
+  display: grid; grid-template-columns: auto auto minmax(0, auto); grid-template-areas: 'dev turn look' 'leds turn look';
+  gap: 4px 10px; align-items: center; justify-items: end; min-width: 0; max-width: 100%;   /* the chip's column may shrink: the icon took some of the width */
 }
 html:not([data-look=classic]) .pad-device { grid-area: dev; font-size: 10px; }
 html:not([data-look=classic]) .pad-leds { grid-area: leds; gap: 3px; flex-wrap: nowrap; }
-html:not([data-look=classic]) .look-chip { grid-area: look; }
+html:not([data-look=classic]) .look-chip { grid-area: look; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+html:not([data-look=classic]) .turn-btn { grid-area: turn; }
 html:not([data-look=classic]) .led { font-size: 0; width: 7px; height: 7px; min-width: 0; padding: 0; border-radius: 2px; }
 
 html:not([data-look=classic]) .trace { display: block; }

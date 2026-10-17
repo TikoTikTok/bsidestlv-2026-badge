@@ -24,14 +24,16 @@
 //     onMode(mode) are the page's hooks for what CSS cannot do; onTheme fires
 //     once the theme's sheet is in force, so computed colours are the new ones.
 //
-// The sheet also carries the page-turn switch: a phone held upside down in
+// This module also owns the page-turn control: a phone held upside down in
 // the badge's grip is not rotated by the OS when the page is portrait, so
 // src/tilt.js reads gravity and turns the page itself (data-flip on <html>:
 // the turn the OS left undone, 180 or a quarter; the rules in styles.css).
-// The switch is the hand override - auto,
-// no, yes - remembered as localStorage alice.flip; src/pad.js turns the
-// badge's buttons by the same decision. On iOS the sensors need asking
-// from a tap, and a tap on the ◐ chip or on the switch is one.
+// The hand override - auto, no, yes - is localStorage alice.flip, set from a
+// small icon beside the chip in every header (a popover of the three, one
+// line of what it does, a first-visit tip) and from a row in the sheet;
+// src/pad.js turns the badge's buttons by the same decision. On iOS the
+// sensors need asking from a tap, and a tap on the icon, the ◐ chip or a
+// switch is one.
 //
 // Every path is relative: the site lives under /<repo>/ on Pages.
 
@@ -41,6 +43,12 @@ const KIND = {
   look:  { dir: 'src/looks/',  key: 'alice.look',  list: 'looks',  title: 'Look',  note: 'how the page sits on this screen' },
   theme: { dir: 'src/themes/', key: 'alice.theme', list: 'themes', title: 'Theme', note: 'what the page is painted in' },
 };
+
+// the header icon: a phone with a turning arrow round it; the struck line shows on "no"
+const TURN_GLYPH = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+  + '<rect x="8.5" y="4" width="7" height="16" rx="1.8"/>'
+  + '<path d="M8 5.3A8.5 8.5 0 0 0 4 10.5M4 7v3.5h3.5M16 18.7a8.5 8.5 0 0 0 4-5.2M20 17v-3.5h-3.5"/>'
+  + '<line class="no" x1="4.5" y1="19.5" x2="19.5" y2="4.5"/></svg>';
 
 const html = document.documentElement;
 const el = (tag, cls, text) => {
@@ -167,32 +175,134 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   const useDefault = el('button', 'btn ghost', 'use default');
   useDefault.type = 'button';
   foot.append(footNote, useDefault);
-  // the page-turn switch: auto (gravity decides), no, yes - and what the sensors say
-  const flipRow = el('div', 'pick flip-row');
-  flipRow.dataset.kind = 'flip';
-  const flipHead = el('div', 'pick-head');
-  flipHead.append(el('b', '', 'Page turn'),
-                  el('small', '', 'the phone held upside down in the grip: the page turns itself the right way up, since the screen will not. Not the controller - that follows by itself'));
-  flipRow.append(flipHead);
-  const flipChips = [['auto', 'auto'], ['0', 'no'], ['180', 'yes']].map(([v, label]) => {
+  // --- the page turn: one state, localStorage alice.flip through src/tilt.js
+  // (auto: gravity decides; 0: never; 180: always), shown in two places. A
+  // small icon in the header (#turnBtn, in the page before the chip) opens a
+  // popover of the three choices and one line on what the turn is; the icon
+  // shows the state (lit while the page is turned, filled on "yes", struck
+  // through on "no") and a dot while iOS still has to be asked for the
+  // sensors - its tap is the gesture iOS wants, so the prompt comes from it.
+  // The sheet below carries the same three choices as a row. On a touch
+  // screen the popover opens once by itself, as a tip, on the first visit
+  // (localStorage alice.flip.tip; ?tip=1 / ?tip=0 force it either way), goes
+  // on any tap outside it and never comes back; a switch set by hand means
+  // no tip at all. Nothing here is a dialog: play is never blocked.
+  const TIP_KEY = 'alice.flip.tip';
+  const tipSeen = () => { try { localStorage.setItem(TIP_KEY, '1'); } catch { /* storage may be off */ } };
+  const CHOICES = [['auto', 'auto'], ['0', 'no'], ['180', 'yes']];
+  const choices = (host) => CHOICES.map(([v, label]) => {
     const b = el('button', 'flip-chip', label);
     b.type = 'button';
     b.dataset.flip = v;
-    b.addEventListener('click', () => { tilt.manual = v; if (v === 'auto') tilt.request(); });
-    flipRow.append(b);
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => { tilt.manual = v; if (v === 'auto' && tilt.needsPermission) tilt.request(); tipSeen(); closePop(); });
+    host.append(b);
     return b;
   });
+  const STATE = { auto: 'auto', 0: 'off', 180: 'on' };
+  const sensors = () => tilt.permission === 'denied' ? 'sensors refused'
+    : tilt.needsPermission ? 'sensor not allowed yet'
+    : tilt.angle === null ? (tilt.readings ? 'lying flat' : 'no reading yet')
+    : `${tilt.upsideDown ? 'upside down' : 'upright'} · ${Math.round(Math.abs(tilt.angle))}°${tilt.screen ? ` · the screen at ${tilt.screen}°` : ''}`;
+  const hint = () => 'Hold the phone the other way up and the page turns with it, the right way round in the grip.'
+    + (tilt.permission === 'denied' ? ' The tilt sensor was refused: set yes or no by hand, or allow motion in the browser’s settings.'
+      : tilt.needsPermission ? ' Tap allow when the phone asks to share its tilt sensor.' : '');
+
+  // the sheet's row
+  const flipRow = el('div', 'pick flip-row');
+  flipRow.dataset.kind = 'flip';
+  const flipHead = el('div', 'pick-head');
+  flipHead.append(el('b', '', 'Page turn'), el('small', '', 'the phone held upside down in the grip: the page turns itself the right way up. The controller follows by itself'));
+  flipRow.append(flipHead);
+  const flipChips = choices(flipRow);
   const flipState = el('small');
   flipRow.append(flipState);
+
+  // the header's icon and its popover
+  const turnBtn = document.getElementById('turnBtn');
+  const bar = turnBtn?.closest('.bar');
+  let pop = null, popChips = [], popState = null, popNote = null;
+  function closePop() {
+    if (!pop || pop.hidden) return;
+    pop.hidden = true;
+    pop.classList.remove('tip');
+    turnBtn.setAttribute('aria-expanded', 'false');
+  }
+  function openPop(tip = false) {
+    if (!pop) return;
+    pop.hidden = false;
+    pop.classList.toggle('tip', tip);
+    turnBtn.setAttribute('aria-expanded', 'true');
+    // under the icon, in the header's own frame (so a turned page keeps it): the pop's left edge a little
+    // left of the icon, kept inside the header's width, and the caret at the icon's middle
+    const left = (n) => { let x = 0; for (; n && n !== bar; n = n.offsetParent) x += n.offsetLeft; return x; };
+    const gutter = 8, mid = left(turnBtn) + turnBtn.offsetWidth / 2;
+    const x = Math.max(gutter, Math.min(mid - 28, bar.clientWidth - pop.offsetWidth - gutter));
+    pop.style.left = `${x}px`;
+    pop.style.setProperty('--caret', `${mid - x}px`);
+  }
+  if (turnBtn && bar) {
+    turnBtn.innerHTML = TURN_GLYPH;
+    pop = el('div', 'turn-pop');
+    pop.id = 'turnPop';
+    pop.hidden = true;
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-labelledby', 'turnTitle');
+    const popHead = el('div', 'turn-head');
+    const popTitle = el('b', '', 'Page turn');
+    popTitle.id = 'turnTitle';
+    popState = el('small');
+    popHead.append(popTitle, popState);
+    popNote = el('p', 'turn-note');
+    const row = el('div', 'turn-choice');
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', 'Page turn');
+    popChips = choices(row);
+    pop.append(popHead, popNote, row);
+    bar.append(pop);
+    turnBtn.addEventListener('click', () => {
+      if (tilt.needsPermission) tilt.request();   // the tap iOS wants: the prompt comes from the icon itself
+      tipSeen();
+      if (pop.hidden) openPop(); else closePop();
+    });
+    document.addEventListener('pointerdown', (e) => {   // a tap anywhere else closes it; the tap itself goes through
+      if (!pop.hidden && !pop.contains(e.target) && !turnBtn.contains(e.target)) closePop();
+    }, true);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !pop.hidden) { closePop(); turnBtn.focus(); } });
+  }
+
   function markFlip() {
-    for (const b of flipChips) b.classList.toggle('on', b.dataset.flip === tilt.manual);
-    flipState.textContent = tilt.permission === 'denied' ? 'sensors refused'
-      : tilt.needsPermission ? 'tap auto to allow the sensors'
-      : tilt.angle === null ? (tilt.readings ? 'lying flat' : 'no reading yet')
-      : `${tilt.upsideDown ? 'upside down' : 'upright'} · ${Math.round(Math.abs(tilt.angle))}°${tilt.screen ? ` · the screen at ${tilt.screen}°` : ''}`;
+    const state = STATE[tilt.manual];
+    for (const b of [...flipChips, ...popChips]) {
+      const on = b.dataset.flip === tilt.manual;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    flipState.textContent = sensors();
+    if (turnBtn) {
+      turnBtn.dataset.state = state;
+      turnBtn.dataset.turned = tilt.turned ? 'yes' : 'no';
+      if (tilt.permission === 'denied') turnBtn.dataset.ask = 'denied';
+      else if (tilt.needsPermission) turnBtn.dataset.ask = 'yes';
+      else delete turnBtn.dataset.ask;
+      turnBtn.setAttribute('aria-label', `Page turn: ${state}${tilt.turned ? ', page turned' : ''}${tilt.needsPermission ? ', tilt sensor not allowed yet' : ''}`);
+      popState.textContent = sensors();
+      popNote.textContent = hint();
+    }
   }
   tilt.on(markFlip);
   markFlip();
+
+  // the tip: once, on a touch screen, when nothing was set by hand
+  const wantTip = () => {
+    let q = null;
+    try { q = new URLSearchParams(location.search).get('tip'); } catch { q = null; }
+    if (q === '1') return true;
+    if (q === '0') return false;
+    try { if (localStorage.getItem(TIP_KEY)) return false; } catch { /* storage may be off */ }
+    return tilt.manual === 'auto' && matchMedia('(pointer: coarse)').matches;
+  };
+  if (pop && wantTip()) setTimeout(() => { if (pop.hidden) { openPop(true); tipSeen(); } }, 800);
 
   inner.append(el('span', 'handle'), head,
                el('p', 'note', 'What the page is painted in, and how it sits on this screen. Tap to switch — the page keeps running. Remembered on this device.'),
@@ -200,7 +310,7 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   sheet.append(inner);
   document.body.append(sheet);
   tilt.apply();                     // src/tilt.js listens from load; the switch's remembered say is shown here too
-  setInterval(() => { if (sheet.open) markFlip(); }, 500);   // the angle line moves while the sheet is up
+  setInterval(() => { if (sheet.open || !pop?.hidden) markFlip(); }, 500);   // the angle line moves while the sheet or the popover is up
 
   for (const host of [cards, ...pageHosts]) fill(host);
   chip?.addEventListener('click', () => { if (tilt.needsPermission) tilt.request(); sheet.showModal(); });   // the chip is a tap iOS accepts for the sensors
