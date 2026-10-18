@@ -34,7 +34,7 @@ robots.txt rabbit-hole/                                                       al
 firmware/          NOT in the repo: pages.yml builds glitch.uf2 + index.json there at deploy time
   src/puzzle.js      untimed rules + push-based Dijkstra solver
   src/chase.js       timed rules (periodic hazards) + BFS solver over (Alice, rocks, lever, phase)
-  src/gallery.js     the page: both stages, walk-cycle viewer, tile/item sheets
+  src/gallery.js     the page: both stages; the walk-cycle viewer and tile/item sheets are the bench's (dev host only)
   src/range.js       glitch range rules: combo state machine, guard-routine interpreter, pulse landing
   src/lock.js        the Caterpillar's Lock: a timing side-channel door (prefix or secret compare order,
                      jitter), stats per guess, and a reference attacker the verifier runs
@@ -164,7 +164,7 @@ Built and live:
 | Stage "A Mad Tea Party" | playable, 13x9, 3 rocks / 3 buttons / gate + lever. Solver: 106 moves. Gate proven load-bearing by the verifier. |
 | Stage "The Queen's Gauntlet" | playable, 9x8, timed at 320 ms/tick, 3 periodic hazards (Queen with sight 3, Cheshire, Rabbit). Par 64 ticks, 5 waits; empty room 41. |
 | Asset pipeline | 5 characters, 44 items, 77 tiles cut from reference sheets, all reproducible from `software/tools/`. |
-| Page | the stages (and the asset sheet below them), Solve buttons run the real solver in-browser. `?autosolve=tea|chase`, `?walk=<id>`. In the phone looks a mode bar (Tea / Gauntlet / Walk / Art / ?) shows one panel at a time and arms the stage on screen. |
+| Page | the stages. On the site they are all the page is: the badge plays, Reset / Restart, a one-line status (`0/3 buttons · 0 moves`, `tick 12 · 1/3 buttons`), the prose without its keyboard and Solve sentences. The bench's chrome - the Walk and Art panels and their mode buttons, the Solve buttons (the real solver in-browser), the playback and tick sliders, the clock switch, `?autosolve=tea|chase` - is class `dev-only` in `index.html` and shows on a dev host only: `src/look-boot.js` sets `data-host` on `<html>` before paint by the same answer as `gateMode` (the four dev hosts, `?gate=1` on one of them is the site) and `styles.css` hides `.dev-only` under `html[data-host=site]`; `gallery.js` keeps every element wired, so nothing is removed from the DOM. `?walk=<id>`. In the phone looks a mode bar (Tea / Gauntlet / ? on the site; Walk and Art too on the bench) shows one panel at a time and arms the stage on screen. `verify-looks.mjs` checks the classes, the rule and that the boot script's hosts match `isDevHost`. |
 | Badge board | v0.4, fab package in `hardware/badge/production/`. |
 | Soldering kit | schematic generated from `build_badge_sch.py`, fab package present. |
 | Firmware | DualShock 4 HID (Sony's VID/PID; the strings are ours: "BSidesTLV 2026 Alice Controller" by "BSidesTLV", which is how the site knows a badge by `Gamepad.id`), 14 inputs + status LED, builds to a ~50 KB UF2. Quick-glitch layer: SELECT is shift; SL record, SR fire (START trigger + offset + take at speed; hold = repeat), UP/DOWN speed 1/4x-32x, LEFT/RIGHT offset 1 ms (auto-repeat, 10 ms after 20), B reset. SELECT+START held 2 s reboots to the UF2 bootloader. 1 ms reports, latched between reports. Host-tested, not yet tried on a badge. |

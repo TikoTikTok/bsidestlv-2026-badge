@@ -338,7 +338,7 @@ function buttonsPressed() { return board.rocks.filter(r => map.buttons.has(r)).l
 function refreshStatus() {
   if (isGoal(map, board)) setStatus(`solved in ${stepsTaken} moves`, 'win');
   else if (solution) setStatus(`playing solution — move ${playbackAt} of ${solution.length}`, 'busy');
-  else setStatus(`${buttonsPressed()} of ${map.buttons.size} buttons held · ${stepsTaken} moves`);
+  else setStatus(`${buttonsPressed()}/${map.buttons.size} buttons · ${stepsTaken} moves`);
 }
 
 function applyMove(dir) {
@@ -462,8 +462,8 @@ $('#solveBtn').addEventListener('click', () => {
 
 resetStage();
 
-// ?autosolve=tea kicks the solver on load - handy for a screenshot or smoke test
-if (new URLSearchParams(location.search).get('autosolve') === 'tea') {
+// ?autosolve=tea kicks the solver on load - handy for a screenshot or smoke test; the bench only
+if (mode === 'dev' && new URLSearchParams(location.search).get('autosolve') === 'tea') {
   setTimeout(() => $('#solveBtn').click(), 400);
 }
 
@@ -677,7 +677,7 @@ $('#chaseSolve').addEventListener('click', () => {
 });
 
 chaseRestart();
-if (new URLSearchParams(location.search).get('autosolve') === 'chase')
+if (mode === 'dev' && new URLSearchParams(location.search).get('autosolve') === 'chase')
   setTimeout(() => $('#chaseSolve').click(), 400);
 
 // The gate's pause (site only): the badge went, so the world stands still -

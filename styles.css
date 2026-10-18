@@ -43,6 +43,11 @@ body {
 
 canvas { image-rendering: pixelated; display: block; }
 
+/* the bench's chrome - the walk and art panels, Solve, the playback and tick
+   sliders, the keyboard prose - is class dev-only and goes on the site
+   (html[data-host=site], set by src/look-boot.js before paint) */
+html[data-host=site] .dev-only { display: none !important; }
+
 /* ---------------------------------------------------------------- bar -- */
 
 .bar {
@@ -107,7 +112,7 @@ pre {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
 }
-.compass { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+.compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; min-width: 0; }
 .cell {
   border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
   padding: .35rem; display: grid; place-items: center; gap: .2rem;
@@ -118,14 +123,14 @@ pre {
 .cell b { font-size: 10px; letter-spacing: .12em; color: var(--dim); }
 .cell.on b { color: var(--accent-2); }
 .cell.spacer { border: none; background: none; cursor: default; }
-.cell canvas { display: block; }
+.cell canvas { display: block; max-width: 100%; height: auto; }   /* the 2x frame shrinks into a narrow column rather than over the hero */
 
 .walk-hero {
   border: 1px solid var(--line); border-radius: var(--r); background: var(--ink-2);
   padding: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
   justify-content: center;
 }
-.walk-hero canvas { background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s); }
+.walk-hero canvas { background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s); max-width: 100%; height: auto; }
 .hero-meta { display: flex; flex-direction: column; gap: .5rem; font-size: 11px; color: var(--dim); }
 .hero-meta b { font-size: 24px; letter-spacing: .12em; color: var(--accent); }
 .hero-meta label { display: flex; flex-direction: column; gap: .25rem; text-transform: uppercase; letter-spacing: .06em; }
