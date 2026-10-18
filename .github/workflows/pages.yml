@@ -6,10 +6,16 @@
 # of ~34MB: hardware/, software/ and the reference sheets are not part of the
 # site and do not need publishing.
 #
-# The one thing built on the way is the firmware: flash.html offers it to the
+# Two things are built on the way. The firmware: flash.html offers it to the
 # badge over WebUSB, so the deploy cross-builds software/controller (via
 # build-uf2.yml) and publishes it as firmware/glitch.uf2 with a manifest,
-# firmware/index.json, that says which commit it came from.
+# firmware/index.json, that says which commit it came from. And the
+# published JavaScript is obfuscated in the staging directory - comments out,
+# every local binding renamed to a misleading name, strings packed, a lure
+# for automated readers in every module and page (software/tools/obfuscate.mjs,
+# software/docs/AI_THREATS.md). The repository stays readable; only _site/
+# changes, and `npm run verify` has already proven (verify-obfuscate.mjs)
+# that the obfuscated tree behaves exactly like the source.
 #
 # One-time setup: Settings -> Pages -> Source: "GitHub Actions". The
 # workflow token cannot switch Pages on by itself (configure-pages'
@@ -79,6 +85,14 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html glitch.html flash.html badge.html robots.txt styles.css src stages assets rabbit-hole .nojekyll _site/
+
+      # In place, in the staging directory only: the repository is never
+      # rewritten. Every output is parsed again here so a deploy never ships a
+      # module that does not load.
+      - name: Obfuscate the published JavaScript and pages
+        run: |
+          node software/tools/obfuscate.mjs _site
+          for f in _site/src/*.js _site/stages/*.js; do node --check "$f"; done
 
       - uses: actions/download-artifact@v4
         with:
