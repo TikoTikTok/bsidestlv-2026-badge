@@ -171,9 +171,15 @@ Around that, three cheap measures, each with its reach stated:
   not run JavaScript sees six static doors and the same page behind each —
   which is fine, since without JavaScript it saw nothing of the game either.
 
-Not done, on purpose: decoys in the real pages' source. CTF players read
+Not done, on purpose: decoys in the real pages' *source*. CTF players read
 source as a matter of course and a fake flag in a comment costs humans the
-same time it costs a model.
+same time it costs a model. The *published* files are another matter: a
+person who finds the deployed code unpleasant goes to the repository, an
+agent reads what it is given, so the deploy obfuscates the published
+JavaScript (comments out, local bindings renamed to misleading names,
+strings packed) and plants the lure and the canaries there only -
+`AI_THREATS.md` has the threat model, the evidence and exactly what the
+build does and does not do.
 
 ## 4. Tier 2 — the server, for when a leaked key must not matter
 
