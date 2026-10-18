@@ -38,6 +38,13 @@
   var theme = pick('theme', 'alice.theme', html.dataset.themeDefault);
   html.dataset.look = look;
   html.dataset.theme = theme;
+  // the bench or the site: the asset sheet, the solvers, the tuning sliders and
+  // the keyboard prose are the bench's (class dev-only); styles.css hides them
+  // on html[data-host=site]. The same answer as gateMode in src/gate.js: the
+  // four dev hosts of isDevHost (src/pad.js), and ?gate=1 on one of them is the site.
+  var h = location.hostname;
+  var dev = (h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]') && !(query && query.get('gate') === '1');
+  html.dataset.host = dev ? 'dev' : 'site';
   // the hand switch for a phone held upside down (src/tilt.js): '180' turns the
   // page before paint, by what the OS has not already turned it - a half turn,
   // or a quarter when auto-rotate parked the page in landscape on the way round

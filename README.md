@@ -51,7 +51,12 @@ sealed under it (`src/seal.js`, `npm run seal`), so a crawler, a script or a
 model reading this site gets ciphertext. Unplug the badge and the page pauses
 with it — the gauntlet's clock, a solver's playback, the range's pad — and
 the gate comes back for the same badge. `badge.html` reads and provisions
-it. What this stops, what it does not, and the server tier beyond it:
+it. The site shows the player only what the play needs: the rooms, Reset,
+a one-line status. The bench's chrome — the walk-cycle viewer and the tile
+and item sheets, the Solve buttons that run the real solver in the browser,
+the playback and tick sliders, the keyboard notes — is class `dev-only` and
+shows on a local checkout alone (`src/look-boot.js` marks the host before
+paint; `?gate=1` on localhost shows the site's face). What this stops, what it does not, and the server tier beyond it:
 [`software/docs/BADGE_GATE.md`](software/docs/BADGE_GATE.md). Crawlers also
 meet `robots.txt`, `noai` tags and a rabbit hole they can follow for as long
 as they like.
@@ -161,7 +166,7 @@ painted in: `bsides`, the conference's own lime on black (the default);
 green on black with scanlines. The look is how it sits on the screen: the
 classic look is the whole page; the three phone looks — `bench`, `handheld`,
 `scope` — show one panel at a time behind a mode bar (on the stages: Tea,
-Gauntlet, Walk, Art; on the range: Watch, Glass, Lock, Bench), fold the prose
+Gauntlet; on the range: Watch, Glass, Lock, Bench), fold the prose
 behind *how it works*, and on the range reshape the on-screen pad — a bottom
 sheet, a handheld's body with the screen in a bezel, or a dock of soft keys
 under big numerals — and draw the guard's routine and the door's clock as
