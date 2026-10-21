@@ -1,8 +1,9 @@
 // Alice in AI Land - the glitch range page.
 //
-// Five ranges that practise the badge's quick-glitch layer. The rules live
-// in src/range.js (the watch, the glass), src/lock.js, src/watchdog.js and
-// src/wall.js; this file is the rendering, the input plumbing (src/pad.js)
+// Five ranges that practise the badge's quick-glitch layer, and a tutorial
+// that walks them. The rules live in src/range.js (the watch, the glass),
+// src/lock.js, src/watchdog.js and src/wall.js, the tutorial's steps in
+// src/tutor.js; this file is the rendering, the input plumbing (src/pad.js)
 // and the words the log says.
 
 import { Pad, flipFor } from './pad.js';
@@ -10,6 +11,7 @@ import { comboSequence, Combo, buildLevel, idealOffsetMs, Run } from './range.js
 import { buildLock, summarize, guessKey } from './lock.js';
 import { Watchdog, windowOf, idealGapMs, placeInWindow } from './watchdog.js';
 import { Wall, frameOf as wallFrameOf, withDefaults as wallDefaults } from './wall.js';
+import { Tutor, TUTORIAL } from './tutor.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
@@ -115,7 +117,7 @@ arm('watch');
 
 // src/looks.js builds the picker and runs the mode bar. What CSS cannot do
 // on this page: keep the handheld's pad out, and arm the range on screen.
-await initLooks({
+const looks = await initLooks({
   onLook(look) { if (look.padAlwaysOut) touchPad.open = true; padOpen(); },
   onMode(m) { if (RANGES.includes(m)) arm(m); },
 });
@@ -203,6 +205,7 @@ pad.on((edge) => {
   else if (armed === 'lock') lockEdge(edge);
   else if (armed === 'dog') dogEdge(edge);
   else wallEdge(edge);
+  tutorEdge(edge);
 });
 
 
@@ -276,6 +279,7 @@ function watchEdge({ button, down, t }) {
   watchAttempt++;
   const gaps = r.gaps.map(g => Math.round(g)).join(' ');
   $('#wtGaps').textContent = r.gaps.length ? `gaps ${gaps} ms` : '';
+  tutorFeed({ kind: 'watch', level: watchLevel.id, result: r });
   if (r.win) {
     setWatchStatus(`the watch chimes — ${Math.round(r.ms)} ms, ${r.rate.toFixed(1)} presses/s`, 'win');
     logTo('#watchLog', `#${watchAttempt} ✓ ${watchLevel.name}: ${Math.round(r.ms)} ms of ${watchLevel.windowMs} · ${r.rate.toFixed(1)}/s · gaps ${gaps} ms`, 'win');
@@ -503,6 +507,7 @@ function finishRun(r) {
   }
   paintTrace(r, kind);
   scene = { kind: r.verdict, since: performance.now() };
+  tutorFeed({ kind: 'glass', level: level.id, result: { ...r, win: r.verdict === 'skip' } });
 }
 
 function glassEdge(edge) {
@@ -658,6 +663,7 @@ function lockAnswer(a) {
   $('#ltAnswer').textContent = `${Math.round(a.ms)} ms \u00b7 ${ticks.toFixed(digits)} ticks`;
   lockScene = { kind: a.win ? 'open' : 'no', since: performance.now() };
   drawLockGuess();
+  tutorFeed({ kind: 'lock', level: lockLevel.id, answer: a });
 }
 
 $('#lockShuffle').addEventListener('click', () => { setLockLevel(lockLevel, lockSeed + 1); $('#lockLog').textContent = ''; lockAttempt = 0; });
@@ -870,6 +876,7 @@ function finishDog(r) {
         (r.gaps.length ? ` · gaps ${gaps} ms` : ''), kind);
   dogScene = { kind: r.win ? 'past' : r.verdict, since: performance.now() };
   drawKicks();
+  tutorFeed({ kind: 'dog', level: dogLevel.id, result: r });
 }
 
 $('#dogClear').addEventListener('click', () => { $('#dogLog').textContent = ''; dogAttempt = 0; resetDogReadout(); $('#dtMarks').textContent = ''; });
@@ -1087,6 +1094,7 @@ function wallAnswer(a) {
   wallScene = { kind: a.verdict, since: performance.now() };
   drawName();
   drawFrame(a);
+  tutorFeed({ kind: 'wall', level: wallLevel.id, result: a });
 }
 
 $('#wallClear').addEventListener('click', () => { $('#wallLog').textContent = ''; wallAttempt = 0; resetWallReadout(); });
@@ -1292,6 +1300,119 @@ function logTo(sel, text, kind) {
   return li;
 }
 
+// ----------------------------------------------------------- the tutorial ----
+// Down the Rabbit Hole: src/tutor.js holds the steps and the engine; this is
+// the coach line above the panels, the checklist in the Learn panel, and
+// what a step does to the page when it comes up - arm its range, pick its
+// level, and in the phone looks show that panel.
+
+const tutorStore = {
+  load() { try { return +(localStorage.getItem('alice.tutor') ?? 0) || 0; } catch { return 0; } },
+  save(at) { try { localStorage.setItem('alice.tutor', String(at)); } catch { /* storage may be off */ } },
+};
+const tutor = new Tutor(TUTORIAL, tutorStore);
+const LEVELS_OF = {
+  watch: (id) => { const lv = RABBIT_WATCH.levels.find(l => l.id === id); if (lv && watchLevel?.id !== id) setWatchLevel(lv); },
+  glass: (id) => { const lv = LOOKING_GLASS.levels.find(l => l.id === id); if (lv && level?.id !== id) setGlassLevel(lv); },
+  lock:  (id) => { const lv = CATERPILLAR_LOCK.levels.find(l => l.id === id); if (lv && lockLevel?.id !== id) setLockLevel(lv); },
+  dog:   (id) => { const lv = DORMOUSE_WATCHDOG.levels.find(l => l.id === id); if (lv && dogLevel?.id !== id) setDogLevel(lv); },
+  wall:  (id) => { const lv = HUMPTY_WALL.levels.find(l => l.id === id); if (lv && wallLevel?.id !== id) setWallLevel(lv); },
+};
+
+/** A step comes up: its range armed and on its level, and on a phone, on screen. */
+function prepareStep(step, { show = false } = {}) {
+  if (!step?.range) return;
+  arm(step.range);
+  if (step.level) LEVELS_OF[step.range](step.level);
+  if (!show) return;
+  if (looks.look.id !== 'classic') looks.setMode(step.range);
+  else $(`#${step.range}Panel`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderTutor() {
+  const step = tutor.step;
+  const coach = $('#coach');
+  const n = tutor.steps.length;
+  coach.hidden = false;
+  coach.classList.toggle('done', tutor.done);
+  if (tutor.done) {
+    $('#coachTitle').textContent = 'Through the looking glass';
+    $('#coachCount').textContent = `${n} of ${n}`;
+    $('#coachSay').textContent = 'Every range is yours. The levels past these are the real ones.';
+    $('#coachSkip').hidden = true;
+  } else {
+    $('#coachTitle').textContent = step.title;
+    $('#coachCount').textContent = `${tutor.at + 1} of ${n}${step.badge ? ' · badge' : ''}`;
+    $('#coachSay').textContent = step.say;
+    $('#coachSkip').hidden = false;
+  }
+  const now = $('#learnCoach');
+  now.textContent = '';
+  if (tutor.done) {
+    now.append(el('b', '', 'Through the looking glass'), 'You have been through every range by hand' +
+               (tutor.skipped.size ? ` (${tutor.skipped.size} step${tutor.skipped.size === 1 ? '' : 's'} skipped)` : '') +
+               '. Start over any time, or go and play: the last level of each range is the one that needs the badge.');
+  } else {
+    now.append(el('b', '', `${tutor.at + 1}. ${step.title}`), step.say, el('div', 'why', step.why));
+  }
+  const ol = $('#learnSteps');
+  ol.textContent = '';
+  let chapter = 0;
+  tutor.steps.forEach((s, i) => {
+    if (s.chapter !== chapter) {
+      chapter = s.chapter;
+      ol.append(el('li', 'chapter', chapter === 1 ? 'Chapter one · by hand' : 'Chapter two · the badge'));
+    }
+    const li = el('li', '', s.title);
+    li.value = i + 1;
+    if (i < tutor.at) li.classList.add(tutor.skipped.has(s.id) ? 'skipped' : 'done');
+    if (i === tutor.at) li.classList.add('now');
+    if (s.badge) li.classList.add('badge');
+    li.title = s.say;
+    li.addEventListener('click', () => { tutor.goto(i); renderTutor(); prepareStep(tutor.step, { show: true }); });
+    ol.append(li);
+  });
+  const doneCount = Math.min(tutor.at, n);
+  $('#learnProgress').textContent = `${doneCount} / ${n}`;
+  $('#learnProgress').style.visibility = 'visible';
+}
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+
+function tutorFeed(ev) {
+  const s = tutor.feed(ev);
+  if (!s) return;
+  $('#learnStatus').textContent = `✓ ${s.title}`;
+  $('#learnStatus').className = 'status win';
+  renderTutor();
+  prepareStep(tutor.step, { show: looks.look.id !== 'classic' && tutor.step?.range !== s.range });
+}
+
+// a fire is START from the badge followed by the take: the tutorial's "record and fire" step
+let fireStartAt = null;
+function tutorEdge(edge) {
+  if (edge.source === 'pad' && edge.down) {
+    if (edge.button === 'START') fireStartAt = edge.t;
+    else if (fireStartAt !== null && edge.t - fireStartAt < 2000) { fireStartAt = null; tutorFeed({ kind: 'fire' }); }
+  }
+  tutorFeed({ kind: 'edge', button: edge.button, down: edge.down, source: edge.source });
+}
+
+function skipStep() {
+  const s = tutor.skip();
+  if (!s) return;
+  $('#learnStatus').textContent = `skipped ${s.title}`;
+  $('#learnStatus').className = 'status';
+  renderTutor();
+  prepareStep(tutor.step, { show: true });
+}
+$('#coachSkip').addEventListener('click', skipStep);
+$('#learnSkip').addEventListener('click', skipStep);
+$('#coachOpen').addEventListener('click', () => {
+  if (looks.look.id !== 'classic') looks.setMode('learn');
+  else $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('#learnRestart').addEventListener('click', () => { tutor.restart(); $('#learnStatus').textContent = ''; renderTutor(); prepareStep(tutor.step); });
+
 // -------------------------------------------------------------------- loop ----
 
 setWatchLevel(RABBIT_WATCH.levels[0]);
@@ -1299,9 +1420,11 @@ setGlassLevel(LOOKING_GLASS.levels[0]);
 setLockLevel(CATERPILLAR_LOCK.levels[0]);
 setDogLevel(DORMOUSE_WATCHDOG.levels[0]);
 setWallLevel(HUMPTY_WALL.levels[0]);
+renderTutor();
+prepareStep(tutor.step);
 // scripted tests read the ranges' state through this (dev hosts; nothing here plays)
 window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; },
-                   get dog() { return dog; }, get wall() { return wall; }, arm, setDogLevel, setWallLevel };
+                   get dog() { return dog; }, get wall() { return wall; }, get tutor() { return tutor; }, arm, setDogLevel, setWallLevel };
 
 // The gate's pause (site only). The ranges are timed per attempt, so there
 // is nothing to freeze: a run that was open ends on its own clock (the pad

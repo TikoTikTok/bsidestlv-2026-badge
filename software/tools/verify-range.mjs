@@ -18,6 +18,7 @@ import { comboSequence, Combo, buildLevel, land, idealOffsetMs, Run } from '../.
 import { secretFor, orderFor, comparisons, runAlong, buildLock, Lock, attack, lcg, summarize } from '../../src/lock.js';
 import { Watchdog, windowOf, idealGapMs, replay } from '../../src/watchdog.js';
 import { Wall, judge, frameOf, canaryFor, withDefaults, attack as smash } from '../../src/wall.js';
+import { TUTORIAL, Tutor } from '../../src/tutor.js';
 
 const HAND_RATE = 6;          // presses / s
 const HAND_JITTER_MS = 40;    // +/- on a timed press
@@ -382,6 +383,46 @@ for (const raw of HUMPTY_WALL.levels) {
   ok(solved === 8, `${level.id}: the attacker must always open the wall`);
   if (level.hand) ok(presses / 8 <= HAND_PRESSES, `${level.id}: marked hand but costs ${(presses / 8).toFixed(0)} presses > ${HAND_PRESSES}`);
   ok(submissions / 8 <= 30, `${level.id}: ${(submissions / 8).toFixed(0)} takes is more than a player records in a sitting`);
+}
+
+// ------------------------------------------------------------------ the tutorial ----
+// Every step names a range and level that exist, and the engine walks them.
+
+console.log('\nthe tutorial');
+{
+  const byRange = { watch: RABBIT_WATCH, glass: LOOKING_GLASS, lock: CATERPILLAR_LOCK, dog: DORMOUSE_WATCHDOG, wall: HUMPTY_WALL };
+  const ids = new Set();
+  for (const s of TUTORIAL) {
+    ok(!ids.has(s.id), `tutorial: duplicate step ${s.id}`); ids.add(s.id);
+    ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `tutorial ${s.id}: say and why`);
+    ok(s.chapter === 1 || s.chapter === 2, `tutorial ${s.id}: chapter 1 or 2`);
+    if (s.range) {
+      ok(byRange[s.range], `tutorial ${s.id}: no such range ${s.range}`);
+      const lv = byRange[s.range]?.levels.find(l => l.id === s.level);
+      ok(lv, `tutorial ${s.id}: no level ${s.level} in ${s.range}`);
+      const hand = lv ? (lv.hand ?? lv.lineMs >= 2 * HAND_JITTER_MS) : true;   // the glass marks hand levels by tick length
+      if (lv) ok(hand || s.badge, `tutorial ${s.id}: level ${s.level} is badge-only but the step is not marked badge`);
+    }
+  }
+  ok(TUTORIAL.findIndex(s => s.chapter === 2) === TUTORIAL.filter(s => s.chapter === 1).length, 'tutorial: chapter one comes first, whole');
+  let saved = 0;
+  const tutor = new Tutor(TUTORIAL, { load: () => 0, save: (at) => { saved = at; } });
+  ok(tutor.at === 0 && tutor.step.id === 'wake', 'tutorial: starts at the first step');
+  ok(tutor.feed({ kind: 'edge', button: 'A', down: false }) === null, 'tutorial: a release is not a wake');
+  ok(tutor.feed({ kind: 'edge', button: 'A', down: true })?.id === 'wake' && saved === 1, 'tutorial: a press wakes, and is saved');
+  ok(tutor.feed({ kind: 'edge', button: 'A', down: true }) === null, 'tutorial: the trigger wants START');
+  ok(tutor.feed({ kind: 'edge', button: 'START', down: true })?.id === 'trigger', 'tutorial: START is the trigger');
+  ok(tutor.feed({ kind: 'watch', level: 'late', result: { win: true } }) === null, 'tutorial: a win on another level does not count');
+  ok(tutor.feed({ kind: 'watch', level: 'tea-time', result: { win: false } }) === null, 'tutorial: a loss does not count');
+  ok(tutor.feed({ kind: 'watch', level: 'tea-time', result: { win: true } })?.id === 'tea-time', 'tutorial: the tea-time win counts');
+  ok(tutor.skip()?.id === 'miss' && tutor.skipped.has('miss') && tutor.step.id === 'skip', 'tutorial: skip moves on and remembers');
+  tutor.goto(TUTORIAL.length);
+  ok(tutor.done && tutor.step === null, 'tutorial: past the end is done');
+  tutor.restart();
+  ok(tutor.at === 0 && saved === 0 && tutor.skipped.size === 0, 'tutorial: restart clears');
+  const resumed = new Tutor(TUTORIAL, { load: () => 5 });
+  ok(resumed.at === 5, 'tutorial: resumes from the store');
+  console.log(`  ${TUTORIAL.length} steps, ${TUTORIAL.filter(s => s.chapter === 1).length} by hand, ${TUTORIAL.filter(s => s.badge).length} with the badge`);
 }
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }

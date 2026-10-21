@@ -32,6 +32,7 @@
 
 <!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look. -->
 <nav id="modes" class="modes" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="learn">Learn</button>
   <button type="button" class="mode" data-mode="watch">Watch</button>
   <button type="button" class="mode" data-mode="glass">Glass</button>
   <button type="button" class="mode" data-mode="lock">Lock</button>
@@ -40,6 +41,16 @@
   <button type="button" class="mode" data-mode="bench">Bench</button>
   <button type="button" class="mode help" data-mode="help" aria-label="how it works">?</button>
 </nav>
+
+<!-- the tutorial's coach line: the current step, in every mode and look; src/tutor.js drives it -->
+<div id="coach" class="coach" hidden>
+  <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
+  <span id="coachSay" class="coach-say"></span>
+  <span class="coach-actions">
+    <button type="button" id="coachSkip" class="btn ghost">skip</button>
+    <button type="button" id="coachOpen" class="btn ghost">learn</button>
+  </span>
+</div>
 
 <main>
   <section class="panel" data-mode="help">
@@ -50,7 +61,8 @@
       <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for A B X Y, <kbd>Q</kbd> <kbd>E</kbd>
       for the shoulders, <kbd>Enter</kbd> for START.</p>
     <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
-      of each is meant for a hand; the last is not, and that is the lesson.</p>
+      of each is meant for a hand; the last is not, and that is the lesson. New here? The
+      <b>Learn</b> panel walks the whole range, one press at a time.</p>
     <p class="note">Elsewhere: <a href="index.html">the stages</a> · <a href="flash.html">flash the badge</a>.</p>
 
     <h2 style="margin-top: 1.25rem;">Themes and looks</h2>
@@ -59,6 +71,20 @@
       shows one panel at a time. The <b>◐</b> chip in the header opens these same cards; <code>?theme=queen</code>
       and <code>?look=scope</code> in the address bar pick too, and the choice is remembered on this device.</p>
     <div class="look-cards"></div>
+  </section>
+
+  <section class="panel" id="learnPanel" data-mode="learn">
+    <h2>Down the Rabbit Hole <span id="learnProgress" class="armed-mark"></span></h2>
+    <p class="note">A guided first visit. Each step watches what you do and ticks itself off; the line at
+      the top of the page says what comes next wherever you are. Chapter one wants only a controller;
+      chapter two wants the badge - skip what you cannot do, it costs nothing.</p>
+    <div id="learnCoach" class="learn-now"></div>
+    <ol id="learnSteps" class="learn-steps"></ol>
+    <div class="stage-bar">
+      <button id="learnSkip" class="btn ghost">Skip this step</button>
+      <button id="learnRestart" class="btn ghost">Start over</button>
+      <span id="learnStatus" class="status"></span>
+    </div>
   </section>
 
   <section class="panel range" id="watchPanel" data-mode="watch">
