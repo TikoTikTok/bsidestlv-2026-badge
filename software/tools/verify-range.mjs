@@ -12,8 +12,12 @@
 import { RABBIT_WATCH } from '../../stages/rabbit-watch.js';
 import { LOOKING_GLASS } from '../../stages/looking-glass.js';
 import { CATERPILLAR_LOCK } from '../../stages/caterpillar-lock.js';
+import { DORMOUSE_WATCHDOG } from '../../stages/dormouse-watchdog.js';
+import { HUMPTY_WALL } from '../../stages/humpty-wall.js';
 import { comboSequence, Combo, buildLevel, land, idealOffsetMs, Run } from '../../src/range.js';
 import { secretFor, orderFor, comparisons, runAlong, buildLock, Lock, attack, lcg, summarize } from '../../src/lock.js';
+import { Watchdog, windowOf, idealGapMs, replay } from '../../src/watchdog.js';
+import { Wall, judge, frameOf, canaryFor, withDefaults, attack as smash } from '../../src/wall.js';
 
 const HAND_RATE = 6;          // presses / s
 const HAND_JITTER_MS = 40;    // +/- on a timed press
@@ -241,6 +245,143 @@ for (const level of CATERPILLAR_LOCK.levels) {
     ok(presses / MEASURE_SEEDS > HAND_PRESSES * 3, `${level.id}: marked badge-only but a hand types only ${avg(presses)} presses`);
     ok(guesses / MEASURE_SEEDS <= 80, `${level.id}: ${avg(guesses)} takes is more than a player records in a sitting`);
   }
+}
+
+// ------------------------------------------------------- the dormouse's watchdog ----
+// A window watchdog. Two presses of a hand are each +/-40 ms off their
+// schedule, so a gap between them is off by up to 80 ms: a hand level's
+// window has to be wider than that, a badge level's narrower - and a replay
+// with the host's +/-8 ms of sampling has to clear every level.
+
+console.log(`\n${DORMOUSE_WATCHDOG.name}`);
+for (const level of DORMOUSE_WATCHDOG.levels) {
+  const w = windowOf(level);
+  const ideal = idealGapMs(level);
+  const rate = 1000 / ideal;
+  console.log(`  ${level.name.padEnd(18)} ${String(level.kicks).padStart(2)} nudges, window ${level.openMs}-${level.timeoutMs} ms (${w.widthMs} wide)` +
+              ` = ${rate.toFixed(1)}/s at the ideal gap of ${ideal} ms`);
+
+  ok(level.openMs > 0 && level.timeoutMs > level.openMs, `${level.id}: the window must be a positive range`);
+  ok(ideal >= MIN_PRESS_MS, `${level.id}: ${ideal} ms a nudge is under the ${MIN_PRESS_MS} ms the host can sample`);
+  if (level.hand) {
+    ok(w.widthMs >= 2 * HAND_JITTER_MS, `${level.id}: marked hand but the window is ${w.widthMs} ms, a hand needs ${2 * HAND_JITTER_MS}`);
+    ok(rate <= HAND_RATE, `${level.id}: marked hand but needs ${rate.toFixed(1)}/s > ${HAND_RATE}/s`);
+  } else {
+    ok(w.widthMs < 2 * HAND_JITTER_MS || rate > HAND_RATE, `${level.id}: marked badge-only but a hand's ${HAND_RATE}/s and +/-${HAND_JITTER_MS} ms fit`);
+  }
+
+  // a perfect replay wins; one with the host's sampling jitter alternating either way still wins
+  ok(replay(level).win, `${level.id}: a perfect replay should win`);
+  const sampled = replay(level, { jitter: (i) => (i % 2 ? 1 : -1) * HOST_SAMPLE_MS / 2 });
+  ok(sampled.win, `${level.id}: a replay under +/-${HOST_SAMPLE_MS / 2} ms of host sampling should still win, got ${sampled.verdict}`);
+  ok(w.widthMs >= 2 * HOST_SAMPLE_MS, `${level.id}: the window (${w.widthMs} ms) is narrower than two host samples`);
+
+  // a hand: random +/-40 ms per press. The hand level nearly always survives, the others nearly never
+  const rng = lcg(31 + level.kicks);
+  const N = 400;
+  let wins = 0;
+  for (let i = 0; i < N; i++) if (replay(level, { jitter: () => (rng() * 2 - 1) * HAND_JITTER_MS }).win) wins++;
+  const handRate = wins / N;
+  console.log(`      by hand (+/-${HAND_JITTER_MS} ms a press): ${(handRate * 100).toFixed(0)} % of attempts keep it asleep`);
+  if (level.hand) ok(handRate > 0.9, `${level.id}: a hand should nearly always manage this one, managed ${(handRate * 100).toFixed(0)} %`);
+  else ok(handRate < 0.1, `${level.id}: a hand manages this ${(handRate * 100).toFixed(0)} % of the time, meant to be badge-only`);
+
+  // the rules: too soon stirs, too late bites, START re-arms, the right count wins
+  const dog = new Watchdog(level);
+  ok(dog.edge({ button: level.button, down: true, t: 0 }) === null && !dog.armed, `${level.id}: a nudge before START does nothing`);
+  dog.edge({ button: 'START', down: true, t: 100 });
+  ok(dog.armed && dog.kicks === 0, `${level.id}: START arms`);
+  ok(dog.edge({ button: 'B', down: true, t: 100 + ideal }) === null && dog.kicks === 0, `${level.id}: another button is not a nudge`);
+  let r = dog.edge({ button: level.button, down: true, t: 100 + level.openMs - 1 });
+  ok(r?.verdict === 'early' && !r.win && Math.abs(r.gap - (level.openMs - 1)) < 1e-9, `${level.id}: a nudge before the window opens stirs it`);
+  dog.edge({ button: 'START', down: true, t: 1000 });
+  ok(dog.tick(1000 + level.timeoutMs) === null, `${level.id}: no bite at the timeout itself`);
+  r = dog.tick(1000 + level.timeoutMs + 1);
+  ok(r?.verdict === 'late' && !r.win, `${level.id}: a missed window bites`);
+  dog.edge({ button: 'START', down: true, t: 2000 });
+  r = dog.edge({ button: level.button, down: true, t: 2000 + level.timeoutMs + 5 });
+  ok(r?.verdict === 'late', `${level.id}: a nudge after the timeout is too late`);
+  const win = replay(level, { offset: level.openMs, gap: level.timeoutMs });
+  ok(win.win && win.kicks === level.kicks && win.gaps.length === level.kicks, `${level.id}: nudges on both edges of the window are accepted and ${level.kicks} of them win`);
+}
+
+// ----------------------------------------------------------- humpty dumpty's wall ----
+// The overflow lands where the frame says, the leak is the answer changing
+// exactly at the buffer's end (and the canary's), the reference attacker
+// clears every level, and the per-symbol leash sorts hand from badge.
+
+console.log(`\n${HUMPTY_WALL.name}`);
+for (const raw of HUMPTY_WALL.levels) {
+  const level = withDefaults(raw);
+  const f = frameOf(level);
+  const rate = 1000 / level.gapMs;
+  console.log(`  ${level.name.padEnd(22)} name[${level.size}]${level.canary ? ` canary ${level.canarySymbol}` : ''} lr -> ${level.address.join(' ')}` +
+              `, ${level.gapMs} ms a symbol = ${rate.toFixed(1)}/s${level.hidden ? '; size hidden' : ''}`);
+
+  ok(level.address.length === 2 && level.address.every(a => level.pool.includes(a)), `${level.id}: the address is two symbols from the pool`);
+  ok(level.listing.some(l => l.includes('open_wall') && l.includes('@')), `${level.id}: the listing must print open_wall's address`);
+  ok(level.maxLength >= f.total + 2, `${level.id}: a name must be allowed to run past the frame`);
+  if (level.hidden) ok(level.listing.some(l => /name\[\?\]/.test(l)), `${level.id}: a hidden level shows name[?]`);
+  else ok(level.listing.some(l => l.includes(`name[${level.size}]`)), `${level.id}: the listing shows the buffer's size`);
+  if (level.canary) {
+    ok(level.pool.includes(level.canarySymbol) && level.canarySymbol !== level.pool[0], `${level.id}: the canary is a pool symbol, never the first (a lazy name's filler)`);
+    ok(canaryFor(level, 1) !== undefined && canaryFor(level).length > 0, `${level.id}: the canary is fixed per seed`);
+  }
+  ok(level.gapMs >= MIN_PRESS_MS, `${level.id}: ${level.gapMs} ms a symbol is under what the host can sample`);
+  if (level.hand) ok(rate <= HAND_RATE, `${level.id}: marked hand but needs ${rate.toFixed(1)}/s > ${HAND_RATE}/s`);
+  else ok(rate > HAND_RATE, `${level.id}: marked badge-only but ${rate.toFixed(1)}/s is within a hand's ${HAND_RATE}/s`);
+
+  // the frame: polite up to the size, then the canary or the return
+  const filler = level.pool[0];
+  for (let n = 0; n <= f.size; n++) ok(judge(level, Array(n).fill(filler)).verdict === 'polite', `${level.id}: ${n} symbols should be polite`);
+  const one = judge(level, Array(f.size + 1).fill(filler));
+  ok(one.verdict === (level.canary ? 'canary' : 'fall') && one.overflow === 1, `${level.id}: one past the buffer should ${level.canary ? 'trip the canary' : 'fall'}, got ${one.verdict}`);
+  const name = Array(f.size).fill(filler);
+  const guard = level.canary ? [level.canarySymbol] : [];
+  if (level.canary) {
+    ok(judge(level, [...name, level.canarySymbol]).verdict === 'polite', `${level.id}: the right canary alone is polite again`);
+    const wrong = level.pool.find(s => s !== level.canarySymbol);
+    ok(judge(level, [...name, wrong, ...level.address]).verdict === 'canary', `${level.id}: a wrong canary masks a right address`);
+  }
+  ok(judge(level, [...name, ...guard, level.address[0]]).verdict === 'fall', `${level.id}: half an address is a fall`);
+  const open = judge(level, [...name, ...guard, ...level.address]);
+  ok(open.verdict === 'open' && open.win && open.lr.join() === level.address.join(), `${level.id}: the address opens the wall`);
+  ok(judge(level, [...name, ...guard, ...level.address, filler, filler]).win, `${level.id}: symbols past the frame do not spoil a good return`);
+  const other = [level.address[1], level.address[0]];
+  ok(judge(level, [...name, ...guard, ...other]).verdict === 'fall', `${level.id}: the address backwards is a fall`);
+
+  // the read: START prompts, the leash closes it, a stray before START waits for one
+  const wall = new Wall(level);
+  ok(wall.edge({ button: filler, down: true, t: 0 }) === null && !wall.listening, `${level.id}: a symbol before START is ignored`);
+  ok(wall.edge({ button: 'START', down: true, t: 10 })?.kind === 'open' && wall.listening, `${level.id}: START opens the read`);
+  ok(wall.closesAt === 10 + level.firstMs, `${level.id}: the first symbol has ${level.firstMs} ms`);
+  ok(wall.tick(10 + level.firstMs - 1) === null, `${level.id}: no answer while the leash runs`);
+  let t = 20;
+  for (const sym of [...name, ...guard, ...level.address]) { wall.edge({ button: sym, down: true, t }); t += level.gapMs - 1; }
+  ok(wall.listening && wall.closesAt === t - level.gapMs + 1 + level.gapMs, `${level.id}: every symbol inside the gap extends the leash`);
+  const a = wall.tick(t + level.gapMs);
+  ok(a?.kind === 'answer' && a.win, `${level.id}: the leash running out answers, and the address opens the wall`);
+  const late = new Wall(level);
+  late.edge({ button: 'START', down: true, t: 0 });
+  late.edge({ button: filler, down: true, t: 10 });
+  const closed = late.edge({ button: filler, down: true, t: 10 + level.gapMs + 1 });
+  ok(closed?.kind === 'answer' && closed.length === 1, `${level.id}: a symbol after the leash is a stray; the read had closed with 1 symbol`);
+  const empty = new Wall(level);
+  empty.edge({ button: 'START', down: true, t: 0 });
+  ok(empty.tick(level.firstMs + 1)?.verdict === 'polite', `${level.id}: nothing typed is a polite nothing`);
+
+  // the attacker: size, canary, address
+  let solved = 0, submissions = 0, presses = 0;
+  for (let seed = 0; seed < 8; seed++) {
+    const r = smash(raw, seed);
+    solved += r.solved; submissions += r.submissions; presses += r.presses;
+    ok(r.size === level.size, `${level.id}: the attacker should find size ${level.size}, found ${r.size}`);
+    if (level.canary) ok(r.canary === canaryFor(raw, seed), `${level.id}: the attacker should find the canary for seed ${seed}`);
+  }
+  console.log(`      attacker: solved ${solved}/8, ${(submissions / 8).toFixed(0)} names (takes), ${(presses / 8).toFixed(0)} presses by hand`);
+  ok(solved === 8, `${level.id}: the attacker must always open the wall`);
+  if (level.hand) ok(presses / 8 <= HAND_PRESSES, `${level.id}: marked hand but costs ${(presses / 8).toFixed(0)} presses > ${HAND_PRESSES}`);
+  ok(submissions / 8 <= 30, `${level.id}: ${(submissions / 8).toFixed(0)} takes is more than a player records in a sitting`);
 }
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }

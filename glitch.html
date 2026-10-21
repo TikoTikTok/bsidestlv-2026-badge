@@ -35,6 +35,8 @@
   <button type="button" class="mode" data-mode="watch">Watch</button>
   <button type="button" class="mode" data-mode="glass">Glass</button>
   <button type="button" class="mode" data-mode="lock">Lock</button>
+  <button type="button" class="mode" data-mode="dog">Dog</button>
+  <button type="button" class="mode" data-mode="wall">Wall</button>
   <button type="button" class="mode" data-mode="bench">Bench</button>
   <button type="button" class="mode help" data-mode="help" aria-label="how it works">?</button>
 </nav>
@@ -42,7 +44,7 @@
 <main>
   <section class="panel" data-mode="help">
     <h2>The range</h2>
-    <p class="note">Three practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
+    <p class="note">Five practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
       in and press anything — the header lights up when the browser sees it. The published site
       listens to the badge and nothing else; on a local checkout the keyboard stands in: arrows,
       <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for A B X Y, <kbd>Q</kbd> <kbd>E</kbd>
@@ -180,6 +182,94 @@
     <ol id="lockLog" class="log" reversed></ol>
   </section>
 
+  <section class="panel range" id="dogPanel" data-mode="dog">
+    <h2>Range 4 — The Dormouse's Watchdog <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Dormouse is a <b>window watchdog</b>: it sleeps as long as it is nudged every so
+        often - and not too often. <b>START</b> puts it to sleep and starts the clock; every press of
+        <b>A</b> is a nudge that must land inside the window measured from the nudge before. Too soon
+        and it stirs, too late and it bites, and either way the attempt is over. Enough nudges in a row
+        and Alice tiptoes past.</p>
+      <p class="note">On the badge the take is the nudges and the <b>speed</b> is the tempo: a tap every
+        0.8 s at 8× is a tap every 100 ms. The first gap is the fire's <b>offset</b>, so set that inside
+        the window too. Hold each tap a good moment - at 8× a short tap is one the browser never sees.</p>
+    </details>
+
+    <div id="dogTabs" class="tabs"></div>
+    <p id="dogBlurb" class="note"></p>
+
+    <div class="watch">
+      <canvas id="dormouse" width="96" height="96"></canvas>
+      <div class="watch-side">
+        <div id="dogKicks" class="combo"></div>
+        <div id="dogTrace" class="trace">
+          <div class="trace-head"><span id="dtHead"></span><span id="dtGap"></span></div>
+          <div class="trace-bar"><div id="dtWindow" class="trace-window"></div><div id="dtFill" class="trace-fill"></div><div id="dtMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="dtMid"></span><span id="dtEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="dogStatus" class="status">press START to put the Dormouse to sleep</span>
+          <button id="dogClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>nudges</small><b id="drKicks">—</b><small>of the level's</small></div>
+      <div class="tile"><small>last gap · ms</small><b id="drGap">—</b><small>nudge → nudge</small></div>
+      <div class="tile"><small>window · ms</small><b id="drWindow">—</b><small>open → bite</small></div>
+      <div class="tile"><small>tempo</small><b id="drRate">—</b><small>nudges / s</small></div>
+      <div class="tile"><small>verdict</small><b id="drVerdict">—</b><small id="drHint">&nbsp;</small></div>
+    </div>
+    <ol id="dogLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel range" id="wallPanel" data-mode="wall">
+    <h2>Range 5 — Humpty Dumpty's Wall <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">Humpty asks Alice her name and reads it into a buffer on his stack with no bound.
+        Behind the buffer sit his saved return address - two symbols - and, on the last level, a
+        <b>canary</b>. A name that fits is politely received. One symbol more and the overflow begins:
+        a wrong canary and he halts, a wrong address and he has a great fall. The one address that
+        opens the wall is in his listing, as it would be in any firmware image.</p>
+      <p class="note"><b>START</b> is the prompt; then one press per symbol, each within the level's gap
+        of the last. The read ends when nothing more comes, and he answers. On the badge the name is
+        a take fired with an offset of ~40 ms so the prompt lands first; lengthen it a symbol per take.</p>
+    </details>
+
+    <div id="wallTabs" class="tabs"></div>
+    <p id="wallBlurb" class="note"></p>
+
+    <div class="lock">
+      <div class="stage-wrap"><canvas id="wallScene"></canvas></div>
+      <div class="lock-side">
+        <div id="wallName" class="combo"></div>
+        <div id="wallFrame" class="frame"></div>
+        <div id="wallTrace" class="trace">
+          <div class="trace-head"><span id="wlHead"></span><span id="wlAnswer"></span></div>
+          <div class="trace-bar"><div id="wlFill" class="trace-fill"></div><div id="wlMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="wlMid"></span><span id="wlEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="wallStatus" class="status">press START, then a name</span>
+          <button id="wallClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+    <ol id="wallListing" class="listing"></ol>
+
+    <div class="readout">
+      <div class="tile"><small>name</small><b id="wrLen">—</b><small>symbols typed</small></div>
+      <div class="tile"><small>overflow</small><b id="wrOver">—</b><small>past the buffer</small></div>
+      <div class="tile"><small>lr</small><b id="wrLr">—</b><small>where he returned to</small></div>
+      <div class="tile"><small>said</small><b id="wrSaid">—</b><small>&nbsp;</small></div>
+      <div class="tile"><small>verdict</small><b id="wrVerdict">—</b><small id="wrHint">&nbsp;</small></div>
+    </div>
+    <ol id="wallLog" class="log" reversed></ol>
+  </section>
+
   <section class="panel" id="benchPanel" data-mode="bench">
     <h2>Bench</h2>
     <details class="how">
@@ -224,6 +314,13 @@
       one more tick than last time means the symbol you changed is right. When the level jitters, hold
       the chord: every ~600 ms the same guess goes in and the readout keeps the median. One symbol per
       take, and a level with a secret order gives up which position it checks next the same way.</p>
+    <p class="note"><b>Range 4:</b> record the nudges at an easy tempo - a tap every 0.8 s, each held a
+      moment - and SELECT+UP until the gap readout sits inside the window. The first gap is the offset:
+      SELECT+RIGHT it into the window too. The log says where every nudge fell, early side or late.</p>
+    <p class="note"><b>Range 5:</b> record the name's symbols only, offset ~40 ms, fire. Make the take one
+      symbol longer each time until Humpty stops being polite: that is the size. A canary is found the
+      same way, one symbol at a time in its slot; the address is in the listing. Repeated addresses
+      (a sled) work too, when nothing guards the frame.</p>
     <p class="note">Firmware, engine tests and the chord table:
       <code>software/controller/README.md</code>. Flashing it: <a href="flash.html">flash.html</a>.</p>
   </section>

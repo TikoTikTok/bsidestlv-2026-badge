@@ -1,12 +1,15 @@
 // Alice in AI Land - the glitch range page.
 //
-// Two ranges that practise the badge's quick-glitch layer. All rules live in
-// src/range.js; this file is the rendering, the input plumbing (src/pad.js)
+// Five ranges that practise the badge's quick-glitch layer. The rules live
+// in src/range.js (the watch, the glass), src/lock.js, src/watchdog.js and
+// src/wall.js; this file is the rendering, the input plumbing (src/pad.js)
 // and the words the log says.
 
 import { Pad, flipFor } from './pad.js';
 import { comboSequence, Combo, buildLevel, idealOffsetMs, Run } from './range.js';
 import { buildLock, summarize, guessKey } from './lock.js';
+import { Watchdog, windowOf, idealGapMs, placeInWindow } from './watchdog.js';
+import { Wall, frameOf as wallFrameOf, withDefaults as wallDefaults } from './wall.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
@@ -99,7 +102,7 @@ if (!padIsMirror) for (const b of tpButtons) {
 // replays the take; if every range heard it, a combo replayed for range 1
 // would also land as a stray pulse in range 2's log and a guess in range
 // 3's. A tap on a range arms it, and so does the phone looks' mode bar.
-const RANGES = ['watch', 'glass', 'lock'];
+const RANGES = ['watch', 'glass', 'lock', 'dog', 'wall'];
 let armed = 'watch';
 function arm(which) {
   armed = which;
@@ -126,8 +129,9 @@ await initLooks({
 // (filled in at the end of this file) around the pause.
 const hooks = {};
 const badge = await openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
-const [RABBIT_WATCH, LOOKING_GLASS, CATERPILLAR_LOCK] = await Promise.all([
-  loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key), loadStage('caterpillar-lock', badge?.key)])
+const [RABBIT_WATCH, LOOKING_GLASS, CATERPILLAR_LOCK, DORMOUSE_WATCHDOG, HUMPTY_WALL] = await Promise.all([
+  loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key), loadStage('caterpillar-lock', badge?.key),
+  loadStage('dormouse-watchdog', badge?.key), loadStage('humpty-wall', badge?.key)])
   .catch((e) => { showRefusal(`a range would not open: ${e.message}`); throw e; });
 
 
@@ -162,13 +166,14 @@ async function loadSome(folder, names) {
   return images;
 }
 
-const [alice, queen, rabbit, tiles, items] = await Promise.all([
-  loadCharacter('alice2'), loadCharacter('queen'), loadCharacter('rabbit'),
+const [alice, queen, rabbit, hatter, tiles, items] = await Promise.all([
+  loadCharacter('alice2'), loadCharacter('queen'), loadCharacter('rabbit'), loadCharacter('hatter'),
   loadSome('tiles', ['wall_blue', 'wall_blue_banner_red', 'pillar_blue', 'floor_marble_plain',
                      'floor_marble_veined', 'floor_carpet_heart', 'door_heart_closed', 'door_heart_open',
                      'hedge_daisies', 'hedge_wide', 'hedge_roses', 'floor_grass_clover', 'floor_grass_flowers',
-                     'floor_dirt_patch', 'door_wood_closed', 'door_wood_open']),
-  loadSome('items', ['key_heart', 'potion_star', 'mushroom_red', 'mushroom_blue_trio']),
+                     'floor_dirt_patch', 'door_wood_closed', 'door_wood_open',
+                     'wall_stone_blue', 'wall_stone_banners', 'floor_cobble', 'floor_cobble_moss', 'floor_grass_patch', 'floor_grass_roses']),
+  loadSome('items', ['key_heart', 'potion_star', 'mushroom_red', 'mushroom_blue_trio', 'teapot_heart_blue', 'teacup_heart_blue']),
 ]);
 
 const frameOf = (ch, dir, now, periodMs) => {
@@ -195,7 +200,9 @@ pad.on((edge) => {
   refreshPad();
   if (armed === 'watch') watchEdge(edge);
   else if (armed === 'glass') glassEdge(edge);
-  else lockEdge(edge);
+  else if (armed === 'lock') lockEdge(edge);
+  else if (armed === 'dog') dogEdge(edge);
+  else wallEdge(edge);
 });
 
 
@@ -724,6 +731,461 @@ function drawLock(now) {
   lkctx.globalAlpha = 1;
 }
 
+// ---------------------------------------------------- range 4: the dog ----
+// The Dormouse's window watchdog. Rules in src/watchdog.js; this is the
+// teapot it sleeps in, the nudges as a row of counters, the window as a lit
+// band on a clock that refills after every nudge, and the words.
+
+let dogLevel = null, dog = null, dogAttempt = 0;
+let dogScene = { kind: 'idle', since: 0 };        // idle | asleep | nudge | early | late | past
+let dogTimer = null;                               // the bite, due whether or not a frame is drawn
+
+const dogStatus = $('#dogStatus');
+const setDogStatus = (text, kind = '') => { dogStatus.textContent = text; dogStatus.className = `status ${kind}`; };
+
+/** The speed to record a level's tempo at: a power of two that makes the recorded gap a comfortable 0.4-0.8 s. */
+function dogSpeed(lv) {
+  const ideal = idealGapMs(lv);
+  const speed = Math.pow(2, Math.max(0, Math.ceil(Math.log2(400 / ideal))));
+  return { speed, recordMs: Math.round(ideal * speed) };
+}
+
+const dogTabs = DORMOUSE_WATCHDOG.levels.map((lv, i) => {
+  const b = document.createElement('button');
+  b.className = 'tab';
+  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.kicks} nudges · ${lv.openMs}–${lv.timeoutMs} ms`),
+           span('short', `${i + 1} ${lv.short} · ${lv.openMs}–${lv.timeoutMs}`));
+  b.addEventListener('click', () => setDogLevel(lv));
+  $('#dogTabs').append(b);
+  return { lv, b };
+});
+
+function setDogLevel(lv) {
+  clearTimeout(dogTimer);
+  dogLevel = lv;
+  dog = new Watchdog(lv);
+  dogScene = { kind: 'idle', since: performance.now() };
+  for (const t of dogTabs) t.b.classList.toggle('on', t.lv === lv);
+  $('#dogBlurb').textContent = lv.blurb;
+  const w = windowOf(lv);
+  $('#dtHead').textContent = `window · ${lv.openMs}–${lv.timeoutMs} ms after the last nudge`;
+  $('#dtMid').textContent = `${w.widthMs} ms wide`;
+  $('#dtEnd').textContent = `${lv.timeoutMs} ms`;
+  $('#dtGap').textContent = '';
+  const band = $('#dtWindow');
+  band.style.left = `${lv.openMs / lv.timeoutMs * 100}%`;
+  band.style.width = `${w.widthMs / lv.timeoutMs * 100}%`;
+  $('#dtMarks').textContent = '';
+  drawKicks();
+  resetDogReadout();
+  const { speed, recordMs } = dogSpeed(lv);
+  setDogStatus(`${lv.kicks} nudges on ${lv.button}, each ${lv.openMs}–${lv.timeoutMs} ms after the last` +
+               (lv.hand ? ' — a hand can do this' : ` — a hand cannot; record a tap every ${recordMs} ms and play it at ${speed}×`));
+}
+
+function resetDogReadout() {
+  for (const id of ['drKicks', 'drGap', 'drRate', 'drVerdict']) $(`#${id}`).textContent = '—';
+  $('#drWindow').textContent = `${dogLevel.openMs}–${dogLevel.timeoutMs}`;
+  $('#drHint').innerHTML = '&nbsp;';
+  $('#drVerdict').className = '';
+}
+
+/** Where a gap fell, in words. */
+function sideOf(gap) {
+  const p = placeInWindow(dogLevel, gap);
+  return p < 0 ? 'too soon' : p > 1 ? 'too late' : p < 0.33 ? 'early side' : p > 0.67 ? 'late side' : 'dead centre';
+}
+
+function drawKicks() {
+  const el = $('#dogKicks');
+  el.textContent = '';
+  const r = dog.result;
+  for (let i = 0; i < dogLevel.kicks; i++) {
+    const g = document.createElement('span');
+    let cls = 'glyph small';
+    if (i < dog.kicks) cls += ' done';
+    else if (dog.armed && i === dog.kicks) cls += ' next';
+    else if (r && !r.win && i === r.kicks) cls += r.verdict === 'early' ? ' early' : ' bad';
+    g.className = cls;
+    g.textContent = i + 1;
+    el.append(g);
+  }
+}
+
+function markKick(gap, bad) {
+  const m = span('trace-mark' + (bad ? ' hot' : ''), '');
+  m.style.left = `${Math.min(gap / dogLevel.timeoutMs, 1) * 100}%`;
+  $('#dtMarks').append(m);
+}
+
+function armDogTimer() {
+  clearTimeout(dogTimer);
+  dogTimer = setTimeout(() => { const r = dog.tick(performance.now()); if (r) finishDog(r); }, dogLevel.timeoutMs + 2);
+}
+
+function dogEdge(edge) {
+  if (!edge.down) return;
+  if (edge.button === 'START') {
+    dog.edge(edge);
+    dogScene = { kind: 'asleep', since: edge.t };
+    $('#dtMarks').textContent = '';
+    $('#dtGap').textContent = '';
+    resetDogReadout();
+    setDogStatus('the Dormouse is asleep — nudge it while the window is lit', 'busy');
+    armDogTimer();
+    drawKicks();
+    return;
+  }
+  if (!dog.armed || edge.button !== dogLevel.button) return;
+  const r = dog.edge(edge);
+  const gap = r ? r.gap : dog.gaps.at(-1);
+  markKick(gap, !!r && !r.win);
+  $('#drKicks').textContent = `${dog.kicks} / ${dogLevel.kicks}`;
+  $('#drGap').textContent = `${Math.round(gap)}`;
+  $('#dtGap').textContent = `last gap ${Math.round(gap)} ms · ${sideOf(gap)}`;
+  if (!r) {
+    dogScene = { kind: 'nudge', since: edge.t };
+    setDogStatus(`${dog.kicks} of ${dogLevel.kicks} · ${Math.round(gap)} ms · ${sideOf(gap)}`, 'busy');
+    armDogTimer();
+    drawKicks();
+    return;
+  }
+  finishDog(r);
+}
+
+function finishDog(r) {
+  clearTimeout(dogTimer);
+  dogAttempt++;
+  const rate = r.gaps.length ? 1000 / (r.gaps.reduce((a, b) => a + b, 0) / r.gaps.length) : 0;
+  $('#drRate').textContent = rate ? rate.toFixed(1) : '—';
+  $('#drKicks').textContent = `${r.kicks} / ${dogLevel.kicks}`;
+  if (r.gap !== null) $('#drGap').textContent = `${Math.round(r.gap)}`;
+  const kind = r.win ? 'win' : 'hot';
+  $('#drVerdict').textContent = r.win ? 'asleep' : r.verdict === 'early' ? 'stirred' : 'bit';
+  $('#drVerdict').className = kind;
+  $('#drHint').textContent = r.win ? 'Alice tiptoes past' : r.verdict === 'early' ? 'too soon — wait for the window' : 'too late — nudge sooner';
+  setDogStatus(r.reason, kind);
+  const gaps = r.gaps.map(g => Math.round(g)).join(' ');
+  logTo('#dogLog', `#${dogAttempt} ${r.win ? '✓' : '✗'} ${dogLevel.name}: ${r.kicks} of ${dogLevel.kicks} nudges · ${r.reason}` +
+        (r.gaps.length ? ` · gaps ${gaps} ms` : ''), kind);
+  dogScene = { kind: r.win ? 'past' : r.verdict, since: performance.now() };
+  drawKicks();
+}
+
+$('#dogClear').addEventListener('click', () => { $('#dogLog').textContent = ''; dogAttempt = 0; resetDogReadout(); $('#dtMarks').textContent = ''; });
+
+// the clock as a bar: it fills from the last nudge towards the bite, and the
+// lit band is where the next nudge has to land
+function drawDogTrace(now) {
+  if (!dog) return;
+  const max = dogLevel.timeoutMs;
+  let ms = 0;
+  if (dog.armed) ms = Math.min(now - dog.last, max);
+  else if (dog.result && dog.result.gap !== null) ms = Math.min(dog.result.gap, max);
+  const fill = $('#dtFill');
+  fill.style.width = `${ms / max * 100}%`;
+  fill.className = 'trace-fill' + (dog.armed || !dog.result ? '' : dog.result.win ? ' win' : ' hot');
+}
+
+// the teapot the Dormouse sleeps in: snores while it sleeps, rattles when it
+// wakes, and Alice tiptoes across the top once the party is past it
+const dormouseCtx = $('#dormouse').getContext('2d');
+function drawDormouse(now) {
+  const c = dormouseCtx;
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, 96, 96);
+  const age = now - dogScene.since;
+  const k = dogScene.kind;
+  let dx = 0, dy = 0;
+  if ((k === 'early' || k === 'late') && age < 700) { dx = Math.sin(age / 25) * 3; dy = Math.cos(age / 40) * 2; }
+  if (k === 'nudge' && age < 200) dy = -Math.sin(age / 200 * Math.PI) * 3;
+  c.drawImage(items.teapot_heart_blue, 14 + dx, 30 + dy, 68, 68);
+  // snores: a 'z' per second, rising from the spout
+  if (k === 'asleep' || k === 'nudge' || k === 'past') {
+    c.fillStyle = ink('--text');
+    c.font = 'bold 11px monospace';
+    for (let i = 0; i < 3; i++) {
+      const ph = ((now / 1000) + i / 3) % 1;
+      c.globalAlpha = (1 - ph) * 0.8;
+      c.fillText('z', 62 + i * 6 + Math.sin(ph * 6) * 2, 34 - ph * 22 - i * 4);
+    }
+    c.globalAlpha = 1;
+  }
+  if (k === 'early' || k === 'late') {
+    c.fillStyle = ink('--hot');
+    c.font = 'bold 12px monospace';
+    c.fillText(k === 'early' ? '?!' : 'GRR', 56, 26);
+  }
+  if (k === 'past') {
+    const p = Math.min(age / 1500, 1);
+    c.drawImage(frameOf(alice, 'E', now, 140), -24 + p * 110, -4, 48, 48);
+  }
+}
+
+// --------------------------------------------------- range 5: the wall ----
+// Humpty Dumpty's stack. Rules in src/wall.js; this is the wall and the egg
+// on it, the name as it is typed, his frame as slots, the leash as a bar,
+// the listing with open_wall's address in it, and the words.
+
+let wallLevel = null, wall = null, wallSeed = 0, wallAttempt = 0, lastWall = null;
+let wallScene = { kind: 'idle', since: 0 };       // idle | listening | polite | canary | fall | open
+let wallTimer = null, wallStray = null;
+
+const wallStatus = $('#wallStatus');
+const setWallStatus = (text, kind = '') => { wallStatus.textContent = text; wallStatus.className = `status ${kind}`; };
+
+const wallTabs = HUMPTY_WALL.levels.map((lv, i) => {
+  const b = document.createElement('button');
+  b.className = 'tab';
+  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.gapMs} ms a symbol`),
+           span('short', `${i + 1} ${lv.short} · ${lv.gapMs}ms`));
+  b.addEventListener('click', () => setWallLevel(lv));
+  $('#wallTabs').append(b);
+  return { lv, b };
+});
+
+function setWallLevel(lv, seed = 0) {
+  clearTimeout(wallTimer);
+  wallLevel = wallDefaults(lv, seed);
+  wallSeed = seed;
+  wall = new Wall(lv, seed);
+  lastWall = null;
+  wallStray = null;
+  wallScene = { kind: 'idle', since: performance.now() };
+  for (const t of wallTabs) t.b.classList.toggle('on', t.lv === lv);
+  $('#wallBlurb').textContent = lv.blurb;
+  const ol = $('#wallListing');
+  ol.textContent = '';
+  lv.listing.forEach((text, i) => {
+    const li = document.createElement('li');
+    const t = span('tick', text.trim() ? `${i + 1}` : '');
+    const code = document.createElement('code');
+    code.textContent = text;
+    li.append(t, code);
+    if (/@/.test(text)) li.classList.add('addr');
+    if (/canary/.test(text)) li.classList.add('canary-line');
+    ol.append(li);
+  });
+  $('#wlHead').textContent = `leash · ${lv.gapMs} ms a symbol`;
+  $('#wlMid').textContent = 'the read ends when nothing comes';
+  $('#wlEnd').textContent = `${lv.gapMs} ms`;
+  $('#wlAnswer').textContent = '';
+  drawName();
+  drawFrame(null);
+  resetWallReadout();
+  const rate = (1000 / lv.gapMs).toFixed(1);
+  setWallStatus(`${lv.hidden ? 'a buffer of some size' : `a buffer of ${lv.size}`}, ${lv.canary ? 'a canary, ' : ''}then lr · ` +
+                `${lv.gapMs} ms a symbol (${rate}/s)` + (lv.hand ? ' — a thumb can type this' : ' — a thumb cannot; the name is a take'));
+}
+
+function resetWallReadout() {
+  for (const id of ['wrLen', 'wrOver', 'wrLr', 'wrSaid', 'wrVerdict']) $(`#${id}`).textContent = '—';
+  $('#wrHint').innerHTML = '&nbsp;';
+  $('#wrVerdict').className = '';
+}
+
+function drawName() {
+  const el = $('#wallName');
+  el.textContent = '';
+  const typed = wall.typed ?? lastWall?.typed ?? [];
+  const n = Math.max(typed.length + (wall.listening ? 1 : 0), 1);
+  for (let i = 0; i < n; i++) {
+    const g = document.createElement('span');
+    const sym = typed[i];
+    let cls = 'glyph small';
+    if (sym) cls += ' done';
+    else if (wall.listening) cls += ' next';
+    g.className = cls;
+    g.textContent = sym ? GLYPH[sym] : '·';
+    if (sym) g.title = sym;
+    el.append(g);
+  }
+}
+
+/** Humpty's frame as slots. A hidden level shows it only once the wall is open; before that the size is the puzzle. */
+function drawFrame(a) {
+  const el = $('#wallFrame');
+  el.textContent = '';
+  if (wallLevel.hidden && !a?.win) return;
+  const f = wallFrameOf(wallLevel);
+  const typed = a?.typed ?? [];
+  for (let i = 0; i < f.total; i++) {
+    const slot = document.createElement('span');
+    let cls = 'slot';
+    let tag = null;
+    if (i < f.size) { cls += ' buf'; if (i === 0) tag = `name[${f.size}]`; }
+    else if (i === f.canaryAt) { cls += ' canary'; tag = 'canary'; }
+    else { cls += ' lr'; if (i === f.lrAt) tag = 'lr'; }
+    const sym = typed[i];
+    if (sym) {
+      cls += ' filled';
+      if (i >= f.size) cls += a.verdict === 'open' || (i === f.canaryAt && a.verdict !== 'canary') ? ' good' : ' hit';
+    }
+    slot.className = cls;
+    if (tag) slot.dataset.tag = tag;
+    slot.textContent = sym ? GLYPH[sym] : i === f.canaryAt ? '?' : i >= f.lrAt ? '↩' : '·';
+    el.append(slot);
+  }
+}
+
+function armWallTimer() {
+  clearTimeout(wallTimer);
+  wallTimer = setTimeout(() => { const a = wall.tick(performance.now()); if (a) wallAnswer(a); }, Math.max(0, wall.closesAt - performance.now()) + 1);
+}
+
+function wallEdge(edge) {
+  // as with the lock: a fire's first symbol can list before START in the same
+  // browser sample, so hold such a press for a moment and type it after START
+  if (edge.down && edge.button !== 'START' && !wall.listening && wallLevel.pool.includes(edge.button)) { wallStray = edge; return; }
+  let r = wall.edge(edge);
+  if (r?.kind === 'open') {
+    clearTimeout(wallTimer);
+    wallScene = { kind: 'listening', since: edge.t };
+    resetWallReadout();
+    $('#wlAnswer').textContent = '';
+    setWallStatus('"And what is your name?"', 'busy');
+    if (wallStray && edge.t - wallStray.t <= 20) r = wall.edge(wallStray) ?? r;
+  }
+  wallStray = null;
+  if (r?.kind === 'answer') { wallAnswer(r); return; }
+  if (wall.listening) {
+    if (wall.typed.length) setWallStatus(`${wall.typed.length} symbol${wall.typed.length === 1 ? '' : 's'}…`, 'busy');
+    armWallTimer();
+  }
+  drawName();
+}
+
+const WALL_SAID = {
+  polite: (g) => `"Pleased to meet you, ${g}."`,
+  canary: () => '"*** stack smashing detected ***" — Humpty halts',
+  fall: () => 'Humpty had a great fall',
+  open: () => '"Pleased to meet you." — and the wall opens',
+};
+
+function wallAnswer(a) {
+  clearTimeout(wallTimer);
+  wallAttempt++;
+  lastWall = a;
+  const glyphs = a.typed.map(g => GLYPH[g]).join(' ') || '(nothing)';
+  const said = WALL_SAID[a.verdict](glyphs);
+  const kind = a.win ? 'win' : a.verdict === 'polite' ? '' : 'hot';
+  $('#wrLen').textContent = `${a.length}`;
+  $('#wrOver').textContent = wallLevel.hidden && !a.win ? (a.verdict === 'polite' ? 'none' : 'some') : `${a.overflow}`;
+  $('#wrLr').textContent = a.lr ? a.lr.map(g => GLYPH[g]).join(' ') : 'untouched';
+  $('#wrSaid').textContent = { polite: 'pleased', canary: 'smashed', fall: 'a fall', open: 'opens' }[a.verdict];
+  $('#wrVerdict').textContent = a.verdict;
+  $('#wrVerdict').className = kind;
+  $('#wrHint').textContent = {
+    polite: a.length ? 'the name fit — try a longer one' : 'nothing typed before the leash ran out',
+    canary: 'the canary changed — what symbol was in its slot?',
+    fall: `fault report: lr = ${(a.lr ?? []).map(g => GLYPH[g]).join(' ')}`,
+    open: 'the garden',
+  }[a.verdict];
+  $('#wlAnswer').textContent = said;
+  setWallStatus(said, kind);
+  logTo('#wallLog', `#${wallAttempt} ${glyphs} · ${a.length} symbol${a.length === 1 ? '' : 's'} · ${said}`, kind);
+  wallScene = { kind: a.verdict, since: performance.now() };
+  drawName();
+  drawFrame(a);
+}
+
+$('#wallClear').addEventListener('click', () => { $('#wallLog').textContent = ''; wallAttempt = 0; resetWallReadout(); });
+
+// the leash as a bar: it runs out from the last symbol; the answer comes when it does
+function drawWallTrace(now) {
+  if (!wall) return;
+  const fill = $('#wlFill');
+  if (wall.listening) {
+    const leash = wall.typed.length ? wallLevel.gapMs : wallLevel.firstMs;
+    const from = wall.closesAt - leash;
+    fill.style.width = `${Math.min((now - from) / leash, 1) * 100}%`;
+    fill.className = 'trace-fill';
+  } else {
+    fill.style.width = lastWall ? '100%' : '0';
+    fill.className = 'trace-fill' + (!lastWall ? '' : lastWall.win ? ' win' : lastWall.verdict === 'polite' ? '' : ' hot');
+  }
+}
+
+// the wall, the egg on it, Alice at its foot. He talks while he listens,
+// nods when pleased, wobbles when his canary complains, falls and cracks on
+// a bad return, and the wall opens under him when lr says open_wall.
+const wallMap = HUMPTY_WALL.rows;
+const WW = wallMap[0].length, WH = wallMap.length;
+const wallCanvas = $('#wallScene');
+const wctx = wallCanvas.getContext('2d');
+wallCanvas.width = WW * TILE; wallCanvas.height = WH * TILE;
+const wallCellOf = (ch) => { for (let y = 0; y < WH; y++) { const x = wallMap[y].indexOf(ch); if (x >= 0) return [x, y]; } return null; };
+const W_ALICE = wallCellOf('A'), W_HUMPTY = wallCellOf('H');
+const WALL_STONES = ['wall_stone_blue', 'wall_stone_blue', 'wall_stone_banners', 'wall_stone_blue'];
+const WALL_FLOORS = ['floor_cobble', 'floor_cobble_moss', 'floor_cobble', 'floor_grass_patch'];
+const GARDEN = ['floor_grass_roses', 'floor_grass_patch', 'floor_grass_roses', 'floor_grass_clover'];
+
+function drawEgg(c, x, y, { mouth = 0, tilt = 0, crack = 0, alpha = 1 } = {}) {
+  c.save();
+  c.globalAlpha = alpha;
+  c.translate(x, y);
+  c.rotate(tilt);
+  c.fillStyle = '#f3ead8';
+  c.strokeStyle = '#8a7a60';
+  c.lineWidth = 1.5;
+  c.beginPath(); c.ellipse(0, 0, 13, 17, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+  // a belt and a bow tie, as every Humpty has
+  c.fillStyle = ink('--accent'); c.fillRect(-13, 5, 26, 4);
+  c.fillStyle = ink('--hot'); c.beginPath(); c.moveTo(-5, -2); c.lineTo(5, -6); c.lineTo(5, 2); c.lineTo(-5, -6); c.closePath(); c.fill();
+  c.fillStyle = '#2a2a2a';
+  c.beginPath(); c.arc(-5, -8, 1.6, 0, Math.PI * 2); c.arc(5, -8, 1.6, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#2a2a2a'; c.lineWidth = 1.2;
+  c.beginPath(); c.ellipse(0, -1, 4, 1 + mouth * 3, 0, 0, Math.PI * 2); c.stroke();
+  if (crack > 0) {
+    c.strokeStyle = '#6b5a40'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo(-10, 2); c.lineTo(-4, -3 * crack); c.lineTo(1, 4 * crack); c.lineTo(7, -5 * crack); c.lineTo(11, 3); c.stroke();
+  }
+  c.restore();
+}
+
+function drawWall(now) {
+  wctx.imageSmoothingEnabled = false;
+  wctx.clearRect(0, 0, wallCanvas.width, wallCanvas.height);
+  const age = now - wallScene.since;
+  const k = wallScene.kind;
+  const open = k === 'open';
+
+  for (let y = 0; y < WH; y++) for (let x = 0; x < WW; x++) {
+    const ch = wallMap[y][x];
+    const px = x * TILE, py = y * TILE;
+    const garden = x > W_HUMPTY[0];
+    wctx.drawImage(tiles[(garden ? GARDEN : WALL_FLOORS)[hash2(x, y) % 4]], px, py, TILE, TILE);
+    if (ch === '#') wctx.drawImage(tiles[WALL_STONES[hash2(x, y) % WALL_STONES.length]], px, py, TILE, TILE);
+    if (ch === 'H') wctx.drawImage(tiles[open ? 'door_wood_open' : WALL_STONES[0]], px, py, TILE, TILE);
+  }
+
+  // Humpty, on the wall above the gap - or off it
+  const hx = (W_HUMPTY[0] + 0.5) * TILE, hy = W_HUMPTY[1] * TILE - 2;
+  let egg = { mouth: 0, tilt: 0, crack: 0, alpha: 1 };
+  if (k === 'listening') egg.mouth = (Math.sin(now / 90) + 1) / 2;
+  else if (k === 'polite' && age < 600) egg.tilt = Math.sin(age / 600 * Math.PI * 2) * 0.12;
+  else if (k === 'canary' && age < 900) egg.tilt = Math.sin(age / 40) * 0.25 * (1 - age / 900);
+  else if (k === 'fall') {
+    const p = Math.min(age / 700, 1);
+    egg = { mouth: 1, tilt: p * 1.4, crack: p >= 1 ? 1 : 0, alpha: 1 };
+    wctx.save();
+    drawEgg(wctx, hx + p * 30, hy + p * p * 70, egg);
+    wctx.restore();
+    if (p >= 1) { wctx.fillStyle = ink('--hot'); wctx.font = 'bold 10px monospace'; wctx.fillText('all the king’s horses…', hx - 20, hy + 90); }
+  }
+  else if (open) egg.alpha = Math.max(0.25, 1 - age / 1500);
+  if (k !== 'fall') drawEgg(wctx, hx, hy, egg);
+
+  // Alice: home, up to the wall while he listens, back on a no, through on an open
+  let ax = W_ALICE[0], dir = 'E', period = 400;
+  const foot = W_HUMPTY[0] - 1;
+  if (k === 'listening') { const p = Math.min(age / 500, 1); ax = W_ALICE[0] + (foot - W_ALICE[0]) * p; period = p < 1 ? 140 : 400; }
+  else if (k === 'polite' || k === 'canary') { const p = Math.min(age / 900, 1); ax = foot - (foot - W_ALICE[0]) * p; dir = p < 1 ? 'W' : 'S'; period = p < 1 ? 160 : 400; }
+  else if (k === 'fall') { ax = foot; dir = 'E'; }
+  else if (open) { const p = Math.min(age / 1200, 1); ax = foot + p * 3; period = 140; if (p >= 1) { dir = 'S'; period = 400; } }
+  wctx.drawImage(frameOf(alice, dir, now, period), ax * TILE, W_ALICE[1] * TILE, TILE, TILE);
+}
+
 // ------------------------------------------------------------------ drawing ----
 
 const hash2 = (x, y) => { let h = (x * 73856093) ^ (y * 19349663); h = (h ^ (h >>> 13)) * 1274126177; return Math.abs(h ^ (h >>> 16)); };
@@ -835,8 +1297,11 @@ function logTo(sel, text, kind) {
 setWatchLevel(RABBIT_WATCH.levels[0]);
 setGlassLevel(LOOKING_GLASS.levels[0]);
 setLockLevel(CATERPILLAR_LOCK.levels[0]);
+setDogLevel(DORMOUSE_WATCHDOG.levels[0]);
+setWallLevel(HUMPTY_WALL.levels[0]);
 // scripted tests read the ranges' state through this (dev hosts; nothing here plays)
-window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; } };
+window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; },
+                   get dog() { return dog; }, get wall() { return wall; }, arm, setDogLevel, setWallLevel };
 
 // The gate's pause (site only). The ranges are timed per attempt, so there
 // is nothing to freeze: a run that was open ends on its own clock (the pad
@@ -845,6 +1310,8 @@ window.__range = { get armed() { return armed; }, get combo() { return combo; },
 // is back. The bench log keeps the record.
 hooks.pause = (why) => {
   if (combo?.open && combo.at > 0) { combo.reset(); drawCombo(); $('#wtGaps').textContent = ''; }
+  if (dog?.armed) { clearTimeout(dogTimer); dog.reset(); drawKicks(); setDogStatus(`paused - the badge is ${why}`, 'hot'); }
+  if (wall?.listening) { clearTimeout(wallTimer); wall.reset(); drawName(); setWallStatus(`paused - the badge is ${why}`, 'hot'); }
   setWatchStatus(`paused - the badge is ${why}`, 'hot');
   logTo('#benchLog', `badge ${why} - paused`, 'hot');
   $('#benchStatus').textContent = `${benchCount} edges · paused`;
@@ -858,12 +1325,18 @@ hooks.resume = () => {
 function tick(now) {
   if (run?.open) { const r = run.tick(now); if (r) finishRun(r); }
   if (lock?.waiting) { const a = lock.tick(now); if (a) lockAnswer(a); }
+  if (dog?.armed) { const r = dog.tick(now); if (r) finishDog(r); }
+  if (wall?.listening) { const a = wall.tick(now); if (a) wallAnswer(a); }
   drawRabbit(now);
   drawWatchTrace(now);
   drawGlass(now);
   drawListing(now);
   drawLock(now);
   drawLockTrace(now);
+  drawDormouse(now);
+  drawDogTrace(now);
+  drawWall(now);
+  drawWallTrace(now);
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
