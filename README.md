@@ -10,7 +10,7 @@ badge is used to play.
 
 ```
 index.html         the challenge - static site, served from the repo root
-glitch.html        the glitch range - two practice rooms for the badge's quick-glitch layer
+glitch.html        the glitch range - five practice rooms for the badge's quick-glitch layer, and a tutorial
 flash.html         flash the badge from the browser - WebUSB to the RP2040's bootloader
 badge.html         the badge's vault - read it, provision it at the booth, try the beacon
 robots.txt  rabbit-hole/   what crawlers get: a refusal, and a walkthrough that never ends
@@ -73,8 +73,8 @@ where the pages are developed; `?gate=1` brings the gate up there to try it.
 ### The glitch range
 
 `glitch.html` is the training ground for the badge as a *fault-injection* and
-*side-channel* tool. Three rooms, each with levels that start hand-playable and
-end badge-only:
+*side-channel* tool. Five rooms, each with levels that start hand-playable and
+end badge-only, and a tutorial that walks them:
 
 - **The Rabbit's Pocket Watch** — a fixed tune of buttons to enter inside a
   window. Level 1 is 4 presses in 2 s; level 4 is 12 presses in 600 ms, three
@@ -91,11 +91,34 @@ end badge-only:
   the clock by hand; level 2 jitters, so a guess is recorded once and fired
   on repeat while the page keeps the median; level 3 compares in a secret
   order and still leaks, because a secret order is not constant time.
+- **The Dormouse's Watchdog** — a *window* watchdog: the Dormouse sleeps as
+  long as it is nudged every so often, and not too often. `START` puts it to
+  sleep, every `A` must land inside the window measured from the nudge
+  before, too soon stirs it and too late it bites. Level 1's window is half a
+  second wide; level 3's is 40 ms, ten nudges a second, so the nudges are a
+  take recorded at an easy tempo and played at 8×, with the first gap as the
+  fire's offset.
+- **Humpty Dumpty's Wall** — a stack overflow, one button at a time. Humpty
+  reads Alice's name into a buffer with no bound; behind it sit his saved
+  return address (two symbols) and, on the last level, a canary. A name that
+  fits is politely received, one symbol more and the overflow begins: a wrong
+  canary and he halts, a wrong address and he has a great fall, the address
+  of `open_wall` from his listing and the wall opens. The size leaks where
+  his answer changes, the canary where he is polite again, and the name is
+  read with a per-symbol timeout that the later levels make shorter than a
+  thumb, so each name is a take.
+- **Down the Rabbit Hole** — the tutorial: seventeen steps that watch what
+  the player does and tick themselves off, as a coach line above the panels
+  and a checklist in the *Learn* panel. Chapter one visits every range's
+  hand level with any controller; chapter two is the badge (record and fire,
+  speed, offset, repeat, one badge-only level per range). Progress is kept
+  on the device, any step can be skipped.
 
 On a local checkout the page works from the keyboard too, which is how you find
-out that level 3 of each cannot be done that way. `software/tools/verify-range.mjs`
-checks exactly that: hand levels fit a hand, badge levels do not, and every
-level is winnable.
+out that the last level of each cannot be done that way. `software/tools/verify-range.mjs`
+checks exactly that: hand levels fit a hand, badge levels do not, every level
+is winnable (the lock and the wall by a reference attacker), and the tutorial's
+steps name real levels.
 
 The badge is a grip the phone sits in, so a phone held the other way up turns
 the whole controller over. The page notices and turns the badge's buttons
@@ -166,7 +189,7 @@ painted in: `bsides`, the conference's own lime on black (the default);
 green on black with scanlines. The look is how it sits on the screen: the
 classic look is the whole page; the three phone looks — `bench`, `handheld`,
 `scope` — show one panel at a time behind a mode bar (on the stages: Tea,
-Gauntlet; on the range: Watch, Glass, Lock, Bench), fold the prose
+Gauntlet; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
 behind *how it works*, and on the range reshape the on-screen pad — a bottom
 sheet, a handheld's body with the screen in a bezel, or a dock of soft keys
 under big numerals — and draw the guard's routine and the door's clock as
