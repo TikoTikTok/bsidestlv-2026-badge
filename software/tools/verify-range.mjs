@@ -18,7 +18,7 @@ import { comboSequence, Combo, buildLevel, land, idealOffsetMs, Run } from '../.
 import { secretFor, orderFor, comparisons, runAlong, buildLock, Lock, attack, lcg, summarize } from '../../src/lock.js';
 import { Watchdog, windowOf, idealGapMs, replay } from '../../src/watchdog.js';
 import { Wall, judge, frameOf, canaryFor, withDefaults, attack as smash } from '../../src/wall.js';
-import { TUTORIAL, Tutor } from '../../src/tutor.js';
+import { TUTORIAL, STAGES_TUTORIAL, Tutor } from '../../src/tutor.js';
 
 const HAND_RATE = 6;          // presses / s
 const HAND_JITTER_MS = 40;    // +/- on a timed press
@@ -423,6 +423,54 @@ console.log('\nthe tutorial');
   const resumed = new Tutor(TUTORIAL, { load: () => 5 });
   ok(resumed.at === 5, 'tutorial: resumes from the store');
   console.log(`  ${TUTORIAL.length} steps, ${TUTORIAL.filter(s => s.chapter === 1).length} by hand, ${TUTORIAL.filter(s => s.badge).length} with the badge`);
+}
+
+// The stages' tutorial, A Caucus Race (index.html): every step names a stage,
+// the tea party's chapter comes first, and the events src/gallery.js emits
+// walk it from end to end.
+console.log('\nthe stages\' tutorial');
+{
+  const ids = new Set();
+  for (const s of STAGES_TUTORIAL) {
+    ok(!ids.has(s.id), `stages tutorial: duplicate step ${s.id}`); ids.add(s.id);
+    ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `stages tutorial ${s.id}: say and why`);
+    ok(s.stage === 'tea' || s.stage === 'chase', `stages tutorial ${s.id}: stage tea or chase`);
+    ok((s.chapter === 1) === (s.stage === 'tea'), `stages tutorial ${s.id}: chapter one is the tea party, chapter two the gauntlet`);
+    ok(!s.badge, `stages tutorial ${s.id}: nothing here needs the quick-glitch layer`);
+  }
+  ok(STAGES_TUTORIAL.findIndex(s => s.chapter === 2) === STAGES_TUTORIAL.filter(s => s.chapter === 1).length, 'stages tutorial: chapter one comes first, whole');
+  let saved = null;
+  const t = new Tutor(STAGES_TUTORIAL, { load: () => 0, save: (at) => { saved = at; } });
+  const walk = [
+    ['wake',    { kind: 'edge', button: 'LEFT', down: true }],
+    ['walk',    { kind: 'tea', what: 'move', buttons: 0, moves: 1 }],
+    ['shove',   { kind: 'tea', what: 'push', buttons: 0, moves: 2 }],
+    ['lever',   { kind: 'tea', what: 'lever', buttons: 0, moves: 3 }],
+    ['button',  { kind: 'tea', what: 'button', buttons: 1, moves: 4 }],
+    ['undo',    { kind: 'tea', what: 'undo', moves: 3 }],
+    ['reset',   { kind: 'tea', what: 'reset' }],
+    ['tea',     { kind: 'tea', what: 'win', buttons: 3, moves: 106 }],
+    ['clock',   { kind: 'chase', what: 'start', ticks: 0 }],
+    ['wait',    { kind: 'chase', what: 'wait', ticks: 2 }],
+    ['seen',    { kind: 'chase', what: 'caught', ticks: 5 }],
+    ['restart', { kind: 'chase', what: 'restart' }],
+    ['cross',   { kind: 'chase', what: 'button', ticks: 20 }],
+    ['out',     { kind: 'chase', what: 'win', ticks: 64 }],
+  ];
+  ok(walk.length === STAGES_TUTORIAL.length, 'stages tutorial: the walk covers every step');
+  ok(t.feed({ kind: 'tea', what: 'move' }) === null, 'stages tutorial: a move before a press is not a wake');
+  ok(t.feed({ kind: 'edge', button: 'A', down: false }) === null, 'stages tutorial: a release is not a wake');
+  for (const [id, ev] of walk) {
+    ok(t.step?.id === id, `stages tutorial: at ${id} (is ${t.step?.id})`);
+    ok(t.feed({ kind: 'tea', what: 'blocked' }) === null, `stages tutorial ${id}: a bump completes nothing`);
+    ok(t.feed({ kind: 'chase', what: 'tick', ticks: 1 }) === null, `stages tutorial ${id}: a plain tick completes nothing`);
+    ok(t.feed(ev)?.id === id, `stages tutorial: ${id} completes on its event`);
+  }
+  ok(t.done && saved === STAGES_TUTORIAL.length, 'stages tutorial: walked to the end, and saved');
+  const t2 = new Tutor(STAGES_TUTORIAL, { load: () => 0 });
+  t2.feed({ kind: 'edge', button: 'A', down: true });
+  ok(t2.feed({ kind: 'tea', what: 'push' }) === null && t2.feed({ kind: 'tea', what: 'move' })?.id === 'walk', 'stages tutorial: a push is also a move, fed as move first');
+  console.log(`  ${STAGES_TUTORIAL.length} steps, ${STAGES_TUTORIAL.filter(s => s.stage === 'tea').length} in the tea party, ${STAGES_TUTORIAL.filter(s => s.stage === 'chase').length} in the gauntlet`);
 }
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }
