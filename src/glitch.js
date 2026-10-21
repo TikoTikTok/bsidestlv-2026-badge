@@ -12,6 +12,7 @@ import { buildLock, summarize, guessKey } from './lock.js';
 import { Watchdog, windowOf, idealGapMs, placeInWindow } from './watchdog.js';
 import { Wall, frameOf as wallFrameOf, withDefaults as wallDefaults } from './wall.js';
 import { Tutor, TUTORIAL } from './tutor.js';
+import { mountCoach, tutorStore } from './coach.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
@@ -1301,16 +1302,12 @@ function logTo(sel, text, kind) {
 }
 
 // ----------------------------------------------------------- the tutorial ----
-// Down the Rabbit Hole: src/tutor.js holds the steps and the engine; this is
-// the coach line above the panels, the checklist in the Learn panel, and
-// what a step does to the page when it comes up - arm its range, pick its
-// level, and in the phone looks show that panel.
+// Down the Rabbit Hole: src/tutor.js holds the steps and the engine,
+// src/coach.js the coach line above the panels and the Learn panel's
+// checklist; this is what a step does to the page when it comes up - arm
+// its range, pick its level, and in the phone looks show that panel.
 
-const tutorStore = {
-  load() { try { return +(localStorage.getItem('alice.tutor') ?? 0) || 0; } catch { return 0; } },
-  save(at) { try { localStorage.setItem('alice.tutor', String(at)); } catch { /* storage may be off */ } },
-};
-const tutor = new Tutor(TUTORIAL, tutorStore);
+const tutor = new Tutor(TUTORIAL, tutorStore('alice.tutor'));
 const LEVELS_OF = {
   watch: (id) => { const lv = RABBIT_WATCH.levels.find(l => l.id === id); if (lv && watchLevel?.id !== id) setWatchLevel(lv); },
   glass: (id) => { const lv = LOOKING_GLASS.levels.find(l => l.id === id); if (lv && level?.id !== id) setGlassLevel(lv); },
@@ -1329,63 +1326,8 @@ function prepareStep(step, { show = false } = {}) {
   else $(`#${step.range}Panel`).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderTutor() {
-  const step = tutor.step;
-  const coach = $('#coach');
-  const n = tutor.steps.length;
-  coach.hidden = false;
-  coach.classList.toggle('done', tutor.done);
-  if (tutor.done) {
-    $('#coachTitle').textContent = 'Through the looking glass';
-    $('#coachCount').textContent = `${n} of ${n}`;
-    $('#coachSay').textContent = 'Every range is yours. The levels past these are the real ones.';
-    $('#coachSkip').hidden = true;
-  } else {
-    $('#coachTitle').textContent = step.title;
-    $('#coachCount').textContent = `${tutor.at + 1} of ${n}${step.badge ? ' · badge' : ''}`;
-    $('#coachSay').textContent = step.say;
-    $('#coachSkip').hidden = false;
-  }
-  const now = $('#learnCoach');
-  now.textContent = '';
-  if (tutor.done) {
-    now.append(el('b', '', 'Through the looking glass'), 'You have been through every range by hand' +
-               (tutor.skipped.size ? ` (${tutor.skipped.size} step${tutor.skipped.size === 1 ? '' : 's'} skipped)` : '') +
-               '. Start over any time, or go and play: the last level of each range is the one that needs the badge.');
-  } else {
-    now.append(el('b', '', `${tutor.at + 1}. ${step.title}`), step.say, el('div', 'why', step.why));
-  }
-  const ol = $('#learnSteps');
-  ol.textContent = '';
-  let chapter = 0;
-  tutor.steps.forEach((s, i) => {
-    if (s.chapter !== chapter) {
-      chapter = s.chapter;
-      ol.append(el('li', 'chapter', chapter === 1 ? 'Chapter one · by hand' : 'Chapter two · the badge'));
-    }
-    const li = el('li', '', s.title);
-    li.value = i + 1;
-    if (i < tutor.at) li.classList.add(tutor.skipped.has(s.id) ? 'skipped' : 'done');
-    if (i === tutor.at) li.classList.add('now');
-    if (s.badge) li.classList.add('badge');
-    li.title = s.say;
-    li.addEventListener('click', () => { tutor.goto(i); renderTutor(); prepareStep(tutor.step, { show: true }); });
-    ol.append(li);
-  });
-  const doneCount = Math.min(tutor.at, n);
-  $('#learnProgress').textContent = `${doneCount} / ${n}`;
-  $('#learnProgress').style.visibility = 'visible';
-}
-const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-
-function tutorFeed(ev) {
-  const s = tutor.feed(ev);
-  if (!s) return;
-  $('#learnStatus').textContent = `✓ ${s.title}`;
-  $('#learnStatus').className = 'status win';
-  renderTutor();
-  prepareStep(tutor.step, { show: looks.look.id !== 'classic' && tutor.step?.range !== s.range });
-}
+let coach = null;   // mounted once the levels are set, at the end
+const tutorFeed = (ev) => coach?.feed(ev);
 
 // a fire is START from the badge followed by the take: the tutorial's "record and fire" step
 let fireStartAt = null;
@@ -1397,22 +1339,6 @@ function tutorEdge(edge) {
   tutorFeed({ kind: 'edge', button: edge.button, down: edge.down, source: edge.source });
 }
 
-function skipStep() {
-  const s = tutor.skip();
-  if (!s) return;
-  $('#learnStatus').textContent = `skipped ${s.title}`;
-  $('#learnStatus').className = 'status';
-  renderTutor();
-  prepareStep(tutor.step, { show: true });
-}
-$('#coachSkip').addEventListener('click', skipStep);
-$('#learnSkip').addEventListener('click', skipStep);
-$('#coachOpen').addEventListener('click', () => {
-  if (looks.look.id !== 'classic') looks.setMode('learn');
-  else $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-$('#learnRestart').addEventListener('click', () => { tutor.restart(); $('#learnStatus').textContent = ''; renderTutor(); prepareStep(tutor.step); });
-
 // -------------------------------------------------------------------- loop ----
 
 setWatchLevel(RABBIT_WATCH.levels[0]);
@@ -1420,8 +1346,18 @@ setGlassLevel(LOOKING_GLASS.levels[0]);
 setLockLevel(CATERPILLAR_LOCK.levels[0]);
 setDogLevel(DORMOUSE_WATCHDOG.levels[0]);
 setWallLevel(HUMPTY_WALL.levels[0]);
-renderTutor();
-prepareStep(tutor.step);
+coach = mountCoach(tutor, {
+  looks,
+  chapters: { 1: 'Chapter one · by hand', 2: 'Chapter two · the badge' },
+  finish: {
+    title: 'Through the looking glass',
+    say: 'Every range is yours. The levels past these are the real ones.',
+    note: (skipped) => 'You have been through every range by hand' +
+      (skipped ? ` (${skipped} step${skipped === 1 ? '' : 's'} skipped)` : '') +
+      '. Start over any time, or go and play: the last level of each range is the one that needs the badge.',
+  },
+  prepare: prepareStep,
+});
 // scripted tests read the ranges' state through this (dev hosts; nothing here plays)
 window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; },
                    get dog() { return dog; }, get wall() { return wall; }, get tutor() { return tutor; }, arm, setDogLevel, setWallLevel };
