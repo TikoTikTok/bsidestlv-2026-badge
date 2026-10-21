@@ -126,3 +126,34 @@ html:not([data-look=classic]) .tp-mid,
 html:not([data-look=classic]) .tp-face { display: contents; }
 .tp [data-btn=SELECT] { grid-area: sel; }
 .tp [data-btn=START] { grid-area: sta; }
+
+/* -------------------------------------------- the dormouse and the wall -- */
+
+/* the watchdog's window, as a lit band on the clock bar */
+.trace-window { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent-2) 22%, transparent); border-left: 1px solid var(--accent-2); border-right: 1px solid var(--accent-2); }
+.trace-mark.hot { background: var(--hot); box-shadow: 0 0 4px color-mix(in srgb, var(--hot) 80%, transparent); }
+.glyph.small { width: 1.6rem; height: 1.6rem; font-size: 11px; }
+.glyph.early { color: var(--amber); border-color: var(--amber); }
+
+/* Humpty's stack frame: the slots the name fills, what sits behind the buffer, and what the overflow hit */
+.frame { display: flex; gap: .3rem; flex-wrap: wrap; align-items: flex-end; margin: .2rem 0 .6rem; }
+.frame .slot {
+  display: grid; place-items: center; width: 1.9rem; height: 1.9rem; font-size: 12px; color: var(--dim);
+  border: 1px dashed var(--line); border-radius: var(--r-xs); background: var(--well); position: relative;
+}
+.frame .slot.buf { border-style: solid; }
+.frame .slot.canary { border-color: var(--amber); }
+.frame .slot.lr { border-color: var(--accent); }
+.frame .slot.filled { color: var(--text); }
+.frame .slot.hit { background: color-mix(in srgb, var(--hot) 25%, transparent); border-color: var(--hot); color: var(--text); }
+.frame .slot.good { background: color-mix(in srgb, var(--accent-2) 25%, transparent); border-color: var(--accent-2); color: var(--text); }
+.frame .slot::after { position: absolute; top: 100%; left: 0; right: 0; margin-top: 2px; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; text-align: center; color: var(--dim); content: attr(data-tag); }
+.frame .slot[data-tag] { margin-bottom: 12px; }
+#wallListing { margin-top: .9rem; }
+html:not([data-look=classic]) .range > .listing { order: 8; margin-top: 8px; max-height: 170px; }
+html:not([data-look=classic]) .range > .frame { order: 5; }
+
+/* the range page has eight modes: let the bar scroll rather than squash */
+html:not([data-look=classic]) .modes { overflow-x: auto; scrollbar-width: none; }
+html:not([data-look=classic]) .modes::-webkit-scrollbar { display: none; }
+html:not([data-look=classic]) .mode { flex: 1 0 auto; padding: 0 9px; }
