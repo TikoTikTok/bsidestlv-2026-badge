@@ -126,6 +126,34 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
   if (!/hostname === '' \|\| hostname === 'localhost' \|\| hostname === '127\.0\.0\.1' \|\| hostname === '\[::1\]'/.test(readFileSync(resolve(root, 'src/pad.js'), 'utf8'))) say('src/pad.js: isDevHost changed; keep src/look-boot.js\'s data-host in step');
 }
 
+// ------------------------------------------------------------ the tutorials ----
+// index.html (A Caucus Race) and glitch.html (Down the Rabbit Hole) each carry
+// a coach line above the panels and a Learn panel behind a Learn mode, drawn
+// by src/coach.js; the styles are styles.css's, once, not a page's own sheet.
+{
+  for (const page of ['index.html', 'glitch.html']) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    if (!/<div id="coach" class="coach" hidden>/.test(html)) say(`${page}: no #coach line (src/coach.js renders the tutorial's current step there)`);
+    for (const id of ['coachTitle', 'coachCount', 'coachSay', 'coachSkip', 'coachOpen', 'learnPanel', 'learnProgress', 'learnCoach', 'learnSteps', 'learnSkip', 'learnRestart', 'learnStatus'])
+      if (!new RegExp(`id="${id}"`).test(html)) say(`${page}: no #${id}, which src/coach.js needs`);
+    if (!/<section class="panel" id="learnPanel" data-mode="learn">/.test(html)) say(`${page}: the Learn panel is data-mode="learn"`);
+    if (!/class="mode" data-mode="learn"/.test(html)) say(`${page}: the mode bar has a Learn button for everyone (not dev-only)`);
+    if (!/<\/nav>\s*(<!--[^]*?-->\s*)?<div id="coach"/.test(html)) say(`${page}: the coach line sits between the mode bar and main`);
+  }
+  const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
+  for (const sel of ['.coach {', '.coach[hidden]', '.learn-now {', '.learn-steps {', '.keys {']) if (!css.includes(sel)) say(`styles.css: no ${sel} rule (the coach and the legend are every page's)`);
+  if (/\.coach\b|\.learn-/.test(readFileSync(resolve(root, 'src/glitch.css'), 'utf8'))) say('src/glitch.css: the coach\'s rules belong in styles.css, both pages carry one');
+  for (const page of ['index.html', 'glitch.html']) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
+    const js = mod ? readFileSync(resolve(root, mod), 'utf8') : '';
+    if (!/from '\.\/coach\.js'/.test(js)) say(`${page}: ${mod} does not import src/coach.js`);
+  }
+  const index = readFileSync(resolve(root, 'index.html'), 'utf8');
+  if ((index.match(/<p class="keys"/g) ?? []).length !== 2) say('index.html: each stage carries a controls legend (p.keys)');
+  if (!/id="undoBtn"/.test(index)) say('index.html: the tea party has an Undo button');
+}
+
 // ------------------------------------------------------------- the page turn ----
 // src/tilt.js turns the page by data-flip on <html> when the phone is upside
 // down: 180 when the OS left the page alone, 90 or 270 when auto-rotate took

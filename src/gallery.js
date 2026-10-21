@@ -1,8 +1,11 @@
-// Alice in AI Land - asset sheet.
+// Alice in AI Land - the stages page.
 //
-// Everything on this page comes from the supplied art: five 8-way walk cycles
-// under assets/characters/ and the item set under assets/items/. Nothing is
-// generated or drawn in code.
+// Two rooms - the tea party (src/puzzle.js) and the gauntlet (src/chase.js) -
+// drawn from the supplied art, driven by the badge, with a tutorial (src/
+// tutor.js, src/coach.js) that watches what the player does. The bench's
+// walk-cycle viewer and asset sheets live here too, on a dev host only.
+// Everything drawn comes from assets/: five 8-way walk cycles under
+// assets/characters/ and the item and tile sets. Nothing is drawn in code.
 
 import { parse, step, solve, isGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, solve as solveChase,
@@ -11,6 +14,8 @@ import { Pad, flipFor } from './pad.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
+import { Tutor, STAGES_TUTORIAL } from './tutor.js';
+import { mountCoach, tutorStore } from './coach.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -46,6 +51,14 @@ $('#chasePanel').addEventListener('pointerdown', () => armStage('chase'));
 // the look picker and the mode bar (src/looks.js), up before the gate so a
 // phone can pick its look while the badge is still being asked for
 const looksReady = initLooks({ onMode(m) { if (m === 'tea' || m === 'chase') armStage(m); } });
+
+// The tutorial, A Caucus Race: every edge and everything a stage does is fed
+// to it; a step that comes up arms its stage and, on a phone, shows it. The
+// coach itself is mounted once the stages exist (end of the file).
+const tutor = new Tutor(STAGES_TUTORIAL, tutorStore('alice.tutor.stages'));
+let coach = null;
+const tutorFeed = (ev) => coach?.feed(ev);
+pad.on(({ button, down, source }) => tutorFeed({ kind: 'edge', button, down, source }));
 
 const state = { zoom: 2, backdrop: 'checker' };   // the asset sheet's controls, in the Art panel
 
@@ -96,7 +109,7 @@ const badge = await gatePromise;
 const [TEA_PARTY, QUEENS_GAUNTLET] = await Promise.all([loadStage('tea-party', badge?.key), loadStage('queens-gauntlet', badge?.key)])
   .catch((e) => { showRefusal(`a stage would not open: ${e.message}`); throw e; });
 
-await looksReady;
+const looks = await looksReady;
 
 // --------------------------------------------------------------- controls ----
 
@@ -322,6 +335,8 @@ const TEA_THEME = THEMES.garden;
 let board = map.start;   // the puzzle state; `state` above is the page UI
 let aliceFacing = 'S';
 let stepsTaken = 0;
+let history = [];          // every board before the last move, for undo
+let hint = null;           // a line the status shows instead of the count, until the next change
 let solution = null;       // moves queued for playback
 let playbackAt = 0;
 let playTimer = null;
@@ -335,19 +350,70 @@ const setStatus = (text, kind = '') => {
 
 function buttonsPressed() { return board.rocks.filter(r => map.buttons.has(r)).length; }
 
-function refreshStatus() {
-  if (isGoal(map, board)) setStatus(`solved in ${stepsTaken} moves`, 'win');
-  else if (solution) setStatus(`playing solution — move ${playbackAt} of ${solution.length}`, 'busy');
-  else setStatus(`${buttonsPressed()}/${map.buttons.size} buttons · ${stepsTaken} moves`);
+/** A rock off its button with a wall on two adjacent sides can never be pushed again. */
+function stuckRocks() {
+  const solid = (x, y) => x < 0 || y < 0 || x >= map.w || y >= map.h || map.walls.has(y * map.w + x);
+  return board.rocks.filter((r) => {
+    if (map.buttons.has(r)) return false;
+    const x = r % map.w, y = (r / map.w) | 0;
+    return (solid(x, y - 1) || solid(x, y + 1)) && (solid(x - 1, y) || solid(x + 1, y));
+  });
 }
 
-function applyMove(dir) {
+const undoKey = () => (pad.allows('key') ? 'B or Backspace' : 'B');
+const resetKey = () => (pad.allows('key') ? 'START or R' : 'START');
+
+function refreshStatus() {
+  const count = `${buttonsPressed()}/${map.buttons.size} buttons · ${stepsTaken} moves`;
+  if (isGoal(map, board)) setStatus(`tea is served — solved in ${stepsTaken} moves`, 'win');
+  else if (solution) setStatus(`playing solution — move ${playbackAt} of ${solution.length}`, 'busy');
+  else if (hint) setStatus(`${hint} · ${count}`, 'hint');
+  else if (stuckRocks().length) setStatus(`a rock is stuck in a corner — ${undoKey()} takes a move back · ${count}`, 'hot');
+  else setStatus(count);
+  $('#undoBtn').disabled = !history.length || !!solution;
+}
+
+function applyMove(dir, { tell = true } = {}) {
   const next = step(map, board, dir);
   aliceFacing = dir;
-  if (!next) return false;
+  if (!next) {
+    // a bump: say why, so a wall and a rock that will not budge read differently
+    const [dx, dy] = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] }[dir];
+    const x = board.alice % map.w + dx, y = ((board.alice / map.w) | 0) + dy;
+    const target = y * map.w + x;
+    hint = board.rocks.includes(target) ? 'that rock will not budge'
+         : target === map.door ? 'the door wants all three buttons held'
+         : map.gates.has(target) ? 'the gate is shut — find the lever' : 'blocked';
+    refreshStatus();
+    if (tell) tutorFeed({ kind: 'tea', what: 'blocked' });
+    return false;
+  }
+  const before = board;
+  history.push(before);
+  hint = null;
   board = next;
   stepsTaken++;
   refreshStatus();
+  if (tell) {
+    const held = buttonsPressed(), heldBefore = before.rocks.filter(r => map.buttons.has(r)).length;
+    const ev = (what) => tutorFeed({ kind: 'tea', what, buttons: held, moves: stepsTaken });
+    ev('move');
+    if (before.rocks.some((r, i) => r !== board.rocks[i])) ev('push');
+    if (before.lever !== board.lever) ev('lever');
+    if (held > heldBefore) ev('button');
+    if (isGoal(map, board)) ev('win');
+  }
+  return true;
+}
+
+/** One move back; the playback's moves are not undone, a player's are. */
+function undoMove() {
+  if (solution || !history.length) return false;
+  board = history.pop();
+  stepsTaken = Math.max(0, stepsTaken - 1);
+  hint = null;
+  refreshStatus();
+  tutorFeed({ kind: 'tea', what: 'undo', moves: stepsTaken });
   return true;
 }
 
@@ -360,7 +426,7 @@ function startPlayback(moves) {
   playTimer = setInterval(() => {
     if (paused) return;
     if (playbackAt >= solution.length) { stopPlayback(); return; }
-    applyMove(solution[playbackAt++]);
+    applyMove(solution[playbackAt++], { tell: false });
   }, playSpeed);
   refreshStatus();
 }
@@ -373,13 +439,16 @@ function stopPlayback() {
   refreshStatus();
 }
 
-function resetStage() {
+function resetStage({ tell = true } = {}) {
   stopPlayback();
   board = map.start;
   aliceFacing = 'S';
   stepsTaken = 0;
   playbackAt = 0;
+  history = [];
+  hint = null;
   refreshStatus();
+  if (tell) tutorFeed({ kind: 'tea', what: 'reset' });
 }
 
 function drawStage(now) {
@@ -419,22 +488,26 @@ function drawStage(now) {
 
 }
 
-// The badge drives the stage: d-pad steps, START resets, while this stage is
-// armed. On a dev host the pad also carries the keyboard (arrows or WASD,
-// Enter), so there is one path for a move; R is the page's own reset key.
+// The badge drives the stage: d-pad steps, B takes a move back, START resets,
+// while this stage is armed. On a dev host the pad also carries the keyboard
+// (arrows or WASD, Enter), so there is one path for a move; R and Backspace
+// are the page's own reset and undo keys.
 const PAD_DIRS = { UP: 'N', DOWN: 'S', LEFT: 'W', RIGHT: 'E' };
 pad.on(({ button, down }) => {
   if (!down || armedStage !== 'tea') return;
   if (button === 'START') { resetStage(); return; }
+  if (button === 'B') { undoMove(); return; }
   const dir = PAD_DIRS[button];
   if (dir && !solution) applyMove(dir);
 });
 addEventListener('keydown', (e) => {
   if (!pad.allows('key') || armedStage !== 'tea') return;
   if (e.key === 'r' || e.key === 'R') resetStage();
+  if (e.key === 'Backspace') { e.preventDefault(); undoMove(); }
 });
 
-$('#resetBtn').addEventListener('click', resetStage);
+$('#resetBtn').addEventListener('click', () => resetStage());
+$('#undoBtn').addEventListener('click', undoMove);
 $('#playSpeed').addEventListener('input', (e) => {
   playSpeed = +e.target.value;
   $('#playSpeedOut').textContent = `${playSpeed}ms`;
@@ -451,7 +524,7 @@ $('#solveBtn').addEventListener('click', () => {
     const { moves, explored } = solve({ ...map, start: from });
     const ms = Math.round(performance.now() - t0);
     if (!moves) {
-      setStatus(`no solution from here (${explored} states, ${ms}ms) — press Reset`);
+      setStatus(`no solution from here (${explored} states, ${ms}ms) — ${undoKey()} takes a move back, ${resetKey()} resets`, 'hot');
       $('#solveBtn').disabled = false;
       return;
     }
@@ -460,7 +533,7 @@ $('#solveBtn').addEventListener('click', () => {
   }, 30);
 });
 
-resetStage();
+resetStage({ tell: false });
 
 // ?autosolve=tea kicks the solver on load - handy for a screenshot or smoke test; the bench only
 if (mode === 'dev' && new URLSearchParams(location.search).get('autosolve') === 'tea') {
@@ -516,24 +589,28 @@ let chasePlanAt = 0;
 let chaseTimer = null;
 let chaseTickMs = chaseMap.tickMs;
 let queued = null;          // the input this tick, if the player gave one
+let chaseWaiting = true;    // the clock holds after a restart until the first input, so every run starts on the same beat
 
 const chaseStatus = $('#chaseStatus');
 function setChaseStatus() {
+  const held = chaseState.rocks.filter(r => chaseMap.buttons.has(r)).length;
+  const count = `tick ${chaseTicks} · ${held}/${chaseMap.buttons.size} buttons`;
   if (chaseDead) {
-    chaseStatus.textContent = `caught on tick ${chaseTicks} — press R`;
+    chaseStatus.textContent = `caught on tick ${chaseTicks} — ${pad.allows('key') ? 'START or R' : 'START'} restarts`;
     chaseStatus.className = 'status hot';
   } else if (isChaseGoal(chaseMap, chaseState)) {
     chaseStatus.textContent = `out in ${chaseTicks} ticks (par 64)`;
     chaseStatus.className = 'status win';
+  } else if (chaseWaiting) {
+    chaseStatus.textContent = `the room waits for your first press · ${count}`;
+    chaseStatus.className = 'status hint';
   } else {
-    const held = chaseState.rocks.filter(r => chaseMap.buttons.has(r)).length;
-    chaseStatus.textContent =
-      `tick ${chaseTicks} · ${held}/${chaseMap.buttons.size} buttons${chasePlan ? ' · solving' : ''}`;
+    chaseStatus.textContent = `${count}${chasePlan ? ' · solving' : ''}`;
     chaseStatus.className = `status${chasePlan ? ' busy' : ''}`;
   }
 }
 
-function chaseRestart() {
+function chaseRestart({ tell = true } = {}) {
   chaseState = chaseMap.start;
   chaseFacing = 'S';
   chaseTicks = 0;
@@ -541,26 +618,42 @@ function chaseRestart() {
   chasePlan = null;
   chasePlanAt = 0;
   queued = null;
+  chaseWaiting = true;
   $('#chaseSolve').disabled = false;
   setChaseStatus();
+  if (tell) tutorFeed({ kind: 'chase', what: 'restart' });
+}
+
+/** The first input after a restart starts the clock, and is taken at once rather than up to a tick later. */
+function chaseGo() {
+  if (!chaseWaiting) return;
+  chaseWaiting = false;
+  tutorFeed({ kind: 'chase', what: 'start', ticks: chaseTicks });
+  chaseTick();
+  startClock();
 }
 
 /** One tick of the world: whatever Alice does, the cast moves. */
 function chaseTick() {
-  if (chaseDead || isChaseGoal(chaseMap, chaseState)) return;
+  if (chaseDead || chaseWaiting || isChaseGoal(chaseMap, chaseState)) return;
+  const planned = !!chasePlan;
   const action = chasePlan ? (chasePlan[chasePlanAt++] ?? 'wait') : (queued ?? 'wait');
+  const chosen = planned ? null : queued;    // what the player asked for this tick, if anything
   queued = null;
   if (action !== 'wait') chaseFacing = action;
+  const heldBefore = chaseState.rocks.filter(r => chaseMap.buttons.has(r)).length;
+  const ev = (what) => tutorFeed({ kind: 'chase', what, ticks: chaseTicks });
 
   const next = chaseStep(chaseMap, chaseState, action);
   if (!next) {
     // an illegal move is just a bump; a fatal one ends the run
     const bumped = chaseStep(chaseMap, chaseState, 'wait');
-    if (action !== 'wait' && bumped) { chaseState = bumped; chaseTicks++; setChaseStatus(); return; }
+    if (action !== 'wait' && bumped) { chaseState = bumped; chaseTicks++; setChaseStatus(); if (!planned) ev('tick'); return; }
     chaseDead = true;
     chasePlan = null;
     $('#chaseSolve').disabled = false;
     setChaseStatus();
+    ev('caught');
     return;
   }
   chaseState = next;
@@ -570,6 +663,13 @@ function chaseTick() {
     $('#chaseSolve').disabled = false;
   }
   setChaseStatus();
+  if (!planned) {
+    ev('tick');
+    if (chosen === 'wait') ev('wait');
+    const held = chaseState.rocks.filter(r => chaseMap.buttons.has(r)).length;
+    if (held > heldBefore) ev('button');
+    if (isChaseGoal(chaseMap, chaseState)) ev('win');
+  }
 }
 
 function startClock() {
@@ -642,15 +742,15 @@ pad.on(({ button, down }) => {
   if (!down || armedStage !== 'chase') return;
   if (button === 'START') { chaseRestart(); return; }
   const action = CHASE_PAD[button];
-  if (action && !chasePlan) queued = action;   // consumed by the next tick, not now
+  if (action && !chasePlan) { queued = action; chaseGo(); }   // consumed by the next tick, not now
 });
 addEventListener('keydown', (e) => {
   if (!pad.allows('key') || armedStage !== 'chase') return;
   if (e.key === 'r' || e.key === 'R') { chaseRestart(); return; }
-  if (e.key === ' ' && !chasePlan) { e.preventDefault(); queued = 'wait'; }
+  if (e.key === ' ' && !chasePlan) { e.preventDefault(); queued = 'wait'; chaseGo(); }
 });
 
-$('#chaseReset').addEventListener('click', chaseRestart);
+$('#chaseReset').addEventListener('click', () => chaseRestart());
 $('#chaseSpeed').addEventListener('input', (e) => {
   chaseTickMs = +e.target.value;
   $('#chaseSpeedOut').textContent = `${chaseTickMs}ms`;
@@ -665,7 +765,8 @@ $('#chaseSolve').addEventListener('click', () => {
     const { moves, explored } = solveChase(chaseMap, chaseState);
     const ms = Math.round(performance.now() - t0);
     if (!moves) {
-      chaseStatus.textContent = `no way out from here (${explored} states, ${ms}ms) — press R`;
+      chaseStatus.textContent = `no way out from here (${explored} states, ${ms}ms) — ${pad.allows('key') ? 'START or R' : 'START'} restarts`;
+      chaseStatus.className = 'status hot';
       $('#chaseSolve').disabled = false;
       return;
     }
@@ -673,10 +774,11 @@ $('#chaseSolve').addEventListener('click', () => {
     chasePlan = moves;
     chasePlanAt = 0;
     setChaseStatus();
+    if (chaseWaiting) { chaseWaiting = false; startClock(); }
   }, 30);
 });
 
-chaseRestart();
+chaseRestart({ tell: false });
 if (mode === 'dev' && new URLSearchParams(location.search).get('autosolve') === 'chase')
   setTimeout(() => $('#chaseSolve').click(), 400);
 
@@ -696,6 +798,32 @@ hooks.resume = () => {
   setChaseStatus();
   refreshStatus();
 };
+
+// The tutorial's coach: a step that comes up arms its stage and, on a phone,
+// shows it. Mounted after both stages, since its first step arms one.
+coach = mountCoach(tutor, {
+  looks,
+  chapters: { 1: 'Chapter one · a mad tea party', 2: "Chapter two · the queen's gauntlet" },
+  finish: {
+    title: 'A prize for everyone',
+    say: 'Both rooms are yours. The range is next door.',
+    note: (skipped) => 'You have been through both rooms' +
+      (skipped ? ` (${skipped} step${skipped === 1 ? '' : 's'} skipped)` : '') +
+      '. Start over any time, or cross to the glitch range, where the badge does the pressing.',
+  },
+  prepare(step, { show = false } = {}) {
+    if (!step?.stage) return;
+    armStage(step.stage);
+    if (!show) return;
+    if (looks.look.id !== 'classic') looks.setMode(step.stage);
+    else $(`#${step.stage}Panel`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+});
+
+// scripted tests read the stages through this (dev hosts; nothing here plays)
+window.__stages = { get tutor() { return tutor; }, get board() { return board; }, get history() { return history; },
+                    get chase() { return { state: chaseState, ticks: chaseTicks, dead: chaseDead, waiting: chaseWaiting }; },
+                    get armed() { return armedStage; }, armStage };
 
 // The render loop starts last: everything it draws has to exist first.
 requestAnimationFrame(tick);
