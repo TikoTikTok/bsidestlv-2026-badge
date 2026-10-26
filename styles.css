@@ -47,6 +47,8 @@ canvas { image-rendering: pixelated; display: block; }
    sliders, the keyboard prose - is class dev-only and goes on the site
    (html[data-host=site], set by src/look-boot.js before paint) */
 html[data-host=site] .dev-only { display: none !important; }
+/* and the other way: what only the published site shows (the level maker's landing prose) */
+html[data-host=dev] .site-only { display: none !important; }
 
 /* ---------------------------------------------------------------- bar -- */
 

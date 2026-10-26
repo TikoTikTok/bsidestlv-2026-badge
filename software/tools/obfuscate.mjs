@@ -5,7 +5,7 @@
 //   node software/tools/obfuscate.mjs _site            # rewrite _site/src, _site/stages and the pages in place
 //   node software/tools/obfuscate.mjs _site --dry-run  # report what would change
 //
-// What it does to every .js under src/ and stages/ (and the four pages):
+// What it does to every .js under src/ and stages/ (and the five pages):
 //
 //   1. drops every comment - the richest hint a model has is the prose;
 //   2. renames every function-local and block-local binding to a *misleading*
@@ -731,7 +731,7 @@ export function obfuscateTree(root, { dryRun = false, log = () => {} } = {}) {
     log(`${rel}: ${renamed} renamed, ${packed} strings packed, ${src.length} -> ${out.length} bytes, canary ${canary}`);
     if (!dryRun) writeFileSync(file, out);
   }
-  for (const page of ['index.html', 'glitch.html', 'flash.html', 'badge.html']) {
+  for (const page of ['index.html', 'glitch.html', 'flash.html', 'badge.html', 'maker.html']) {
     const file = join(root, page);
     if (!existsSync(file)) continue;
     const src = readFileSync(file, 'utf8');

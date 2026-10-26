@@ -1,0 +1,219 @@
+<!doctype html>
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 8 8 15 1 8z' fill='%236fb0f0'/%3E%3C/svg%3E">
+<title>Alice in AI Land — The Level Maker</title>
+<meta name="robots" content="noai, noimageai">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="src/maker.css">
+<script src="src/look-boot.js"></script>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>the level maker · <a href="index.html">the stages</a> · <a href="glitch.html">glitch range</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a></small>
+    </span>
+  </div>
+
+  <div class="controls pad-status">
+    <span id="padDevice" class="pad-device dev-only">keyboard</span>
+    <button type="button" id="turnBtn" class="turn-btn" aria-label="Page turn: auto" aria-haspopup="dialog" aria-expanded="false" aria-controls="turnPop" data-state="auto"></button>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
+  </div>
+</header>
+
+<main>
+  <!-- The landing: on the published site this is the whole page. On a local checkout
+       (html[data-host=dev], src/look-boot.js) the editor and the run & debug bench below
+       it are shown too; the site never carries them, only this invitation. -->
+  <section class="panel hero" id="hero">
+    <div class="hero-room"><canvas id="heroCanvas" aria-label="a room painting itself, then Alice walking its solution"></canvas></div>
+    <div class="hero-copy">
+      <h1>Build a room for Alice</h1>
+      <p class="lede">Every stage in this game is a few lines of text: a walled room, some rocks, the buttons they
+        belong on, a lever, a gate, a door. The <b>level maker</b> is a page in this repository that draws it with
+        the game's own art, proves it can be solved, and lets you play it from the keyboard the way the badge
+        would. Make one. Send it in. It ships with the next deploy.</p>
+      <div class="hero-actions">
+        <button type="button" id="aiBtn" class="btn big">Try it now with your favourite AI</button>
+        <a class="btn ghost big" href="#byhand">…or by hand</a>
+      </div>
+      <p class="note site-only">The maker runs from a clone of the repository on your own machine, where the keyboard is
+        allowed to play. This page is only the invitation; the published site plays from the badge alone.</p>
+      <p class="note dev-only">You are on a local checkout: the maker is below. <b>WASD</b> or the arrows move, <b>Z X C V</b> are
+        A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.</p>
+    </div>
+  </section>
+
+  <section class="panel site-only">
+    <h2>How it goes</h2>
+    <ol class="steps three">
+      <li><b>Clone the repository.</b> Node 20 or newer is all it needs: no packages, no build. <code>npm run maker</code> serves the
+        checkout and opens the maker in your browser.</li>
+      <li><b>Draw, check, play.</b> Paint walls and rocks on the grid, or type the map. <b>Check</b> runs the real solver and says how many
+        moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.</li>
+      <li><b>Send it in.</b> Export writes a stage module, <code>stages/community/&lt;id&gt;.js</code>. Add it to the index, open a pull request;
+        the checks prove it is solvable before anyone has to play it.</li>
+    </ol>
+  </section>
+
+  <section class="panel site-only" id="format">
+    <h2>What a stage is</h2>
+    <div class="format">
+<pre><code>// Stage: "A Small Garden"
+//
+//   #  wall     .  floor    A  Alice    O  rock
+//   b  button   L  lever    G  gate     D  door
+
+export const A_SMALL_GARDEN = {
+  name: 'A Small Garden',
+  theme: 'garden',
+  rows: [
+    '#########',
+    '#A..#..b#',
+    '#.O.G...#',
+    '#...#...#',
+    '#.L.#..D#',
+    '#########',
+  ],
+};</code></pre>
+      <div>
+        <p class="note">Push every rock onto a button and walk Alice to the door. A gate stays shut until she steps on
+          the lever. A rock pushed into a corner is lost, so the order of the shoves is the puzzle. Nothing is scripted:
+          the page proves a room with the same search the site is deployed with, and a room that cannot be solved is
+          refused.</p>
+        <p class="note">A <b>timed</b> room adds a clock and a cast: <code>tickMs: 320</code> and a list of
+          <code>hazards</code>, each walking a loop one cell per tick. The Red Queen also <em>looks</em> ahead, so a straight line of
+          open floor between her and Alice ends the run. Then a plan is a schedule, and standing still is a move.</p>
+        <p class="note">Three dressings: <code>garden</code>, <code>hall</code>, <code>court</code>. Rooms are between 4×4 and 24×24,
+          walled all round.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel site-only" id="byhand">
+    <h2>By hand</h2>
+<pre><code>git clone <span id="repoClone">https://github.com/bsidestlv/bsidestlv-2026-badge</span>.git
+cd bsidestlv-2026-badge
+npm run maker                                   # serves http://localhost:8080 and opens maker.html
+npm run stage -- stages/community/my-room.js    # what CI will say about it</code></pre>
+    <p class="note">The whole guide, with the format, the rules the checker applies and how a room gets onto the site:
+      <a id="docsLink" href="https://github.com/bsidestlv/bsidestlv-2026-badge/blob/main/software/docs/LEVEL_MAKER.md">software/docs/LEVEL_MAKER.md</a>.</p>
+  </section>
+
+  <!-- ------------------------------------------------------------------ the maker: a local checkout only -- -->
+  <section class="panel dev-only" id="editPanel">
+    <h2>The room <span id="editName" class="armed-mark"></span></h2>
+    <div class="maker">
+      <div class="maker-board">
+        <div class="palette" id="palette" aria-label="brush"></div>
+        <div class="stage-wrap board-wrap"><canvas id="board"></canvas></div>
+        <p class="note">Click or drag to paint with the brush; right-click paints floor. Alice and the door are single, so painting
+          one moves it. With a hazard selected, clicks lay its route instead, point by point, straight lines only; the loop closes itself.
+          <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes an edit back.</p>
+      </div>
+      <div class="maker-side">
+        <label class="field">Name <input id="name" type="text" maxlength="48" spellcheck="false"></label>
+        <div class="field-row">
+          <label class="field">Width <input id="width" type="number" min="4" max="24"></label>
+          <label class="field">Height <input id="height" type="number" min="4" max="24"></label>
+          <label class="field">Dressing
+            <select id="theme">
+              <option value="garden">the garden</option>
+              <option value="hall">the Queen's hall</option>
+              <option value="court">the court</option>
+            </select></label>
+        </div>
+        <div class="field-row">
+          <label class="field">Clock
+            <select id="kind">
+              <option value="tea">untimed</option>
+              <option value="chase">timed</option>
+            </select></label>
+          <label class="field" id="tickField">Tick <input id="tickMs" type="number" min="100" max="2000" step="20"> <small>ms</small></label>
+        </div>
+        <div id="hazards" class="hazards"></div>
+        <div class="stage-bar"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
+        <label class="field grow">The map <textarea id="ascii" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
+        <ul id="lint" class="lint"></ul>
+      </div>
+    </div>
+    <div class="stage-bar">
+      <button type="button" id="checkBtn" class="btn">Check</button>
+      <button type="button" id="playBtn" class="btn">Run &amp; debug</button>
+      <button type="button" id="newBtn" class="btn ghost">New</button>
+      <label>Load <select id="load"><option value="">a shipped stage…</option></select></label>
+      <span id="report" class="status"></span>
+    </div>
+  </section>
+
+  <section class="panel dev-only" id="playPanel">
+    <h2>Run &amp; debug <span class="armed-mark">● armed</span></h2>
+    <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
+    <div class="run">
+      <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
+      <div class="run-side">
+        <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
+        <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, or a real
+          badge on USB. The log is every edge and what the room made of it.</p>
+      </div>
+    </div>
+    <div class="stage-bar">
+      <button type="button" id="editBtn" class="btn ghost">Back to the editor</button>
+      <button type="button" id="resetBtn" class="btn ghost">Reset</button>
+      <button type="button" id="undoBtn" class="btn ghost">Undo</button>
+      <button type="button" id="solveBtn" class="btn">Play the solution</button>
+      <span id="runStatus" class="status"></span>
+    </div>
+    <ol id="runLog" class="log bench" reversed></ol>
+  </section>
+
+  <section class="panel dev-only" id="exportPanel">
+    <h2>Send it in</h2>
+    <div class="export">
+      <div>
+        <label class="field">Your name or handle, for the file's header <input id="author" type="text" maxlength="48" spellcheck="false"></label>
+        <p class="note">The module goes in <code>stages/community/</code> as <code id="fileName">untitled.js</code>, plus one line in
+          <code>stages/community/index.json</code>. <code>npm run stage -- stages/community/<span id="fileName2">untitled</span>.js</code>
+          says what CI will say; then open a pull request. A link carries the whole room, for a friend with a checkout.</p>
+        <div class="stage-bar">
+          <button type="button" id="copyModule" class="btn">Copy the module</button>
+          <button type="button" id="downloadModule" class="btn ghost">Download</button>
+          <button type="button" id="shareBtn" class="btn ghost">Copy a link</button>
+          <span id="exportStatus" class="status"></span>
+        </div>
+        <label class="field">Import a module (paste its source) <textarea id="importText" rows="4" spellcheck="false" placeholder="export const MY_ROOM = { name: '…', rows: [ … ] };"></textarea></label>
+        <div class="stage-bar"><button type="button" id="importBtn" class="btn ghost">Import</button><span id="importStatus" class="status"></span></div>
+      </div>
+      <pre class="module"><code id="moduleOut"></code></pre>
+    </div>
+  </section>
+</main>
+
+<!-- The invitation: the prompt a visitor hands to an assistant, with a copy button and two
+     front doors that take the text in their address. The prompt sends the assistant to the
+     repository, which is readable; nothing on this site is meant to be read by one. -->
+<dialog id="aiDialog" class="ai">
+  <h2>Hand this to your assistant</h2>
+  <p class="note">Copy the prompt into Claude, ChatGPT or whatever you use. It tells the assistant where the repository is,
+    how to start the maker, and how to send a room in.</p>
+  <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
+  <div class="stage-bar">
+    <button type="button" id="aiCopy" class="btn">Copy</button>
+    <a id="aiClaude" class="btn ghost" target="_blank" rel="noopener">Open in Claude</a>
+    <a id="aiChatGPT" class="btn ghost" target="_blank" rel="noopener">Open in ChatGPT</a>
+    <button type="button" id="aiClose" class="btn ghost">Close</button>
+    <span id="aiStatus" class="status"></span>
+  </div>
+</dialog>
+
+<script type="module" src="src/maker.js"></script>
+</body>
+</html>
