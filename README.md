@@ -13,6 +13,7 @@ index.html         the challenge - static site, served from the repo root
 glitch.html        the glitch range - five practice rooms for the badge's quick-glitch layer, and a tutorial
 flash.html         flash the badge from the browser - WebUSB to the RP2040's bootloader
 badge.html         the badge's vault - read it, provision it at the booth, try the beacon
+maker.html         the level maker - a landing on the site, the editor and a simulated badge on a checkout
 robots.txt  rabbit-hole/   what crawlers get: a refusal, and a walkthrough that never ends
 styles.css  src/  stages/  assets/
 hardware/          KiCad projects (CERN-OHL-S-2.0)
@@ -38,7 +39,7 @@ same seed plus same input trace gives the same outcome byte for byte — which i
 what makes it scriptable, replayable and verifiable.
 
 It lives at the repository root — `index.html`, `glitch.html`, `flash.html`,
-`badge.html`, `styles.css`, `src/`, `stages/`, `assets/`, `robots.txt` and
+`badge.html`, `maker.html`, `styles.css`, `src/`, `stages/`, `assets/`, `robots.txt` and
 `rabbit-hole/` — as plain static files. No server, no build step, every path
 relative, so it works at a domain root or under `/<repo>/` unchanged.
 
@@ -63,12 +64,34 @@ as they like.
 
 ```
 ./serve.sh          # http://localhost:8080, the same files Pages serves
-npm run verify      # proves both stages are solvable, the range is honest, the flasher and the badge gate behave
+npm run maker       # the same, in Node alone, and opens the level maker
+npm run verify      # proves both stages are solvable, the range is honest, the flasher, the badge gate and the level maker behave
+npm run stage -- stages/community/<id>.js   # the verdict on one room
 npm run seal -- path/to/stage.js   # ALICE_STAGE_KEY=<64 hex>: seal a stage into stages/sealed/
 ```
 
 On `localhost` there is no gate and the keyboard works, because that is
 where the pages are developed; `?gate=1` brings the gate up there to try it.
+
+### Make a room
+
+A stage is a few lines of text, and anyone with a clone can write one.
+`maker.html` on the published site is the invitation: what a stage is, how
+to get the maker, and a *Try it now with your favourite AI* button that
+hands an assistant the prompt (clone the repository, run the maker, design
+a room together, send it in). The same page on a local checkout is the
+maker itself: a grid editor drawn with the game's own tiles, a map you can
+also type, the cast and their routes for a timed room, a **Check** that runs
+the real solver (par, whether the gate is load-bearing, what the cast
+costs), **Run & debug**, where the room is played with a simulated badge
+that lights from the keyboard, a click or a real badge on USB and logs
+every edge, and an export that writes the stage module. The keyboard plays
+there, and only there: the site's pad never has it.
+
+Rooms go in `stages/community/` with a line in its `index.json`;
+`npm run stage -- <file>` says what CI will say, and `verify-maker.mjs`
+gates every deploy on every listed room. The whole guide, format and
+process: [`software/docs/LEVEL_MAKER.md`](software/docs/LEVEL_MAKER.md).
 
 ### The glitch range
 
