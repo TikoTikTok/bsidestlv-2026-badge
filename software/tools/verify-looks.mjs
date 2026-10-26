@@ -63,7 +63,7 @@ const themes = manifest('theme', 'themes', 'themes', (t, at) => {
 
 // --------------------------------------------------------------- the pages ----
 
-const PAGES = ['index.html', 'glitch.html', 'flash.html', 'badge.html'];
+const PAGES = ['index.html', 'glitch.html', 'flash.html', 'badge.html', 'maker.html'];
 const pages = [];
 for (const page of PAGES) {
   const html = readFileSync(resolve(root, page), 'utf8');
