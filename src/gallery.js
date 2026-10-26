@@ -4,12 +4,13 @@
 // drawn from the supplied art, driven by the badge, with a tutorial (src/
 // tutor.js, src/coach.js) that watches what the player does. The bench's
 // walk-cycle viewer and asset sheets live here too, on a dev host only.
-// Everything drawn comes from assets/: five 8-way walk cycles under
-// assets/characters/ and the item and tile sets. Nothing is drawn in code.
+// Everything drawn comes from assets/ through src/scene.js: five 8-way walk
+// cycles under assets/characters/ and the item and tile sets. Nothing is
+// drawn in code.
 
 import { parse, step, solve, isGoal } from './puzzle.js';
-import { parse as parseChase, step as chaseStep, solve as solveChase,
-         isGoal as isChaseGoal, hazardCells, hazardAt, seenBy } from './chase.js';
+import { parse as parseChase, step as chaseStep, solve as solveChase, isGoal as isChaseGoal } from './chase.js';
+import { TILE, THEMES, loadScene, drawRoom } from './scene.js';
 import { Pad, flipFor } from './pad.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
@@ -62,48 +63,8 @@ pad.on(({ button, down, source }) => tutorFeed({ kind: 'edge', button, down, sou
 
 const state = { zoom: 2, backdrop: 'checker' };   // the asset sheet's controls, in the Art panel
 
-const WALK_CHARACTERS = [
-  { id: 'alice2',   label: 'Alice' },
-  { id: 'rabbit',   label: 'White Rabbit' },
-  { id: 'hatter',   label: 'Mad Hatter' },
-  { id: 'queen',    label: 'Red Queen' },
-  { id: 'cheshire', label: 'Cheshire Cat' },
-];
-
-const loadImage = async (src) => {
-  const img = new Image();
-  img.src = src;
-  await img.decode();
-  return img;
-};
-
-/** One character: manifest + every frame, keyed by direction. */
-async function loadCharacter({ id, label }) {
-  const dir = `assets/characters/${id}`;
-  const meta = await (await fetch(`${dir}/${id}.json`)).json();
-  const images = {};
-  await Promise.all(Object.entries(meta.directions).flatMap(([d, files]) =>
-    files.map(async (file, i) => { (images[d] ||= [])[i] = await loadImage(`${dir}/${file}`); })));
-  return { id, label, meta, images };
-}
-
-/** A folder of single-image assets plus its manifest (items, tiles). */
-async function loadSet(folder, manifestKey) {
-  const meta = await (await fetch(`assets/${folder}/${folder}.json`)).json();
-  const list = meta[manifestKey];
-  const images = {};
-  await Promise.all(list.map(async (it) => {
-    images[it.name] = await loadImage(`assets/${folder}/${it.file}`);
-  }));
-  return { meta, list, images };
-}
-
-const [characters, items, tiles] = await Promise.all([
-  Promise.all(WALK_CHARACTERS.map(loadCharacter)),
-  loadSet('items', 'items'),
-  loadSet('tiles', 'tiles'),
-]);
-const byId = Object.fromEntries(characters.map(c => [c.id, c]));
+const scene = await loadScene();
+const { characters, items, tiles, byId } = scene;
 
 const badge = await gatePromise;
 const [TEA_PARTY, QUEENS_GAUNTLET] = await Promise.all([loadStage('tea-party', badge?.key), loadStage('queens-gauntlet', badge?.key)])
@@ -259,71 +220,10 @@ $('#walkSpeed').addEventListener('input', (e) => {
 const playing = () => $('#walkPlay').checked;
 
 // ------------------------------------------------------------------ stage ----
-
-// ----------------------------------------------------------------- themes ----
-// A stage picks its look from a theme: each map character maps to a list of
-// tiles, and which one a cell gets is a hash of its coordinates. Deterministic,
-// so the room looks hand-dressed but never shuffles between frames.
-
-const hash2 = (x, y) => {
-  let h = (x * 73856093) ^ (y * 19349663);
-  h = (h ^ (h >>> 13)) * 1274126177;
-  return Math.abs(h ^ (h >>> 16));
-};
-const pick = (list, x, y) => list[hash2(x, y) % list.length];
-
-const THEMES = {
-  // the tea party is a walled garden
-  garden: {
-    '#': ['hedge_daisies', 'hedge_wide', 'hedge_daisies', 'hedge_roses',
-          'hedge_wide', 'hedge_daisies', 'pillar_rose', 'hedge_daisies'],
-    '.': ['floor_grass_clover', 'floor_grass_roses', 'floor_grass_flowers',
-          'floor_grass_clover', 'floor_grass_flowers', 'floor_dirt_patch'],
-    A: ['floor_grass_clover'],
-    O: ['floor_dirt_patch'],
-    b: ['floor_checker_framed'],
-    L: ['floor_dirt_cross'],
-    G: ['floor_dirt_cross'],
-    D: ['floor_carpet_heart'],
-    gateClosed: 'hedge_post_left',
-  },
-  // the gauntlet is the Queen's hall
-  hall: {
-    // mostly plain: a banner every few cells reads as decoration, a banner on
-    // every cell reads as noise and stops the wall looking like a wall
-    '#': ['wall_blue', 'wall_blue', 'wall_blue', 'wall_blue', 'wall_blue',
-          'wall_blue', 'pillar_blue', 'wall_blue', 'wall_blue',
-          'wall_blue_banner_white', 'wall_blue', 'wall_blue_banner_red'],
-    '.': ['floor_marble_plain', 'floor_marble_veined', 'floor_marble_plain',
-          'floor_marble_cracked'],
-    A: ['floor_marble_plain'],
-    O: ['floor_marble_veined'],
-    b: ['floor_checker_blue'],
-    L: ['floor_marble_heart'],
-    G: ['floor_carpet_heart'],
-    D: ['floor_carpet_heart'],
-    gateClosed: 'hedge_rail',
-  },
-};
-
-/**
- * Every cell gets a floor first, then whatever stands on it. Some wall pieces -
- * pillars, posts, rails - are narrower than a cell, and without a floor beneath
- * them the gap is just background showing through.
- */
-function drawCell(ctx, theme, ch, x, y, size) {
-  const px = x * size, py = y * size;
-  const floorList = theme[ch] && ch !== '#' ? theme[ch] : theme['.'];
-  ctx.drawImage(tiles.images[pick(floorList, x, y)], px, py, size, size);
-  if (ch === '#') ctx.drawImage(tiles.images[pick(theme['#'], x, y)], px, py, size, size);
-}
-
-// ------------------------------------------------------------------ stage ----
 // The playable puzzle. Rules and solver live in src/puzzle.js, so the Solve
 // button runs the same search that tools/verify-stage.mjs uses to prove the
 // stage ships - it is a solver, not a recording.
 
-const TILE = 48;
 const map = parse(TEA_PARTY.rows);
 const stage = $('#stage');
 const sctx = stage.getContext('2d');
@@ -452,40 +352,8 @@ function resetStage({ tell = true } = {}) {
 }
 
 function drawStage(now) {
-  sctx.imageSmoothingEnabled = false;
   sctx.clearRect(0, 0, stage.width, stage.height);
-
-  const allHeld = buttonsPressed() === map.buttons.size;
-
-  map.rows.forEach((row, y) => [...row].forEach((ch, x) => {
-    const i = y * map.w + x;
-    const px = x * TILE, py = y * TILE;
-
-    drawCell(sctx, TEA_THEME, ch, x, y, TILE);
-
-    if (map.gates.has(i) && !board.lever)
-      sctx.drawImage(tiles.images[TEA_THEME.gateClosed], px, py, TILE, TILE);
-    if (map.levers.has(i))
-      sctx.drawImage(tiles.images[board.lever ? 'lever_down' : 'lever_up'], px, py, TILE, TILE);
-    if (map.buttons.has(i)) {
-      const pressed = board.rocks.includes(i);
-      sctx.drawImage(tiles.images[pressed ? 'button_heart_down' : 'button_heart_up'], px, py, TILE, TILE);
-    }
-    if (i === map.door)
-      sctx.drawImage(tiles.images[allHeld ? 'door_heart_open' : 'door_heart_closed'], px, py, TILE, TILE);
-  }));
-
-  for (const rock of board.rocks)
-    sctx.drawImage(items.images.rock_pair,
-                   (rock % map.w) * TILE, ((rock / map.w) | 0) * TILE, TILE, TILE);
-
-  // Alice: her walk frames step while a solution is playing, otherwise she stands
-  const aliceChar = byId.alice2;
-  const aliceCycle = aliceChar.meta.cycle ?? [0, 1, 0, 2];
-  const aliceBeat = solution ? Math.floor(now / playSpeed) % aliceCycle.length : 0;
-  const aliceFrame = aliceChar.images[aliceFacing][aliceCycle[aliceBeat]];
-  sctx.drawImage(aliceFrame, (board.alice % map.w) * TILE, ((board.alice / map.w) | 0) * TILE, TILE, TILE);
-
+  drawRoom(sctx, scene, map, board, TEA_THEME, { now, facing: aliceFacing, walking: !!solution, beatMs: playSpeed });
 }
 
 // The badge drives the stage: d-pad steps, B takes a move back, START resets,
@@ -578,7 +446,6 @@ chase.width = chaseMap.w * TILE;
 chase.height = chaseMap.h * TILE;
 
 const CHASE_THEME = THEMES.hall;
-const HAZARD_CHARACTER = { queen: 'queen', cheshire: 'cheshire', rabbit: 'rabbit' };
 
 let chaseState = chaseMap.start;
 let chaseFacing = 'S';
@@ -679,59 +546,8 @@ function startClock() {
 startClock();
 
 function drawChase(now) {
-  cctx.imageSmoothingEnabled = false;
   cctx.clearRect(0, 0, chase.width, chase.height);
-
-  const allHeld = chaseState.rocks.every(r => chaseMap.buttons.has(r));
-  chaseMap.rows.forEach((row, y) => [...row].forEach((ch, x) => {
-    const i = y * chaseMap.w + x;
-    const px = x * TILE, py = y * TILE;
-    drawCell(cctx, CHASE_THEME, ch, x, y, TILE);
-    if (chaseMap.gates.has(i) && !chaseState.lever)
-      cctx.drawImage(tiles.images[CHASE_THEME.gateClosed], px, py, TILE, TILE);
-    if (chaseMap.levers.has(i))
-      cctx.drawImage(tiles.images[chaseState.lever ? 'lever_down' : 'lever_up'], px, py, TILE, TILE);
-    if (chaseMap.buttons.has(i))
-      cctx.drawImage(tiles.images[chaseState.rocks.includes(i) ? 'button_heart_down' : 'button_heart_up'],
-                     px, py, TILE, TILE);
-    if (i === chaseMap.door)
-      cctx.drawImage(tiles.images[allHeld ? 'door_heart_open' : 'door_heart_closed'], px, py, TILE, TILE);
-  }));
-
-  // what the Queen can see this tick - the rule is invisible otherwise
-  for (const hz of chaseMap.hazards) {
-    if (!hz.sight) continue;
-    for (let i = 0; i < chaseMap.w * chaseMap.h; i++) {
-      if (!seenBy(chaseMap, hz, chaseState.phase, i)) continue;
-      cctx.fillStyle = 'rgba(226, 64, 84, .22)';
-      cctx.fillRect((i % chaseMap.w) * TILE, ((i / chaseMap.w) | 0) * TILE, TILE, TILE);
-    }
-  }
-
-  for (const rock of chaseState.rocks)
-    cctx.drawImage(items.images.rock_pair,
-                   (rock % chaseMap.w) * TILE, ((rock / chaseMap.w) | 0) * TILE, TILE, TILE);
-
-  // the cast, facing the way they are walking
-  for (const { hz, cell } of hazardCells(chaseMap, chaseState.phase)) {
-    const character = byId[HAZARD_CHARACTER[hz.id]];
-    if (!character) continue;
-    const ahead = hazardAt(chaseMap, hz, chaseState.phase + 1);
-    const dx = Math.sign((ahead % chaseMap.w) - (cell % chaseMap.w));
-    const dy = Math.sign(((ahead / chaseMap.w) | 0) - ((cell / chaseMap.w) | 0));
-    const dir = dy < 0 ? 'N' : dy > 0 ? 'S' : dx > 0 ? 'E' : 'W';
-    const cyc = character.meta.cycle ?? [0, 1, 0, 2];
-    const img = character.images[dir][cyc[Math.floor(now / chaseTickMs) % cyc.length]];
-    cctx.drawImage(img, (cell % chaseMap.w) * TILE, ((cell / chaseMap.w) | 0) * TILE, TILE, TILE);
-  }
-
-  const al = byId.alice2;
-  const alCyc = al.meta.cycle ?? [0, 1, 0, 2];
-  const alImg = al.images[chaseFacing][alCyc[Math.floor(now / chaseTickMs) % alCyc.length]];
-  cctx.globalAlpha = chaseDead ? 0.35 : 1;
-  cctx.drawImage(alImg, (chaseState.alice % chaseMap.w) * TILE,
-                 ((chaseState.alice / chaseMap.w) | 0) * TILE, TILE, TILE);
-  cctx.globalAlpha = 1;
+  drawRoom(cctx, scene, chaseMap, chaseState, CHASE_THEME, { now, facing: chaseFacing, walking: true, beatMs: chaseTickMs, dead: chaseDead });
 }
 
 // The badge: d-pad moves, Y waits a tick (the design's tick-step), START
