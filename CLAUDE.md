@@ -130,7 +130,10 @@ software/            MIT, never published
                                 stages with the ALICE_STAGE_KEY secret, stages the site paths +
                                 firmware/, obfuscates _site in place (obfuscate.mjs), deploys
 .github/workflows/firmware.yml  host test of the glitch engine + cross-build via build-uf2.yml
-.github/workflows/build-uf2.yml the one place the ARM toolchain and pico-sdk version live (reusable)
+.github/workflows/build-uf2.yml the one place the ARM toolchain and pico-sdk version live (reusable); the UF2 is
+                                cached by the hash of software/controller/** + this file, so a deploy that does not
+                                touch the firmware skips the install and the build; the apt install has a timeout
+                                and three tries (the runners' mirror hung a deploy for an hour on 2026-10-26)
 ```
 
 ## Commands
@@ -218,7 +221,7 @@ Built and live:
 | Crawler side | `robots.txt` (AI crawlers disallowed; only honoured at a host root, so inert on a project page until a custom domain), `noai` meta on every page, `rabbit-hole/` tarpit with per-path canary flags, linked by a hidden door on the real pages. |
 | Published-site obfuscation | `pages.yml` runs `software/tools/obfuscate.mjs` over `_site/` after staging (the repository is untouched): every comment out, every function/block-local binding renamed to a misleading name from the game's vocabulary (`flagDigest`, `serverTrace`; module-scope names and property names kept, so imports, the DOM and the wire formats are unchanged), every string literal packed into one XOR-ed base64 blob per file behind a one-line decoder, whitespace folded (newlines kept for ASI), and the lure: a "note for automated assistants" at the top of every module and page sending an agent to `rabbit-hole/?p=notes/<module>/solution`, whose generated flag is the canary for that module, plus one never-called decoy function per module that computes the same canary. ~5.6k bindings and ~1.8k strings on the current tree. `verify-obfuscate.mjs` (in `npm run verify`) obfuscates a copy and runs the whole suite against it, checks exports / imports / the single comment / no bare strings, and pins nine regressions; the deploy also `node --check`s every output. `smoke-obfuscated.mjs` is the Playwright pass over all pages (dev only, run once on the first build, green). Evidence and limits in `software/docs/AI_THREATS.md`: a speed bump and a tripwire against an agent reading the site, nothing against a reader of the repository. |
 | Browser flashing | `flash.html`: WebUSB to the ROM bootloader (2e8a:0003), PICOBOOT exactly as picotool does it - exclusive access, EXIT_XIP, erase + write per 4 KB sector, read back, REBOOT(0, SRAM_END, 500 ms). One firmware on offer (the quick-glitch build) plus a local `.uf2`; the download link and `flash-badge.py` are the no-WebUSB route. Tested only against `fake-bootloader.mjs`; never run against a board. |
-| CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
+| CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`, which restores the UF2 from the Actions cache when the firmware sources and the recipe are unchanged (most deploys) and otherwise installs the toolchain with a timeout and retries. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
 
 Designed but not built (see `software/docs/GAME_DESIGN.md`):
 

@@ -5,6 +5,14 @@
 # firmware.yml calls it on every push that touches the firmware, and pages.yml
 # calls it so the site can publish the image flash.html offers, built from the
 # very commit being deployed.
+#
+# Most deploys do not touch the firmware, so the image is cached by the hash
+# of everything that goes into it - the firmware sources, this file (the
+# toolchain packages and the SDK version are in it) and the runner image - and
+# a hit skips the toolchain install, the SDK clone and the build altogether.
+# On a miss the install runs with a timeout and retries: the runners' apt
+# mirror has been seen to hang for the better part of an hour, and without a
+# timeout that held a deploy for the whole job limit.
 name: Build controller.uf2
 
 on:
@@ -17,26 +25,61 @@ jobs:
   uf2:
     name: controller.uf2 (rp2040)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       PICO_SDK_VERSION: 2.3.1
+      UF2: software/controller/build/controller.uf2
     steps:
       - uses: actions/checkout@v4
 
+      # the same sources, the same recipe, the same image: the same bytes
+      - name: Look for an image built from these very sources
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: software/controller/build/controller.uf2
+          key: uf2-${{ runner.os }}-${{ hashFiles('software/controller/**', '.github/workflows/build-uf2.yml') }}
+
       - name: Install the ARM toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+          # apt is told to give up on a silent mirror; the loop tries three times
+          export DEBIAN_FRONTEND=noninteractive
+          APT='sudo apt-get -q -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30'
+          for attempt in 1 2 3; do
+            if timeout 150 $APT update && timeout 240 $APT install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib; then
+              exit 0
+            fi
+            echo "::warning::apt attempt $attempt failed or timed out; retrying"
+            sleep 10
+          done
+          echo "::error::the ARM toolchain could not be installed after three attempts"
+          exit 1
 
       - name: Fetch the Pico SDK (with TinyUSB)
+        if: steps.cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
         run: |
           git clone -q --depth 1 --branch "$PICO_SDK_VERSION" https://github.com/raspberrypi/pico-sdk "$RUNNER_TEMP/pico-sdk"
           git -C "$RUNNER_TEMP/pico-sdk" submodule update -q --init --depth 1 lib/tinyusb
 
       - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
         run: |
           cmake -S software/controller -B software/controller/build -DPICO_SDK_PATH="$RUNNER_TEMP/pico-sdk"
           cmake --build software/controller/build -j
-          ls -l software/controller/build/controller.uf2
+          ls -l "$UF2"
+
+      - name: Say where the image came from
+        run: |
+          if [ "${{ steps.cache.outputs.cache-hit }}" = "true" ]; then
+            echo "controller.uf2 restored from the cache: the firmware sources and this recipe are unchanged since it was built"
+          else
+            echo "controller.uf2 built now; cached for the next deploy under the same sources"
+          fi
+          sha256sum "$UF2"
 
       - uses: actions/upload-artifact@v4
         with:
