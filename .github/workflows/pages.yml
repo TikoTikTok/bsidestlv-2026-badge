@@ -32,6 +32,7 @@ on:
       - 'glitch.html'
       - 'flash.html'
       - 'badge.html'
+      - 'maker.html'
       - 'robots.txt'
       - 'styles.css'
       - 'src/**'
@@ -66,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify both stages are solvable, the range is honest, the flasher and the badge gate behave, before publishing
+      - name: Verify both stages are solvable, the range is honest, the flasher, the badge gate and the level maker behave, before publishing
         run: npm run verify
 
       # Sealed stages are committed as ciphertext; with the event key in the
@@ -84,7 +85,7 @@ jobs:
       - name: Stage the site
         run: |
           mkdir _site
-          cp -r index.html glitch.html flash.html badge.html robots.txt styles.css src stages assets rabbit-hole .nojekyll _site/
+          cp -r index.html glitch.html flash.html badge.html maker.html robots.txt styles.css src stages assets rabbit-hole .nojekyll _site/
 
       # In place, in the staging directory only: the repository is never
       # rewritten. Every output is parsed again here so a deploy never ships a
