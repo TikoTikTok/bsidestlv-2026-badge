@@ -1,0 +1,127 @@
+/* Alice in AI Land - the level maker on top of styles.css.
+
+   styles.css is the shared chrome and the palette (every colour below is one
+   of its variables, so a theme paints this page too). This file is what the
+   maker page adds: the landing's hero, the editor's grid and side column,
+   the run & debug bench with its simulated badge, and the invitation dialog.
+   Everything the published site shows is the landing; the editor is class
+   dev-only and styles.css hides it there. */
+
+/* ------------------------------------------------------------- the hero -- */
+
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: center; overflow: hidden; }
+.hero-room {
+  display: flex; justify-content: center; align-items: center;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--ink-2); padding: .75rem;
+}
+.hero-room canvas { max-width: 100%; height: auto; }
+.hero h1 { margin: 0 0 .6rem; font: 700 clamp(22px, 3.4vw, 34px)/1.15 var(--font-display); letter-spacing: .02em; color: var(--accent); text-shadow: 0 0 18px var(--glow); }
+.lede { margin: 0 0 1rem; color: var(--text); font-size: 14px; max-width: 60ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .8rem; }
+.btn.big { padding: .7rem 1.1rem; font-size: 13px; letter-spacing: .06em; }
+@media (max-width: 860px) { .hero { grid-template-columns: 1fr; } }
+
+.steps.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0; max-width: none; counter-reset: step; list-style: none; }
+.steps.three li {
+  position: relative; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2);
+  padding: .9rem .9rem .9rem 2.8rem; font-size: 12px; color: var(--dim);
+}
+.steps.three li b { color: var(--text); display: block; margin-bottom: .25rem; }
+.steps.three li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: .9rem; top: .9rem; width: 1.4rem; height: 1.4rem; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent); font-weight: 700; display: grid; place-items: center; font-size: 12px;
+}
+@media (max-width: 760px) { .steps.three { grid-template-columns: 1fr; } }
+
+.format { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.format pre { margin: 0; }
+@media (max-width: 760px) { .format { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------- the editor -- */
+
+.maker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 1.25rem; align-items: start; }
+@media (max-width: 900px) { .maker { grid-template-columns: 1fr; } }
+.maker-side { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: .25rem; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); min-width: 0; }
+.field input, .field select, .field textarea {
+  font: 13px/1.4 var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+  padding: .35rem .5rem; letter-spacing: 0; text-transform: none; min-width: 0;
+}
+.field textarea { resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto; letter-spacing: .25em; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.field-row { display: flex; gap: .6rem; }
+.field-row .field { flex: 1; }
+.field small { text-transform: none; letter-spacing: 0; }
+#tickField[hidden] { display: none; }
+.field.grow { flex: 1; }
+
+.palette { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .6rem; }
+.brush {
+  display: flex; align-items: center; gap: .4rem; padding: .2rem .55rem .2rem .2rem; cursor: pointer;
+  font: inherit; font-size: 11px; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+}
+.brush canvas { width: 24px; height: 24px; border-radius: 3px; }
+.brush kbd { margin-left: .2rem; }
+.brush:hover { color: var(--text); border-color: var(--accent); }
+.brush.on { color: var(--text); border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; }
+.board-wrap { touch-action: none; }
+.board-wrap canvas { cursor: crosshair; max-width: 100%; height: auto; }
+
+.hazards { display: flex; flex-direction: column; gap: .4rem; }
+.hazard { border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); padding: .45rem .55rem; font-size: 11px; display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; }
+.hazard.on { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent) inset; }
+.hazard select, .hazard input { font: 12px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .15rem .3rem; }
+.hazard input[type=number] { width: 3.6em; }
+.hazard .route { flex-basis: 100%; color: var(--dim); font-size: 10px; letter-spacing: .04em; }
+.hazard .btn { padding: .2rem .5rem; font-size: 10px; }
+
+.lint { margin: 0; padding: 0 0 0 1.2rem; font-size: 11px; color: var(--hot); }
+.lint:empty { display: none; }
+.lint li.ok { color: var(--accent-2); list-style: none; margin-left: -1.2rem; }
+
+/* ------------------------------------------------------ run & debug -- */
+
+.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 1.25rem; align-items: start; }
+@media (max-width: 900px) { .run { grid-template-columns: 1fr; } }
+.run-wrap canvas { max-width: 100%; height: auto; }
+#playPanel:not(.armed) .run-wrap { opacity: .6; }
+
+.sim { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; touch-action: none; }
+.sim .body { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.5; }
+.sim .key { fill: var(--well); stroke: var(--line); stroke-width: 1.2; cursor: pointer; transition: fill .05s; }
+.sim text { font: 700 9px var(--font); fill: var(--dim); text-anchor: middle; dominant-baseline: central; pointer-events: none; letter-spacing: .04em; }
+.sim g[data-btn]:hover .key { stroke: var(--accent); }
+.sim g.on .key { fill: var(--accent); stroke: var(--accent); filter: drop-shadow(0 0 6px var(--glow)); }
+.sim g.on text { fill: var(--on-accent); }
+.sim .brandline { font-size: 7px; fill: var(--dim); letter-spacing: .18em; opacity: .7; }
+.sim .led { fill: var(--accent-2); opacity: .25; }
+.sim .led.on { opacity: 1; filter: drop-shadow(0 0 4px var(--accent-2)); }
+.sim-note { margin-top: .5rem; }
+
+/* --------------------------------------------------------- send it in -- */
+
+.export { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 900px) { .export { grid-template-columns: 1fr; } }
+.export .field { margin-bottom: .6rem; }
+.module { margin: 0; max-height: 420px; overflow: auto; font-size: 11px; }
+
+/* ------------------------------------------------------- the invitation -- */
+
+.ai {
+  width: min(680px, 92vw); border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); color: var(--text);
+  padding: 1.2rem 1.4rem; box-shadow: 0 30px 80px var(--shade);
+}
+.ai::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
+.ai h2 { margin: 0 0 .4rem; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.ai textarea {
+  width: 100%; font: 12px/1.5 var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+  padding: .6rem .7rem; resize: vertical;
+}
+
+/* ------------------------------------------------ in the phone looks -- */
+
+html:not([data-look=classic]) .hero { gap: .75rem; }
+html:not([data-look=classic]) .hero h1 { font-size: 20px; }
+html:not([data-look=classic]) .maker, html:not([data-look=classic]) .run, html:not([data-look=classic]) .export, html:not([data-look=classic]) .format { grid-template-columns: 1fr; }
+html:not([data-look=classic]) .steps.three { grid-template-columns: 1fr; }

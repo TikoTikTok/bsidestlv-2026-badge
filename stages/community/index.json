@@ -1,0 +1,4 @@
+{
+  "_": "Rooms the community made with the level maker (maker.html; software/docs/LEVEL_MAKER.md). One entry per stage module in this folder: id is the file's name without .js, name what the room is called, author who made it, kind 'tea' (untimed) or 'chase' (timed). Add a room = the module + a line here; software/tools/verify-maker.mjs proves every listed room is well formed and solvable before a deploy, and that nothing in this folder goes unlisted.",
+  "stages": []
+}
