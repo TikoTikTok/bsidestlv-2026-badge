@@ -3,8 +3,8 @@
 ## Layout
 
 ```
-index.html, glitch.html, flash.html, badge.html, robots.txt, styles.css,
-  src/, stages/, assets/, rabbit-hole/            the published site - MIT
+index.html, glitch.html, flash.html, badge.html, maker.html, robots.txt,
+  styles.css, src/, stages/, assets/, rabbit-hole/  the published site - MIT
 images/                                          README renders, not published
 hardware/                                        KiCad 9 projects - CERN-OHL-S-2.0
 software/                                        tools, firmware, sources - MIT
@@ -25,16 +25,27 @@ genuinely both (a tool that reads board files, say), say so in its header.
 - Run DRC and ERC before opening a pull request. A board that does not pass is
   a draft.
 
+## A room
+
+The easiest contribution is a stage. `npm run maker` opens the level maker
+on a checkout; draw a room, let **Check** prove it solves, play it in
+**Run & debug**, export it to `stages/community/<id>.js`, add one line to
+`stages/community/index.json`, and open a pull request with those two
+changes and nothing else. `npm run stage -- stages/community/<id>.js`
+prints the verdict CI will reach. The format and what gets a room merged:
+[`software/docs/LEVEL_MAKER.md`](software/docs/LEVEL_MAKER.md).
+
 ## Software
 
 ```
 ./serve.sh              # http://localhost:8080, serves the repo root
-npm run verify          # both stages still solvable, the three ranges still honest, the looks and the badge gate still whole
+npm run maker           # the same in Node, and opens maker.html
+npm run verify          # both stages still solvable, the ranges still honest, the looks, the badge gate and the maker still whole
 npm run validate        # legacy sprite/frame integrity
 ```
 
 The site is the repo root: `index.html`, `glitch.html`, `flash.html`,
-`badge.html`, `robots.txt`, `styles.css`, `src/`, `stages/`, `assets/` and
+`badge.html`, `maker.html`, `robots.txt`, `styles.css`, `src/`, `stages/`, `assets/` and
 `rabbit-hole/`. Those paths are what the Pages workflow stages and publishes, so
 keep every path inside them relative — an absolute `/assets/...` works locally
 and breaks under `/<repo>/` on Pages. Anything the page does not load belongs in
