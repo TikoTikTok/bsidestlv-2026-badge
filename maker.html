@@ -23,15 +23,26 @@
   </div>
 
   <div class="controls pad-status">
+    <span id="bridgeChip" class="bridge-chip dev-only" title="the assistant's bridge">◌ no bridge</span>
     <span id="padDevice" class="pad-device dev-only">keyboard</span>
     <button type="button" id="turnBtn" class="turn-btn" aria-label="Page turn: auto" aria-haspopup="dialog" aria-expanded="false" aria-controls="turnPop" data-state="auto"></button>
     <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
   </div>
 </header>
 
+<!-- the tutorial's coach line (a checkout only): the current step of "Painting the Roses"; src/tutor.js + src/coach.js drive it -->
+<div id="coach" class="coach dev-only" hidden>
+  <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
+  <span id="coachSay" class="coach-say"></span>
+  <span class="coach-actions">
+    <button type="button" id="coachSkip" class="btn ghost">skip</button>
+    <button type="button" id="coachOpen" class="btn ghost">learn</button>
+  </span>
+</div>
+
 <main>
   <!-- The landing: on the published site this is the whole page. On a local checkout
-       (html[data-host=dev], src/look-boot.js) the editor and the run & debug bench below
+       (html[data-host=dev], src/look-boot.js) the studio and the run & debug bench below
        it are shown too; the site never carries them, only this invitation. -->
   <section class="panel hero" id="hero">
     <div class="hero-room"><canvas id="heroCanvas" aria-label="a room painting itself, then Alice walking its solution"></canvas></div>
@@ -47,8 +58,9 @@
       </div>
       <p class="note site-only">The maker runs from a clone of the repository on your own machine, where the keyboard is
         allowed to play. This page is only the invitation; the published site plays from the badge alone.</p>
-      <p class="note dev-only">You are on a local checkout: the maker is below. <b>WASD</b> or the arrows move, <b>Z X C V</b> are
-        A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.</p>
+      <p class="note dev-only">You are on a local checkout: the studio is below. <b>WASD</b> or the arrows move, <b>Z X C V</b> are
+        A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.
+        New here? The line at the top walks you through your first room; <b>?</b> lists every key.</p>
     </div>
   </section>
 
@@ -56,11 +68,12 @@
     <h2>How it goes</h2>
     <ol class="steps three">
       <li><b>Clone the repository.</b> Node 20 or newer is all it needs: no packages, no build. <code>npm run maker</code> serves the
-        checkout and opens the maker in your browser.</li>
-      <li><b>Draw, check, play.</b> Paint walls and rocks on the grid, or type the map. <b>Check</b> runs the real solver and says how many
-        moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.</li>
+        checkout and opens the studio in your browser.</li>
+      <li><b>Draw, check, play.</b> Paint with the pencil, line, rectangle and fill tools, or type the map. <b>Check</b> runs the real solver and says how many
+        moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
+        <b>Surprise me</b> draws a solvable room from a seed when you want a start.</li>
       <li><b>Send it in.</b> Export writes a stage module, <code>stages/community/&lt;id&gt;.js</code>. Add it to the index, open a pull request;
-        the checks prove it is solvable before anyone has to play it.</li>
+        the checks prove it is solvable before anyone has to play it. An assistant can do all of this with you: the studio has a bridge it drives.</li>
     </ol>
   </section>
 
@@ -108,16 +121,58 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
       <a id="docsLink" href="https://github.com/bsidestlv/bsidestlv-2026-badge/blob/main/software/docs/LEVEL_MAKER.md">software/docs/LEVEL_MAKER.md</a>.</p>
   </section>
 
-  <!-- ------------------------------------------------------------------ the maker: a local checkout only -- -->
+  <!-- ------------------------------------------------------------------ the studio: a local checkout only -- -->
   <section class="panel dev-only" id="editPanel">
-    <h2>The room <span id="editName" class="armed-mark"></span></h2>
+    <h2>The room <span id="editName" class="tag"></span></h2>
+
+    <div class="studio-bar" role="toolbar" aria-label="the studio's tools">
+      <div class="tools" id="tools" aria-label="tool">
+        <button type="button" class="tool on" data-tool="pencil" title="Pencil: one cell, or drag (P)"><i>✎</i>pencil</button>
+        <button type="button" class="tool" data-tool="line" title="Line: drag from one end to the other (I)"><i>╱</i>line</button>
+        <button type="button" class="tool" data-tool="rect" title="Rectangle: drag a corner to the other; hold Shift to fill it (R)"><i>▭</i>rect</button>
+        <button type="button" class="tool" data-tool="fill" title="Fill: every cell joined to this one that is the same (F)"><i>◍</i>fill</button>
+        <button type="button" class="tool" data-tool="pick" title="Pick: take the brush under the pointer (K)"><i>⌖</i>pick</button>
+      </div>
+      <div class="tools" id="symmetry" aria-label="symmetry">
+        <button type="button" class="tool on" data-sym="none" title="Paint one cell at a time">no mirror</button>
+        <button type="button" class="tool" data-sym="h" title="Every stroke is mirrored left to right (M)">mirror ↔</button>
+        <button type="button" class="tool" data-sym="v" title="Every stroke is mirrored top to bottom">mirror ↕</button>
+        <button type="button" class="tool" data-sym="both" title="Mirrored both ways">both</button>
+      </div>
+      <div class="tools" aria-label="transform">
+        <button type="button" class="tool" id="flipH" title="Flip the room left to right">flip ↔</button>
+        <button type="button" class="tool" id="flipV" title="Flip the room top to bottom">flip ↕</button>
+        <button type="button" class="tool" id="rotateBtn" title="Turn the room a quarter clockwise">turn ↻</button>
+        <span class="shift" aria-label="move the inside of the room">
+          <button type="button" class="tool" data-shift="-1,0" title="Move everything one cell left">◀</button>
+          <button type="button" class="tool" data-shift="0,-1" title="Move everything one cell up">▲</button>
+          <button type="button" class="tool" data-shift="0,1" title="Move everything one cell down">▼</button>
+          <button type="button" class="tool" data-shift="1,0" title="Move everything one cell right">▶</button>
+        </span>
+      </div>
+      <div class="tools" aria-label="history">
+        <button type="button" class="tool" id="undoEdit" title="Undo (Ctrl+Z)">↶ undo</button>
+        <button type="button" class="tool" id="redoEdit" title="Redo (Ctrl+Y)">↷ redo</button>
+      </div>
+      <label class="zoom" title="How big a cell is drawn">zoom <input id="zoom" type="range" min="24" max="80" step="8" value="48"></label>
+      <button type="button" class="tool" id="keysBtn" title="Every key the studio knows (?)">?</button>
+    </div>
+
     <div class="maker">
       <div class="maker-board">
         <div class="palette" id="palette" aria-label="brush"></div>
-        <div class="stage-wrap board-wrap"><canvas id="board"></canvas></div>
+        <div class="stage-wrap board-wrap"><canvas id="board"></canvas><div id="boardCursor" class="board-cursor" aria-live="polite"></div></div>
+        <div class="overlays" id="overlays" aria-label="what the board shows over the room">
+          <label><input type="checkbox" data-overlay="grid" checked> grid</label>
+          <label><input type="checkbox" data-overlay="coords"> coordinates</label>
+          <label><input type="checkbox" data-overlay="stuck" checked> stuck corners</label>
+          <label><input type="checkbox" data-overlay="reach"> Alice's reach</label>
+          <label><input type="checkbox" data-overlay="path" checked> the solution</label>
+          <label><input type="checkbox" data-overlay="sight"> the cast's sight</label>
+        </div>
         <p class="note">Click or drag to paint with the brush; right-click paints floor. Alice and the door are single, so painting
           one moves it. With a hazard selected, clicks lay its route instead, point by point, straight lines only; the loop closes itself.
-          <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes an edit back.</p>
+          Shaded cells are where a rock is lost for good.</p>
       </div>
       <div class="maker-side">
         <label class="field">Name <input id="name" type="text" maxlength="48" spellcheck="false"></label>
@@ -140,9 +195,33 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
           <label class="field" id="tickField">Tick <input id="tickMs" type="number" min="100" max="2000" step="20"> <small>ms</small></label>
         </div>
         <div id="hazards" class="hazards"></div>
-        <div class="stage-bar"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
+        <div class="stage-bar tight"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
         <label class="field grow">The map <textarea id="ascii" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
         <ul id="lint" class="lint"></ul>
+
+        <details class="drawer" id="startersDrawer">
+          <summary>Start from…</summary>
+          <div class="starters" id="starters"></div>
+        </details>
+        <details class="drawer" id="surpriseDrawer">
+          <summary>Surprise me</summary>
+          <div class="knobs">
+            <label>width <input id="genW" type="number" min="5" max="24" value="11"></label>
+            <label>height <input id="genH" type="number" min="5" max="24" value="8"></label>
+            <label>rocks <input id="genRocks" type="number" min="1" max="6" value="2"></label>
+            <label>walls <input id="genWalls" type="range" min="0" max="30" value="12"></label>
+            <label><input id="genGate" type="checkbox"> a gate</label>
+            <label><input id="genTimed" type="checkbox"> timed</label>
+            <label>seed <input id="genSeed" type="number" min="0" placeholder="random"></label>
+            <label>par ≥ <input id="genPar" type="number" min="1" max="400" value="12"></label>
+          </div>
+          <div class="stage-bar tight"><button type="button" id="genBtn" class="btn">Draw one</button><span id="genStatus" class="status"></span></div>
+        </details>
+        <details class="drawer" id="shelfDrawer" open>
+          <summary>My shelf <span id="shelfCount" class="count"></span></summary>
+          <div class="stage-bar tight"><button type="button" id="shelfSave" class="btn ghost">Keep this room</button><span id="shelfStatus" class="status"></span></div>
+          <ul id="shelf" class="shelf"></ul>
+        </details>
       </div>
     </div>
     <div class="stage-bar">
@@ -150,8 +229,11 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
       <button type="button" id="playBtn" class="btn">Run &amp; debug</button>
       <button type="button" id="newBtn" class="btn ghost">New</button>
       <label>Load <select id="load"><option value="">a shipped stage…</option></select></label>
+      <label title="Check again on its own after every edit"><input id="autoCheck" type="checkbox"> auto-check</label>
+      <button type="button" id="pngBtn" class="btn ghost" title="Save the board as a picture">Save a picture</button>
       <span id="report" class="status"></span>
     </div>
+    <div id="verdict" class="verdict" hidden></div>
   </section>
 
   <section class="panel dev-only" id="playPanel">
@@ -161,8 +243,8 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
       <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
       <div class="run-side">
         <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
-        <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, or a real
-          badge on USB. The log is every edge and what the room made of it.</p>
+        <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, a real
+          badge on USB, or an assistant over the bridge. The log is every edge and what the room made of it.</p>
       </div>
     </div>
     <div class="stage-bar">
@@ -195,6 +277,34 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
       <pre class="module"><code id="moduleOut"></code></pre>
     </div>
   </section>
+
+  <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens. -->
+  <section class="panel dev-only" id="assistantPanel">
+    <h2>The assistant <span id="bridgeState" class="tag">not connected</span></h2>
+    <p class="note" id="bridgeNote">With <code>npm run maker</code> serving this page, an assistant on this machine can see the room, paint it,
+      prove it, play it and answer you here. Hand it the prompt under the hero (it says how to connect: the MCP tools in
+      <code>.mcp.json</code>, or <code>curl</code> on <code id="bridgeUrl">/__maker/</code>); everything it does shows on the board and in this log.</p>
+    <ol id="chatLog" class="log bench chat" reversed></ol>
+    <div class="stage-bar">
+      <input id="chatText" class="chat-text" type="text" maxlength="2000" placeholder="say something to the assistant…" autocomplete="off">
+      <button type="button" id="chatSend" class="btn">Send</button>
+      <button type="button" id="aiBtn2" class="btn ghost">The prompt</button>
+    </div>
+  </section>
+
+  <section class="panel dev-only" id="learnPanel">
+    <h2>Painting the Roses <span id="learnProgress" class="armed-mark"></span></h2>
+    <p class="note">A first room in the studio, one step at a time. Each step watches what you do and ticks itself off;
+      the line at the top of the page says what comes next wherever you are. Chapter one draws, chapter two proves and
+      plays, chapter three ships. Skip what you like, it costs nothing.</p>
+    <div id="learnCoach" class="learn-now"></div>
+    <ol id="learnSteps" class="learn-steps"></ol>
+    <div class="stage-bar">
+      <button id="learnSkip" class="btn ghost">Skip this step</button>
+      <button id="learnRestart" class="btn ghost">Start over</button>
+      <span id="learnStatus" class="status"></span>
+    </div>
+  </section>
 </main>
 
 <!-- The invitation: the prompt a visitor hands to an assistant, with a copy button and two
@@ -203,7 +313,8 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
 <dialog id="aiDialog" class="ai">
   <h2>Hand this to your assistant</h2>
   <p class="note">Copy the prompt into Claude, ChatGPT or whatever you use. It tells the assistant where the repository is,
-    how to start the maker, and how to send a room in.</p>
+    how to start the studio, and how to drive it: an assistant that can run commands on your machine opens the page itself
+    and works on the room with you, in the page's own chat.</p>
   <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
   <div class="stage-bar">
     <button type="button" id="aiCopy" class="btn">Copy</button>
@@ -212,6 +323,20 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
     <button type="button" id="aiClose" class="btn ghost">Close</button>
     <span id="aiStatus" class="status"></span>
   </div>
+</dialog>
+
+<!-- Every key the studio knows -->
+<dialog id="keysDialog" class="ai keys-dialog">
+  <h2>The keys</h2>
+  <div class="keys-grid">
+    <div><h3>Brushes</h3><p><kbd>1</kbd>–<kbd>8</kbd> wall, floor, Alice, rock, button, lever, gate, door</p></div>
+    <div><h3>Tools</h3><p><kbd>P</kbd> pencil <kbd>I</kbd> line <kbd>R</kbd> rectangle (<kbd>Shift</kbd> fills) <kbd>F</kbd> fill <kbd>K</kbd> pick</p></div>
+    <div><h3>Mirror</h3><p><kbd>M</kbd> cycles none, ↔, ↕, both</p></div>
+    <div><h3>History</h3><p><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo</p></div>
+    <div><h3>Room</h3><p><kbd>Ctrl</kbd>+<kbd>Enter</kbd> check <kbd>Ctrl</kbd>+<kbd>S</kbd> keep on the shelf <kbd>G</kbd> toggle the grid</p></div>
+    <div><h3>Play</h3><p><kbd>W A S D</kbd> or the arrows move, <kbd>Z X C V</kbd> are A B X Y, <kbd>Enter</kbd> START, <kbd>Space</kbd> waits a tick, <kbd>R</kbd> resets, <kbd>Backspace</kbd> undoes, <kbd>Esc</kbd> back to the editor</p></div>
+  </div>
+  <div class="stage-bar"><button type="button" id="keysClose" class="btn ghost">Close</button></div>
 </dialog>
 
 <script type="module" src="src/maker.js"></script>
