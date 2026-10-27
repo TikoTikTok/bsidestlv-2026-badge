@@ -276,8 +276,9 @@ export function solve(map, { limit = 400_000 } = {}) {
     const relax = (next, approach, lastDir, cost) =>
       queue.push({ cost, state: next, parent: node, approach, lastDir });
 
-    // throw a lever
+    // throw a lever (one with a rock on it is a push, below, and throws itself)
     for (const lever of map.levers) {
+      if (node.state.rocks.includes(lever)) continue;
       const x = lever % map.w, y = (lever / map.w) | 0;
       for (const [dir, [dx, dy]] of Object.entries(DIRS)) {
         const approach = (y - dy) * map.w + (x - dx);
@@ -298,7 +299,9 @@ export function solve(map, { limit = 400_000 } = {}) {
         if (!open(map, node.state, ahead) || ahead === map.door) continue;
         if (node.state.rocks.includes(ahead) || !map.live.has(ahead)) continue;
         const rocks = node.state.rocks.map(r => (r === rock ? ahead : r)).sort((a, b) => a - b);
-        relax({ alice: rock, rocks, lever: node.state.lever },
+        // Alice ends on the rock's old cell; if that is the lever, the push throws it (as step() does)
+        const lever = map.levers.has(rock) ? !node.state.lever : node.state.lever;
+        relax({ alice: rock, rocks, lever },
               behind, dir, node.cost + dist.get(behind) + 1);
       }
     }
