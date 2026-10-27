@@ -233,6 +233,113 @@ export const STAGES_TUTORIAL = [
   },
 ];
 
+// --------------------------------------------------- the level studio's ----
+// "Painting the Roses": a first room in the studio (maker.html on a checkout).
+// Chapter one draws, chapter two proves and plays, chapter three ships and
+// hands the room to an assistant. Every step names the panel it happens in
+// (`panel`), which the page scrolls to when the step comes up on request.
+// Events from src/maker.js:
+//   maker  { what: 'brush' | 'paint' | 'tool' | 'symmetry' | 'overlay' | 'transform' | 'lint' | 'check' |
+//                  'generate' | 'shelf' | 'play' | 'move' | 'win' | 'solution' | 'export' | 'chat' | 'hello', ... }
+
+const made = (what, test = () => true) => (ev) => ev.kind === 'maker' && ev.what === what && test(ev);
+
+export const MAKER_TUTORIAL = [
+  // ---- chapter 1: the brushes ----
+  {
+    id: 'brush', chapter: 1, title: 'Pick up a brush', panel: 'edit',
+    say: 'Click the wall brush in the palette, or press 1.',
+    why: 'The palette is the legend of the map: eight characters, eight brushes. The keys 1 to 8 pick them without leaving the board.',
+    done: made('brush', (ev) => ev.ch === '#'),
+  },
+  {
+    id: 'paint', chapter: 1, title: 'Paint a wall', panel: 'edit',
+    say: 'Click or drag on the board. Right-click paints floor.',
+    why: 'A drag is one stroke and one undo step. The map box on the right is the same room as text: edit whichever you like, the other follows.',
+    done: made('paint', (ev) => ev.ch === '#'),
+  },
+  {
+    id: 'rock', chapter: 1, title: 'A rock', panel: 'edit',
+    say: 'Place a rock (brush 4) somewhere Alice can get behind it.',
+    why: 'Rocks only move when pushed, one cell at a time, and a rock in a corner is lost. The studio shades the cells where a rock would be lost; keep rocks off them.',
+    done: made('paint', (ev) => ev.ch === 'O'),
+  },
+  {
+    id: 'button', chapter: 1, title: 'And its button', panel: 'edit',
+    say: 'Place a button (brush 5) for the rock to end on.',
+    why: 'Every rock needs a button and every button a rock: the door opens when all of them are held. The lint under the map counts them for you.',
+    done: made('paint', (ev) => ev.ch === 'b'),
+  },
+  {
+    id: 'formed', chapter: 1, title: 'Well formed', panel: 'edit',
+    say: 'Make the lint go green: one Alice, one door, as many rocks as buttons, walls all round.',
+    why: 'Lint is the shape of the room, not its difficulty. A room that passes it may still be unsolvable; that is what Check is for.',
+    done: made('lint', (ev) => ev.ok === true),
+  },
+  {
+    id: 'tool', chapter: 1, title: 'A bigger brush', panel: 'edit',
+    say: 'Pick the rectangle, line or fill tool and draw with it.',
+    why: 'The pencil paints a cell, the line a straight run, the rectangle an outline (hold Shift to fill it), the fill a whole region. The pick tool reads a brush off the board.',
+    done: made('tool', (ev) => ['line', 'rect', 'fill'].includes(ev.tool) && ev.used),
+  },
+  {
+    id: 'overlay', chapter: 1, title: 'See the room as the solver does', panel: 'edit',
+    say: "Switch on Alice's reach, or off the stuck corners, under the board.",
+    why: 'The overlays are the solver\'s own bookkeeping: where a rock is lost, where Alice can walk right now, the path of the last solution, what the cast can see.',
+    done: made('overlay'),
+  },
+  {
+    id: 'surprise', chapter: 1, title: 'Surprise me', panel: 'edit',
+    say: 'Open Surprise me and draw a room from a seed.',
+    why: 'The generator draws rooms until the solver clears one. A room is named by its seed, so the same knobs and seed draw the same room on any machine.',
+    done: made('generate'),
+  },
+  // ---- chapter 2: the proof ----
+  {
+    id: 'check', chapter: 2, title: 'Prove it', panel: 'edit',
+    say: 'Press Check.',
+    why: 'Check runs the real solver, the same search CI runs before a room ships: par, the states it searched, whether the gate earns its keep, and a word for how hard it found the room.',
+    done: made('check', (ev) => ev.ok === true),
+  },
+  {
+    id: 'play', chapter: 2, title: 'Play it', panel: 'play',
+    say: 'Press Run & debug.',
+    why: 'The room is played with the rules the site uses, from the keyboard, a click on the simulated badge, or a real badge on USB. Every press is logged with its time.',
+    done: made('play'),
+  },
+  {
+    id: 'move', chapter: 2, title: 'Take a step', panel: 'play',
+    say: 'Move Alice: WASD, the arrows, or click the d-pad.',
+    why: 'Here the keyboard stands in for the badge. On the published site only the badge plays.',
+    done: made('move'),
+  },
+  {
+    id: 'solution', chapter: 2, title: 'Watch the answer', panel: 'play',
+    say: 'Press Play the solution.',
+    why: 'Alice walks the solver\'s moves. If the answer looks like a chore, the room is one; if it looks like a trick, you have a puzzle.',
+    done: made('solution'),
+  },
+  // ---- chapter 3: ship it ----
+  {
+    id: 'shelf', chapter: 3, title: 'Keep it', panel: 'edit',
+    say: 'Put the room on your shelf.',
+    why: 'The shelf is in this browser only: as many rooms as you like, each with its last verdict. The room in the editor is also kept between visits on its own.',
+    done: made('shelf', (ev) => ev.did === 'save'),
+  },
+  {
+    id: 'export', chapter: 3, title: 'Send it in', panel: 'export',
+    say: 'Copy the module, download it, or copy a link.',
+    why: 'The module is the file a pull request carries, stages/community/<id>.js, plus one line in the index. A link carries the whole room to a friend with a checkout.',
+    done: made('export'),
+  },
+  {
+    id: 'assistant', chapter: 3, title: 'Bring an assistant', panel: 'assistant',
+    say: 'Type to the assistant, or connect one: the prompt under the hero tells it how.',
+    why: 'With `npm run maker` serving the page, an assistant on this machine can see the room, paint it, prove it, play it and talk to you here. Skip this if you would rather build alone.',
+    done: (ev) => ev.kind === 'maker' && (ev.what === 'chat' || ev.what === 'hello'),
+  },
+];
+
 /**
  * The engine. `at` is the index of the current step; past the end it is
  * done. feed(ev) advances when the current step's predicate accepts the

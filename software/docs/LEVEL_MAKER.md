@@ -85,43 +85,143 @@ round, exactly one `A` and one `D`, as many rocks as buttons, at least one
 rock, a lever wherever there is a gate, routes on floor and in straight
 lines. The art, the names and the colours come from `src/scene.js`.
 
-## The maker page
+## The studio
 
-`maker.html` on a local checkout (`localhost`, `127.0.0.1`) is the maker.
+`maker.html` on a local checkout (`localhost`, `127.0.0.1`) is the studio.
 On the published site the same page is only the landing: the editor, the
-bench and the export are class `dev-only` and the keyboard is not a
-controller there (`src/pad.js` builds the site's pad with the badge as its
-only source; the maker builds a pad with every source on a dev host and
-none at all on the site).
+bench, the export, the assistant panel and the tutorial are class
+`dev-only` and the keyboard is not a controller there (`src/pad.js` builds
+the site's pad with the badge as its only source; the studio builds a pad
+with every source on a dev host and none at all on the site).
 
-- **The room.** A palette of brushes (also keys `1`–`8`), click or drag to
-  paint, right-click paints floor. Alice and the door are single, so
-  painting one moves it. The map box on the right is the same room as text;
-  edit either. Width, height, dressing, the clock; *Add a hazard* puts one
-  of the cast on the board and *lay the route* turns clicks into its
-  waypoints (click the last one again to take it back). `Ctrl`+`Z` takes an
-  edit back. The lint under the map says what is malformed as you go.
+The first visit is guided: **Painting the Roses** (`MAKER_TUTORIAL` in
+`src/tutor.js`, drawn by `src/coach.js` as the line at the top of the page
+and the Learn panel at the bottom) is fifteen steps that watch what you do
+and tick themselves off - chapter one draws (a brush, a wall, a rock, its
+button, the lint green, a bigger tool, an overlay, Surprise me), chapter
+two proves and plays (Check, Run & debug, a step, the solution), chapter
+three ships (the shelf, the export, an assistant). Skip any step; start
+over from the panel; progress is in `localStorage alice.tutor.maker`.
+`?` lists every key.
+
+- **The room.** A palette of brushes (also keys `1`–`8`) and a bar of
+  tools: the **pencil** (`P`, one cell or a drag), the **line** (`I`, drag
+  end to end), the **rectangle** (`R`, drag corner to corner; hold `Shift`
+  to fill it), the **fill** (`F`, every joined cell that is the same), the
+  **pick** (`K`, or `Alt`+click: take the brush under the pointer).
+  Right-click paints floor. A stroke is one undo step (`Ctrl`+`Z`, `Ctrl`+`Y`
+  or the buttons). **Mirror** (`M` cycles none, ↔, ↕, both) paints every
+  stroke's reflection too; the dashed line shows the axis. **flip ↔ / ↕**,
+  **turn ↻** and the four arrows move the whole room, routes included; what
+  crosses the wall is lost. Zoom draws cells from 24 to 80 px. Alice and the
+  door are single, so painting one moves it. The map box on the right is the
+  same room as text; edit either. Width, height, dressing, the clock; *Add a
+  hazard* puts one of the cast on the board and *lay the route* turns clicks
+  into its waypoints (click the last one again to take it back). The lint
+  under the map says what is malformed as you go.
+- **The overlays**, under the board, are the solver's own bookkeeping drawn
+  over the room: the grid and the coordinates; **stuck corners** (hatched:
+  a rock that lands there can never reach a button, `src/puzzle.js`
+  `liveSquares` in reverse); **Alice's reach** (where she can walk right
+  now, rocks in place, gate shut); **the solution** (the green line Alice
+  walks in the last Check); **the cast's sight** (what a watcher sees on
+  the first tick). `G` toggles the grid.
+- **Start from…** are six rooms, each a lesson in one idea (a blank, a wide
+  blank, the corridor, the gate, two rooms, the hall). **Surprise me**
+  draws a room from a seed with the knobs you set (size, rocks, wall
+  density, a gate, timed) and keeps drawing until the solver clears one
+  with at least the par you ask; the seed is shown and can be typed back,
+  so a room is named by its seed and the same knobs draw the same room on
+  any machine (`generate` / `generateSolvable` in `src/level.js`).
+  **My shelf** keeps rooms in this browser (`Ctrl`+`S` or *Keep this
+  room*), each with its last verdict; a room on the shelf opens with one
+  click.
 - **Check** runs the real solver (`src/level.js` `check()`, in a worker so
-  the page stays live): par in moves or ticks, how many states it searched,
-  whether the gate is load-bearing or decoration (welded shut, does the
-  room still solve?), what the cast costs over an empty room. A room the
-  solver cannot clear is refused, here and in CI.
+  the page stays live; `Ctrl`+`Enter`): par in moves or ticks, how many
+  states it searched, whether the gate is load-bearing or decoration
+  (welded shut, does the room still solve?), what the cast costs over an
+  empty room, and the **verdict** - how many shoves the answer takes and a
+  word for the difficulty, from *a stroll* to *a nightmare* (`difficulty()`:
+  par, shoves and the size of the search). *auto-check* runs it after every
+  edit. A room the solver cannot clear is refused, here and in CI. *Save a
+  picture* writes the board as a PNG.
 - **Run & debug** plays the room with the rules the site uses: the d-pad
   moves, `B` undoes (untimed), `Y` waits a tick (timed), `START` resets;
   the clock of a timed room holds until the first press. The simulated
   badge lights whatever is held, from the keyboard (`WASD` or arrows,
   `Z X C V` for `A B X Y`, `Q E` for the shoulders, `Enter` for START,
-  `Backspace` for SELECT), from a click on one of its keys, or from a real
-  badge on USB; the log is every edge with its time and what the room made
-  of it. *Play the solution* replays the checker's answer.
+  `Backspace` for SELECT, `Esc` back to the editor), from a click on one of
+  its keys, from a real badge on USB, or from an assistant over the bridge;
+  the log is every edge with its time and what the room made of it. *Play
+  the solution* replays the checker's answer.
 - **Send it in** writes the module (copy or download), names the file,
   and makes a link that carries the whole room (`?level=`), for a friend
   with a checkout. *Import* reads a pasted module back.
+- **The assistant** is the chat the bridge carries (next section): what you
+  type goes to whoever is connected, what they say comes back here, and
+  everything they do to the room is listed as it happens. The header's chip
+  says who is on the bridge.
 
-The room is kept in the browser (`localStorage` `alice.maker.level`), so a
-reload keeps it. Headless, the page is driven through `window.__maker`
-(`level`, `setLevel`, `lint`, `check`, `play`, `game`, `module`, `share`)
-and `window.__pad.inject`.
+The room is kept in the browser (`localStorage` `alice.maker.level`, the
+shelf under `alice.maker.shelf`, the overlays and zoom under
+`alice.maker.prefs`), so a reload keeps it. Headless, the page is driven
+through `window.__maker` (`level`, `setLevel`, `lint`, `check`, `play`,
+`solution`, `game`, `module`, `share`, `tool` / `setTool`, `brush` /
+`setBrush`, `symmetry` / `setSymmetry`, `overlays` / `setOverlay`, `undo` /
+`redo`, `surprise`, `shelf` / `shelfSave`, `loadById`, `ops`, `bridge`,
+`tutor`, `chat`) and `window.__pad.inject`.
+
+## The bridge: an assistant in the studio
+
+`npm run maker` (`software/tools/maker.mjs`, the server in
+`maker-server.mjs`) serves the checkout and mounts a bridge under
+`/__maker/`, on the loopback only, through which an assistant on the same
+machine drives the studio while you watch. The page connects to it by
+itself (`src/bridge.js`); served any other way (`serve.sh`, the site) the
+page says so and works alone.
+
+Two ways in:
+
+- **MCP.** `.mcp.json` at the repository root registers
+  `software/tools/maker-mcp.mjs` as the server `alice-maker`, so a clone
+  opened in Claude Code (or any client that reads `.mcp.json`; by hand,
+  `claude mcp add alice-maker -- node software/tools/maker-mcp.mjs`, or
+  command `node`, args `software/tools/maker-mcp.mjs`, env `MAKER_URL`)
+  has the studio as tools: `maker_status`, `maker_open` (starts the server
+  and the page when nothing is listening), `maker_get`, `maker_set_level`,
+  `maker_paint`, `maker_check`, `maker_play`, `maker_moves`, `maker_press`,
+  `maker_reset`, `maker_stop`, `maker_say`, `maker_read_chat`,
+  `maker_snapshot` (a picture of the board or the run, as an image),
+  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`. No
+  dependencies: JSON-RPC over stdio.
+- **HTTP.** Anything that can `curl`:
+
+  ```
+  curl -X POST localhost:8080/__maker/hello -d '{"name":"my assistant"}'          # the page shows who is here
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"get"}'                        # the room, the lint, the last check, the game
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"set","args":{"level":{...}}}'
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"check"}'
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"play"}'
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"moves","args":{"moves":["E","E","S"]}}'
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"say","args":{"text":"try the gate on the left"}}'
+  curl "localhost:8080/__maker/inbox?since=0&wait=20000"                           # what you typed in the chat, long-polled
+  curl localhost:8080/__maker/level                                                # the room as the page last reported it
+  ```
+
+  The ops are `get`, `set`, `paint`, `check`, `play`, `stop`, `reset`,
+  `press`, `moves`, `say`, `snapshot`, `module`, `load`, `generate`,
+  `tool` - the same table (`ops` in `src/maker.js`) the MCP tools call. An
+  rpc waits for the page's answer (30 s by default, `timeoutMs`); with no
+  page open it is 503, an error the page raised is 422, an op the page
+  does not know is 400.
+
+What an assistant does shows at once: the board redraws, the chat lists
+each action (*set the room to…*, *checked: par 26, a riddle*, *played 6
+moves*), the run plays its presses through the same pad a badge would. The
+bridge answers the loopback only and refuses a request whose `Host` is not
+it or whose `Origin` is another site, so a page on the web cannot reach
+it. The landing's prompt ("Try it now with your favourite AI") tells an
+assistant all of this.
 
 ## Sending a room in
 
@@ -166,14 +266,18 @@ Suggested handling of pull requests:
 ## Files
 
 ```
-maker.html                      the page: the landing (site) and the maker (checkout)
-src/maker.js                    the page's module: hero, invitation, editor, checker, bench, export
+maker.html                      the page: the landing (site) and the studio (checkout)
+src/maker.js                    the page's module: hero, invitation, the studio, checker, bench, export, the assistant panel and the bridge's ops, the coach
 src/maker.css                   its styles, on top of styles.css
-src/level.js                    a level as data: lint, check, toModule / fromModule, share links
+src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
-src/check-worker.js             check() off the page's thread
+src/check-worker.js             check() and generateSolvable() off the page's thread
+src/bridge.js                   the page's end of the bridge: the event stream, the replies, the mirror, the chat
+src/tutor.js                    MAKER_TUTORIAL, "Painting the Roses" (with the other two tutorials); src/coach.js draws it
 stages/community/               the community's rooms and index.json
-software/tools/maker.mjs        npm run maker: a Node static server that opens the page
+software/tools/maker.mjs        npm run maker: serves the checkout, opens the page
+software/tools/maker-server.mjs the server: static files + the bridge under /__maker/ (loopback only)
+software/tools/maker-mcp.mjs    the bridge as MCP tools over stdio; .mcp.json at the root registers it
 software/tools/check-stage.mjs  npm run stage -- <file>: the verdict on a module
-software/tools/verify-maker.mjs part of npm run verify: level.js, the page's two faces, the community index
+software/tools/verify-maker.mjs part of npm run verify: level.js and the studio's logic, the tutorial, the bridge and the MCP server, the page's two faces, the community index
 ```
