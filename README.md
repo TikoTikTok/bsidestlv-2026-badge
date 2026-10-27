@@ -223,7 +223,9 @@ in `src/themes/index.json`, a look the same in `src/looks/`; every colour in
 else.
 
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) stages those
-paths, cross-builds the firmware into `firmware/` beside them (so `flash.html`
+paths, cross-builds the firmware into `firmware/` beside them, or restores
+the image from the Actions cache when nothing under `software/controller/`
+changed (so `flash.html`
 always offers the image built from the commit it was deployed with), and
 publishes the lot; set Settings -> Pages -> Source to "GitHub Actions" once
 and pushes to `main` that touch the site deploy themselves. It stages rather
