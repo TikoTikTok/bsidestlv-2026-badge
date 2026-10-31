@@ -1,0 +1,4 @@
+{
+  "_": "ids under stages/community/ that are published sealed (src/seal.js reads this per folder; none yet)",
+  "sealed": []
+}

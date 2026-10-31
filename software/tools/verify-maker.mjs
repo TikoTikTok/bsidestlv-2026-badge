@@ -20,8 +20,8 @@ import { spawn } from 'node:child_process';
 import { request } from 'node:http';
 import { blank, setCell, resize, lint, check, kindOf, toModule, fromModule, encodeShare, decodeShare, idOf, normalize,
          lineCells, rectCells, regionCells, paintCells, mirrorCells, flipH, flipV, rotate, shift, analyse, difficulty,
-         STARTERS, rng, generate, generateSolvable } from '../../src/level.js';
-import { MAKER_TUTORIAL, Tutor } from '../../src/tutor.js';
+         STARTERS, rng, generate, generateSolvable, lessonToText, lessonFromText } from '../../src/level.js';
+import { MAKER_TUTORIAL, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
 import { startMaker, OPS } from './maker-server.mjs';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
@@ -86,6 +86,28 @@ for (const stage of [TEA_PARTY, QUEENS_GAUNTLET]) {
   ok(/^[A-Za-z0-9_-]+$/.test(encodeShare(stage)), `${stage.name}: the share token is URL-safe`);
 }
 ok(idOf({ name: "The Queen's Gauntlet" }) === 'the-queens-gauntlet', 'the id of a name drops the apostrophe');
+
+console.log('a blurb and a lesson travel with a room');
+{
+  const taught = { ...STARTERS.find(s => s.id === 'corridor').level(), blurb: 'one shove', lesson: [{ on: 'move', say: 'Walk.' }, { on: 'push', say: 'Shove.' }, { on: 'win', say: 'Out.' }] };
+  ok(lint(taught).length === 0, 'a lesson of known events lints clean');
+  const back = await fromModule(toModule(taught));
+  ok(same(back, taught) && back.blurb === 'one shove' && back.lesson.length === 3 && back.lesson[1].say === 'Shove.', 'toModule -> fromModule keeps the blurb and the lesson');
+  ok(same(decodeShare(encodeShare(taught)), taught), 'and so does a link');
+  ok(!('lesson' in normalize({ ...taught, lesson: [] })) && !('blurb' in normalize({ ...taught, blurb: '' })), 'an empty lesson or blurb is dropped');
+  ok(lint({ ...taught, lesson: [{ on: 'dance', say: 'x' }] }).some(p => /must be one of/.test(p)), 'an event no room produces is reported');
+  ok(lint({ ...taught, lesson: [{ on: 'move', say: ' ' }] }).some(p => /needs something to say/.test(p)), 'a step with nothing to say is reported');
+  ok(lint({ ...taught, lesson: 'move' }).some(p => /list/.test(p)) && lint({ ...taught, blurb: 'x'.repeat(161) }).some(p => /blurb/.test(p)), 'a lesson that is not a list, a blurb too long');
+  ok(lessonToText(taught) === 'move: Walk.\npush: Shove.\nwin: Out.' && JSON.stringify(lessonFromText(lessonToText(taught))) === JSON.stringify(taught.lesson), 'the lesson as text, one step a line, and back');
+  ok(lessonFromText('  move:   Walk.  \n\nnonsense line\n')[0].say === 'Walk.' && lessonFromText('nonsense line')[0].on === '?', 'the text form trims, skips blank lines and keeps a bad line visible to the lint');
+  ok(LESSON_EVENTS.every(e => LESSON_TITLES[e]) && LESSON_EVENTS.includes('push') && LESSON_EVENTS.includes('wait') && LESSON_EVENTS.includes('win'), 'every lesson event has a title');
+  const steps = lessonSteps(taught);
+  ok(steps.length === 3 && steps[0].title === 'A step' && steps[1].title === 'A shove' && new Set(steps.map(s => s.id)).size === 3, 'lessonSteps: a Tutor step per line, titled by its event');
+  const t = new Tutor(steps);
+  ok(t.feed({ kind: 'tea', what: 'move' }) === null && t.feed({ kind: 'room', what: 'push' }) === null && t.feed({ kind: 'room', what: 'move' })?.id === steps[0].id, 'a lesson step completes on the room\'s event, and only that');
+  t.feed({ kind: 'room', what: 'push' }); t.feed({ kind: 'room', what: 'win' });
+  ok(t.done && lessonSteps(blank(9, 7)).length === 0, 'walked to the end; a room without a lesson has no steps');
+}
 try { await fromModule('export const X = 1;'); fail('a module with no stage should be refused'); } catch (e) { ok(/no stage/.test(e.message), 'a module with no stage is refused'); }
 
 // ------------------------------------------------------------ the studio ----
@@ -174,9 +196,9 @@ console.log('the tutorial "Painting the Roses" ticks on the studio\'s events');
     ['overlay', ev('overlay', { overlay: 'reach', on: true })], ['surprise', ev('generate', { seed: 7, par: 23 })],
     ['check', ev('check', { ok: true, par: 23, rules: 'tea' })], ['play', ev('play', { rules: 'tea' })],
     ['move', ev('move', { dir: 'E' })], ['solution', ev('solution', { par: 23 })],
-    ['shelf', ev('shelf', { did: 'save' })], ['export', ev('export', { how: 'copy' })], ['assistant', ev('chat', { text: 'hi' })],
+    ['shelf', ev('shelf', { did: 'save' })], ['lesson', ev('lesson', { steps: 2, malformed: 0 })], ['export', ev('export', { how: 'copy' })], ['assistant', ev('chat', { text: 'hi' })],
   ];
-  const wrong = [ev('brush', { ch: 'O' }), ev('paint', { ch: '.', cells: 1 }), ev('lint', { ok: false }), ev('tool', { tool: 'rect', used: false }), ev('check', { ok: false }), ev('shelf', { did: 'open' }), { kind: 'edge', button: 'A', down: true }];
+  const wrong = [ev('brush', { ch: 'O' }), ev('paint', { ch: '.', cells: 1 }), ev('lint', { ok: false }), ev('tool', { tool: 'rect', used: false }), ev('check', { ok: false }), ev('shelf', { did: 'open' }), ev('lesson', { steps: 0, malformed: 1 }), { kind: 'edge', button: 'A', down: true }];
   for (const [id, e] of walk) {
     ok(tutor.step?.id === id, `tutorial: at ${id}`);
     for (const w of wrong) tutor.feed(w);
@@ -299,7 +321,7 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
     ok(new RegExp(`id="${id}"`).test(html), `the coach has #${id}`);
   for (const t of ['pencil', 'line', 'rect', 'fill', 'pick']) ok(new RegExp(`data-tool="${t}"`).test(html), `the studio bar has the ${t} tool`);
   for (const o of ['grid', 'coords', 'stuck', 'reach', 'path', 'sight']) ok(new RegExp(`data-overlay="${o}"`).test(html), `the board has the ${o} overlay`);
-  for (const id of ['symmetry', 'flipH', 'flipV', 'rotateBtn', 'undoEdit', 'redoEdit', 'zoom', 'keysBtn', 'starters', 'genBtn', 'genSeed', 'shelf', 'shelfSave', 'autoCheck', 'pngBtn', 'verdict', 'chatLog', 'chatText', 'chatSend', 'bridgeChip', 'bridgeState', 'keysDialog'])
+  for (const id of ['symmetry', 'flipH', 'flipV', 'rotateBtn', 'undoEdit', 'redoEdit', 'zoom', 'keysBtn', 'starters', 'genBtn', 'genSeed', 'shelf', 'shelfSave', 'autoCheck', 'pngBtn', 'verdict', 'chatLog', 'chatText', 'chatSend', 'bridgeChip', 'bridgeState', 'keysDialog', 'blurb', 'lesson'])
     ok(new RegExp(`id="${id}"`).test(html), `the studio has #${id}`);
   const mod = readFileSync(resolve(root, 'src/maker.js'), 'utf8');
   for (const op of OPS) ok(new RegExp(`^  ${op}: `, 'm').test(mod), `src/maker.js implements the bridge op '${op}'`);
@@ -320,12 +342,59 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const js = readFileSync(resolve(root, 'src/maker.js'), 'utf8');
   ok(/const dev = mode === 'dev'/.test(js) && /if \(!dev\) \{/.test(js) && /new Pad\(\{ sources: sourcesFor\(true\) \}\)/.test(js), 'the pad with every source is built on a dev host only');
   ok(/stages\/community\/index\.json/.test(js), 'the maker lists the community rooms');
+  ok(/lessonFromText/.test(js) && /tell\('lesson'/.test(js), 'the studio edits the lesson as text and tells the tutorial');
+  // the stages page plays the community's rooms
+  const stages = readFileSync(resolve(root, 'index.html'), 'utf8');
+  for (const id of ['roomsPanel', 'roomList', 'room', 'roomName', 'roomBlurb', 'roomLesson', 'roomStatus', 'roomUndo', 'roomReset', 'roomSolve'])
+    ok(new RegExp(`id="${id}"`).test(stages), `index.html has #${id} (the community's rooms)`);
+  const gallery = readFileSync(resolve(root, 'src/gallery.js'), 'utf8');
+  ok(/from '\.\/room\.js'/.test(gallery) && /stages\/community\/index\.json/.test(gallery) && /base: 'stages\/community\/'/.test(gallery), 'src/gallery.js plays the listed rooms through src/room.js and src/seal.js');
+  const roomJs = readFileSync(resolve(root, 'src/room.js'), 'utf8');
+  ok(/lessonSteps/.test(roomJs) && /kind: 'room'/.test(roomJs), 'src/room.js shows the lesson and reports as kind room');
+  for (const what of LESSON_EVENTS) if (what !== 'open') ok(new RegExp(`tell\\('${what}'`).test(roomJs), `src/room.js reports '${what}', so a lesson can wait on it`);
   ok(/maker\.html/.test(readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml publishes maker.html');
   const makerCss = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
   ok(!/data-theme=|data-flip/.test(makerCss), 'src/maker.css paints from the variables and never names a theme or the turn');
 }
 
 // ------------------------------------------------------------- the community ----
+// What src/room.js would report while the solver's moves are played, so a
+// lesson is proved followable before it ships: the rules' own step functions.
+import { parse as parseTea, step as teaStep, isGoal as teaGoal } from '../../src/puzzle.js';
+import { parse as parseChase, step as chaseStep, isGoal as chaseGoal } from '../../src/chase.js';
+function teaEvents(stage, moves) {
+  const map = parseTea(stage.rows);
+  let state = map.start;
+  const out = [];
+  const held = (s) => s.rocks.filter(r => map.buttons.has(r)).length;
+  for (const m of moves) {
+    const next = teaStep(map, state, m);
+    if (!next) { out.push({ kind: 'room', what: 'blocked' }); continue; }
+    out.push({ kind: 'room', what: 'move' });
+    if (state.rocks.some((r, i) => r !== next.rocks[i])) out.push({ kind: 'room', what: 'push' });
+    if (state.lever !== next.lever) out.push({ kind: 'room', what: 'lever' });
+    if (held(next) > held(state)) out.push({ kind: 'room', what: 'button' });
+    state = next;
+    if (teaGoal(map, state)) out.push({ kind: 'room', what: 'win' });
+  }
+  return out;
+}
+function chaseEvents(stage, moves) {
+  const map = parseChase(stage);
+  let state = map.start;
+  const out = [{ kind: 'room', what: 'start' }];
+  const held = (s) => s.rocks.filter(r => map.buttons.has(r)).length;
+  for (const m of moves) {
+    const next = chaseStep(map, state, m);
+    if (!next) { out.push({ kind: 'room', what: 'caught' }); break; }
+    out.push({ kind: 'room', what: 'tick' });
+    if (m === 'wait') out.push({ kind: 'room', what: 'wait' });
+    if (held(next) > held(state)) out.push({ kind: 'room', what: 'button' });
+    state = next;
+    if (chaseGoal(map, state)) out.push({ kind: 'room', what: 'win' });
+  }
+  return out;
+}
 console.log('the community\'s rooms');
 {
   const dir = resolve(root, 'stages/community');
@@ -352,8 +421,17 @@ console.log('the community\'s rooms');
     if (s.kind && s.kind !== kindOf(stage)) fail(`${at}: listed as ${s.kind} but the module is ${kindOf(stage)}`);
     const r = check(stage, { limit: 2_000_000 });
     if (!r.ok) for (const p of r.problems) fail(`${at}: ${p}`);
-    else ok(true, `${at}: ${stage.name}, ${kindOf(stage)}, par ${r.par}`);
+    else ok(true, `${at}: ${stage.name}, ${kindOf(stage)}, par ${r.par}${stage.lesson ? `, a lesson of ${stage.lesson.length}` : ''}`);
+    if (r.ok && stage.lesson) {
+      // the lesson can be followed: the solver's answer, replayed as the room's events, completes every step in order
+      const t = new Tutor(lessonSteps(stage));
+      const events = r.kind === 'tea' ? teaEvents(stage, r.moves) : chaseEvents(stage, r.moves);
+      for (const e of events) t.feed(e);
+      ok(t.done, `${at}: the solution walks the whole lesson (${t.at} of ${t.steps.length} steps)`);
+    }
   }
+  const ids = (index.stages ?? []).map(s => s.id);
+  ok(ids.join() === [...ids].sort().join(), 'the index is sorted by id');
   for (const f of readdirSync(dir)) {
     const m = /^([a-z0-9][a-z0-9-]*)\.js$/.exec(f);
     if (f.endsWith('.js') && !m) fail(`stages/community/${f}: the file name must be a lower-case slug`);

@@ -197,6 +197,12 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
         <div id="hazards" class="hazards"></div>
         <div class="stage-bar tight"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
         <label class="field grow">The map <textarea id="ascii" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
+        <label class="field">Blurb, one line for the room's card <input id="blurb" type="text" maxlength="160" spellcheck="false" placeholder="what the room is about"></label>
+        <label class="field">The lesson, one step a line: <code>event: what to say</code>
+          <textarea id="lesson" rows="4" spellcheck="false" autocomplete="off" placeholder="move: Move Alice with the d-pad.&#10;push: Walk into the rock. It slides one cell."></textarea></label>
+        <p class="note">The stages page shows the lesson under the room and ticks it off as the player does what it says.
+          Events: <code>move push lever button blocked undo reset</code> for any room, <code>start wait tick caught restart</code>
+          for a timed one, <code>win</code> for the door.</p>
         <ul id="lint" class="lint"></ul>
 
         <details class="drawer" id="startersDrawer">

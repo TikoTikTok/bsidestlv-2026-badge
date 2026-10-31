@@ -64,11 +64,14 @@ export const isSealed = (blob) => !!blob && blob.sealed === 1;
 
 // stages/sealed.json lists the ids that are published sealed; seal-stage.mjs
 // keeps it. One fetch per page, no probing, no 404 in the console.
-let manifest = null;
-const sealedIds = (base) => (manifest ??= fetch(`${base}sealed.json`, { cache: 'no-cache' })
-  .then(r => r.ok ? r.json() : { sealed: [] })
-  .then(m => new Set(m.sealed ?? []))
-  .catch(() => new Set()));
+const manifests = new Map();
+function sealedIds(base) {
+  if (!manifests.has(base)) manifests.set(base, fetch(`${base}sealed.json`, { cache: 'no-cache' })
+    .then(r => r.ok ? r.json() : { sealed: [] })
+    .then(m => new Set(m.sealed ?? []))
+    .catch(() => new Set()));
+  return manifests.get(base);
+}
 
 /**
  * A stage by id, for a page: the sealed copy under stages/sealed/ when the
@@ -83,7 +86,7 @@ export async function loadStage(id, badgeKey, { base = 'stages/' } = {}) {
     return unseal(await r.json(), badgeKey);
   }
   const mod = await import(`../${base}${id}.js`);
-  const stage = Object.values(mod)[0];
-  if (!stage) throw new Error(`stages/${id}.js exports nothing`);
+  const stage = Object.values(mod).find(v => v && Array.isArray(v.rows));
+  if (!stage) throw new Error(`${base}${id}.js exports no stage`);
   return stage;
 }

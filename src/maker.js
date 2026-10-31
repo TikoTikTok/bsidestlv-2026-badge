@@ -16,7 +16,8 @@
 //               solvers (src/level.js, in a worker) and says how hard; Run &
 //               debug - the room played with a simulated badge the keyboard,
 //               a click or a real badge drives, every edge logged; the export
-//               that writes the stage module a pull request carries; the
+//               that writes the stage module a pull request carries, with the
+//               room's blurb and lesson (what the stages page shows under it); the
 //               assistant panel, where whoever is on the bridge (src/bridge.js)
 //               talks and is seen working; and the tutorial "Painting the
 //               Roses" (src/tutor.js MAKER_TUTORIAL, src/coach.js).
@@ -36,8 +37,8 @@ import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.
 import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } from './chase.js';
 import { CHARS, BRUSHES, kindOf, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
          idOf, encodeShare, decodeShare, lineCells, rectCells, regionCells, paintCells, mirrorCells,
-         flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable } from './level.js';
-import { MAKER_TUTORIAL, Tutor } from './tutor.js';
+         flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
+import { MAKER_TUTORIAL, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
 
@@ -218,6 +219,7 @@ function redoEdit() { if (future.length) { past.push(level); level = future.pop(
 
 const board = $('#board'), bctx = board.getContext('2d');
 const ascii = $('#ascii');
+const blurbEl = $('#blurb'), lessonEl = $('#lesson');
 const hazardsEl = $('#hazards');
 const cursorEl = $('#boardCursor');
 
@@ -382,6 +384,8 @@ function render() {
   $('#tickField').hidden = kind !== 'chase';
   $('#tickMs').value = level.tickMs ?? 320;
   if (document.activeElement !== ascii) ascii.value = level.rows.join('\n');
+  if (document.activeElement !== blurbEl) blurbEl.value = level.blurb ?? '';
+  if (document.activeElement !== lessonEl) lessonEl.value = lessonToText(level);
   for (const b of document.querySelectorAll('.brush')) b.classList.toggle('on', hazardPick < 0 && b.dataset.ch === brush);
   $('#undoEdit').disabled = !past.length; $('#redoEdit').disabled = !future.length;
   renderHazards();
@@ -536,6 +540,13 @@ ascii.addEventListener('input', () => {
   if (rows.length) setLevel({ ...level, rows }, { remember: false });
 });
 ascii.addEventListener('change', () => render());
+blurbEl.addEventListener('input', () => setLevel({ ...level, blurb: blurbEl.value }, { remember: false }));
+lessonEl.addEventListener('input', () => {
+  const lesson = lessonFromText(lessonEl.value);
+  setLevel({ ...level, lesson }, { remember: false });
+  tell('lesson', { steps: lesson.filter(s => LESSON_EVENTS.includes(s.on)).length, malformed: lesson.length - lesson.filter(s => LESSON_EVENTS.includes(s.on)).length });
+});
+lessonEl.addEventListener('change', () => render());
 
 const keysDialog = $('#keysDialog');
 $('#keysBtn').addEventListener('click', () => keysDialog.showModal());
@@ -586,7 +597,16 @@ async function loadById(id) {
   const sel = $('#load');
   for (const [id, name] of SHIPPED) sel.append(new Option(name, id));
   fetch('stages/community/index.json', { cache: 'no-cache' }).then(r => r.json()).then((m) => {
-    for (const s of m.stages ?? []) { community.push(s); sel.append(new Option(`${s.name} (community)`, s.id)); }
+    for (const s of m.stages ?? []) {
+      community.push(s);
+      sel.append(new Option(`${s.name} (community)`, s.id));
+      // a community room is a starter too: the demos carry a lesson to learn the format from
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'starter community';
+      b.append(Object.assign(document.createElement('b'), { textContent: s.name }), Object.assign(document.createElement('small'), { textContent: `the community's · ${s.kind === 'chase' ? 'timed' : 'untimed'} · by ${s.author}` }));
+      b.addEventListener('click', () => loadById(s.id).catch((e) => { report = { ok: false, problems: [`could not load ${s.id}: ${e.message}`] }; showReport(); }));
+      $('#starters').append(b);
+    }
   }).catch(() => {});
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
