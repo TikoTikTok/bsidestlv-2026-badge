@@ -434,11 +434,12 @@ console.log('\nthe stages\' tutorial');
   for (const s of STAGES_TUTORIAL) {
     ok(!ids.has(s.id), `stages tutorial: duplicate step ${s.id}`); ids.add(s.id);
     ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `stages tutorial ${s.id}: say and why`);
-    ok(s.stage === 'tea' || s.stage === 'chase', `stages tutorial ${s.id}: stage tea or chase`);
-    ok((s.chapter === 1) === (s.stage === 'tea'), `stages tutorial ${s.id}: chapter one is the tea party, chapter two the gauntlet`);
+    ok(['tea', 'chase', 'rooms'].includes(s.stage), `stages tutorial ${s.id}: stage tea, chase or rooms`);
+    ok({ 1: 'tea', 2: 'chase', 3: 'rooms' }[s.chapter] === s.stage, `stages tutorial ${s.id}: chapter one is the tea party, chapter two the gauntlet, chapter three the community's rooms`);
     ok(!s.badge, `stages tutorial ${s.id}: nothing here needs the quick-glitch layer`);
   }
   ok(STAGES_TUTORIAL.findIndex(s => s.chapter === 2) === STAGES_TUTORIAL.filter(s => s.chapter === 1).length, 'stages tutorial: chapter one comes first, whole');
+  ok(STAGES_TUTORIAL.findIndex(s => s.chapter === 3) === STAGES_TUTORIAL.filter(s => s.chapter < 3).length && STAGES_TUTORIAL.at(-1).chapter === 3, 'stages tutorial: chapter three comes last, whole');
   let saved = null;
   const t = new Tutor(STAGES_TUTORIAL, { load: () => 0, save: (at) => { saved = at; } });
   const walk = [
@@ -456,6 +457,8 @@ console.log('\nthe stages\' tutorial');
     ['restart', { kind: 'chase', what: 'restart' }],
     ['cross',   { kind: 'chase', what: 'button', ticks: 20 }],
     ['out',     { kind: 'chase', what: 'win', ticks: 64 }],
+    ['room',    { kind: 'room', id: 'the-first-lesson', what: 'open', name: 'The First Lesson', rules: 'tea' }],
+    ['lesson',  { kind: 'room', id: 'the-first-lesson', what: 'win', moves: 19 }],
   ];
   ok(walk.length === STAGES_TUTORIAL.length, 'stages tutorial: the walk covers every step');
   ok(t.feed({ kind: 'tea', what: 'move' }) === null, 'stages tutorial: a move before a press is not a wake');
@@ -464,13 +467,14 @@ console.log('\nthe stages\' tutorial');
     ok(t.step?.id === id, `stages tutorial: at ${id} (is ${t.step?.id})`);
     ok(t.feed({ kind: 'tea', what: 'blocked' }) === null, `stages tutorial ${id}: a bump completes nothing`);
     ok(t.feed({ kind: 'chase', what: 'tick', ticks: 1 }) === null, `stages tutorial ${id}: a plain tick completes nothing`);
+    ok(t.feed({ kind: 'room', id: 'x', what: 'move', moves: 1 }) === null, `stages tutorial ${id}: a step in a community room completes nothing`);
     ok(t.feed(ev)?.id === id, `stages tutorial: ${id} completes on its event`);
   }
   ok(t.done && saved === STAGES_TUTORIAL.length, 'stages tutorial: walked to the end, and saved');
   const t2 = new Tutor(STAGES_TUTORIAL, { load: () => 0 });
   t2.feed({ kind: 'edge', button: 'A', down: true });
   ok(t2.feed({ kind: 'tea', what: 'push' }) === null && t2.feed({ kind: 'tea', what: 'move' })?.id === 'walk', 'stages tutorial: a push is also a move, fed as move first');
-  console.log(`  ${STAGES_TUTORIAL.length} steps, ${STAGES_TUTORIAL.filter(s => s.stage === 'tea').length} in the tea party, ${STAGES_TUTORIAL.filter(s => s.stage === 'chase').length} in the gauntlet`);
+  console.log(`  ${STAGES_TUTORIAL.length} steps, ${STAGES_TUTORIAL.filter(s => s.stage === 'tea').length} in the tea party, ${STAGES_TUTORIAL.filter(s => s.stage === 'chase').length} in the gauntlet, ${STAGES_TUTORIAL.filter(s => s.stage === 'rooms').length} in the community's rooms`);
 }
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }

@@ -85,6 +85,30 @@ round, exactly one `A` and one `D`, as many rocks as buttons, at least one
 rock, a lever wherever there is a gate, routes on floor and in straight
 lines. The art, the names and the colours come from `src/scene.js`.
 
+Two more fields are optional and travel with the room:
+
+```js
+  blurb: 'A first room: one rock, one button, a gate and its lever.',   // one line, up to 160 characters
+  lesson: [                                                              // the room's own tutorial, up to 12 steps
+    { on: 'move',  say: "Move Alice with the badge's d-pad." },
+    { on: 'push',  say: 'Walk into the rock. It slides one cell.' },
+    { on: 'lever', say: 'Step on the lever. The gate opens.' },
+    { on: 'win',   say: 'Walk to the door.' },
+  ],
+```
+
+The **blurb** is what the stages page shows beside the room. The **lesson**
+is shown under it and ticks itself off as the player does what each step
+says: `on` is a thing the room does - `move push lever button blocked undo
+reset` in any room, `start wait tick caught restart` in a timed one, `win`
+for the door - and `say` is the line for it (`src/tutor.js` `LESSON_EVENTS`;
+`lessonSteps` turns a lesson into the tutorials' own engine, `src/room.js`
+drives it). The checker proves a lesson can be followed: the solver's answer,
+replayed as the room's events, has to complete every step in order, so a
+lesson that asks for something the par never does is refused. The two demo
+rooms, `stages/community/the-first-lesson.js` (untimed) and `tick-tock.js`
+(timed), are lessons; copy one.
+
 ## The studio
 
 `maker.html` on a local checkout (`localhost`, `127.0.0.1`) is the studio.
@@ -96,11 +120,11 @@ with every source on a dev host and none at all on the site).
 
 The first visit is guided: **Painting the Roses** (`MAKER_TUTORIAL` in
 `src/tutor.js`, drawn by `src/coach.js` as the line at the top of the page
-and the Learn panel at the bottom) is fifteen steps that watch what you do
+and the Learn panel at the bottom) is sixteen steps that watch what you do
 and tick themselves off - chapter one draws (a brush, a wall, a rock, its
 button, the lint green, a bigger tool, an overlay, Surprise me), chapter
 two proves and plays (Check, Run & debug, a step, the solution), chapter
-three ships (the shelf, the export, an assistant). Skip any step; start
+three ships (the shelf, a lesson, the export, an assistant). Skip any step; start
 over from the panel; progress is in `localStorage alice.tutor.maker`.
 `?` lists every key.
 
@@ -117,7 +141,8 @@ over from the panel; progress is in `localStorage alice.tutor.maker`.
   door are single, so painting one moves it. The map box on the right is the
   same room as text; edit either. Width, height, dressing, the clock; *Add a
   hazard* puts one of the cast on the board and *lay the route* turns clicks
-  into its waypoints (click the last one again to take it back). The lint
+  into its waypoints (click the last one again to take it back). **Blurb** is the room's one line; **the lesson** is written one
+  step a line as `event: what to say` and lints like the rest. The lint
   under the map says what is malformed as you go.
 - **The overlays**, under the board, are the solver's own bookkeeping drawn
   over the room: the grid and the coordinates; **stuck corners** (hatched:
@@ -127,7 +152,8 @@ over from the panel; progress is in `localStorage alice.tutor.maker`.
   walks in the last Check); **the cast's sight** (what a watcher sees on
   the first tick). `G` toggles the grid.
 - **Start from…** are six rooms, each a lesson in one idea (a blank, a wide
-  blank, the corridor, the gate, two rooms, the hall). **Surprise me**
+  blank, the corridor, the gate, two rooms, the hall), and then every room
+  the community has sent in, the two demos first. **Surprise me**
   draws a room from a seed with the knobs you set (size, rocks, wall
   density, a gate, timed) and keeps drawing until the solver clears one
   with at least the par you ask; the seed is shown and can be typed back,
@@ -246,13 +272,18 @@ Rooms are MIT like everything else under the site.
 
 `stages/community/` is published with the rest of the site, and
 `verify-maker.mjs` gates the deploy on every listed room, so a merged room
-is live at the next deploy. The maker's *Load* menu lists them beside the
-two shipped stages. Putting a community room in front of the player on
-`index.html` - a "Community" panel behind the mode bar, picked by the
-badge, played by the same rules - is the natural next step and is not done
-yet; the stages page plays the two shipped rooms. A community room can be
-sealed like any other (`npm run seal`) if an event wants it hidden until
-the day.
+is live at the next deploy, in two places: the maker's *Load* menu and
+*Start from…* list it beside the shipped stages, and the stages page
+(`index.html`) plays it. There, **Rooms** (a panel behind the mode bar, the
+third stage of the page) lists every room in the index as a card, in the
+index's order, opens one at a time (`?room=<id>` opens straight on one) and
+plays it with the badge by the rules of whichever stage it is like -
+`src/room.js`, one player for both rules, with the room's blurb beside it
+and its lesson under it. The stages' tutorial, *A Caucus Race*, ends in
+that panel: its third chapter opens a room and follows its lesson to the
+door. A community room can be sealed like any other (`npm run seal`,
+`stages/community/sealed.json` is that folder's manifest) if an event
+wants it hidden until the day.
 
 Suggested handling of pull requests:
 
@@ -273,8 +304,9 @@ src/level.js                    a level as data: lint, check, toModule / fromMod
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
 src/check-worker.js             check() and generateSolvable() off the page's thread
 src/bridge.js                   the page's end of the bridge: the event stream, the replies, the mirror, the chat
-src/tutor.js                    MAKER_TUTORIAL, "Painting the Roses" (with the other two tutorials); src/coach.js draws it
-stages/community/               the community's rooms and index.json
+src/tutor.js                    MAKER_TUTORIAL, "Painting the Roses" (with the other two tutorials); src/coach.js draws it; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
+src/room.js                     the stages page's player for a community room: either rules, the badge, the lesson under it
+stages/community/               the community's rooms and index.json; the-first-lesson.js and tick-tock.js are the demos, one lesson each
 software/tools/maker.mjs        npm run maker: serves the checkout, opens the page
 software/tools/maker-server.mjs the server: static files + the bridge under /__maker/ (loopback only)
 software/tools/maker-mcp.mjs    the bridge as MCP tools over stdio; .mcp.json at the root registers it

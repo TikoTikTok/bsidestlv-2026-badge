@@ -90,7 +90,10 @@ there, and only there: the site's pad never has it.
 
 Rooms go in `stages/community/` with a line in its `index.json`;
 `npm run stage -- <file>` says what CI will say, and `verify-maker.mjs`
-gates every deploy on every listed room. The whole guide, format and
+gates every deploy on every listed room. A merged room is playable on the
+stages page under **Rooms**, with the lesson it may carry (a few lines that
+tick themselves off as the player does what they say); the two demo rooms,
+*The First Lesson* and *Tick Tock*, show the format. The whole guide, format and
 process: [`software/docs/LEVEL_MAKER.md`](software/docs/LEVEL_MAKER.md).
 
 ### The glitch range
