@@ -32,6 +32,7 @@
   <button type="button" class="mode" data-mode="learn">Learn</button>
   <button type="button" class="mode" data-mode="tea">Tea</button>
   <button type="button" class="mode" data-mode="chase">Gauntlet</button>
+  <button type="button" class="mode" data-mode="rooms">Rooms</button>
   <button type="button" class="mode dev-only" data-mode="walk">Walk</button>
   <button type="button" class="mode dev-only" data-mode="art">Art</button>
   <button type="button" class="mode help" data-mode="help" aria-label="elsewhere, and the looks">?</button>
@@ -108,11 +109,38 @@
     </div>
   </section>
 
+  <!-- The community's rooms: every room stages/community/index.json lists, played by src/room.js with the
+       rules of whichever stage it is like. A room may carry a lesson, shown under it. -->
+  <section class="panel" id="roomsPanel" data-mode="rooms">
+    <h2>Rooms — <span id="roomName">from the community</span> <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+    <p class="note">Rooms made with <a href="maker.html">the level maker</a> and sent in. Every one listed here was
+      proved solvable before it shipped, and the badge plays it by the rules of the stage it is like: no clock and
+      <b>B</b> takes a move back, or a clock from the first press and <b>Y</b> waits a tick. A room may carry a
+      lesson: the line under it says what to do next and ticks itself off as you do it. The first two rooms are
+      the demos. Make the third.</p>
+    </details>
+    <div id="roomList" class="rooms" aria-label="the rooms"></div>
+    <p id="roomBlurb" class="note"></p>
+    <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="roomKeyUndo"><kbd>B</kbd>undo</span><span id="roomKeyWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd><span id="roomKeyReset">reset</span></span></p>
+    <p id="roomLesson" class="lesson" hidden></p>
+
+    <div class="stage-wrap"><canvas id="room"></canvas></div>
+
+    <div class="stage-bar">
+      <button id="roomSolve" class="btn dev-only">Solve</button>
+      <button id="roomUndo" class="btn ghost">Undo</button>
+      <button id="roomReset" class="btn ghost">Reset</button>
+      <span id="roomStatus" class="status"></span>
+    </div>
+  </section>
+
   <section class="panel" id="learnPanel" data-mode="learn">
     <h2>A Caucus Race <span id="learnProgress" class="armed-mark"></span></h2>
-    <p class="note">A guided first visit to both rooms. Each step watches what you do and ticks itself off;
+    <p class="note">A guided first visit to the rooms. Each step watches what you do and ticks itself off;
       the line at the top of the page says what comes next wherever you are. Chapter one is the tea
-      party, chapter two the gauntlet — skip what you like, it costs nothing.</p>
+      party, chapter two the gauntlet, chapter three a room the community made — skip what you like, it costs nothing.</p>
     <div id="learnCoach" class="learn-now"></div>
     <ol id="learnSteps" class="learn-steps"></ol>
     <div class="stage-bar">
@@ -127,7 +155,8 @@
     <p class="note">Two rooms, one controller. Push every rock onto a button and walk Alice to the door.
       The tea party has no clock and forgives everything: <b>B</b> takes a move back, <b>START</b> starts over.
       The gauntlet runs on a clock from your first press, the cast walks whether you do or not, and the
-      Queen's gaze ends the run. New here? <b>Learn</b> walks both rooms one press at a time and says why.</p>
+      Queen's gaze ends the run. <b>Rooms</b> are the community's, made with <a href="maker.html">the level maker</a>
+      and played by the same rules. New here? <b>Learn</b> walks the rooms one press at a time and says why.</p>
 
     <h2 style="margin-top: 1.25rem;">The glitch range</h2>
     <p class="note">Three more rooms, on <a href="glitch.html">their own page</a>, built for the badge's
