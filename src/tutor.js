@@ -18,6 +18,7 @@
 //   fire      { }                                  a badge fire was seen: START from the pad, then a take
 //   tea       { what, ... }                        the tea party did something (the stages)
 //   chase     { what, ... }                        the gauntlet did something
+//   room      { id, what, ... }                    a community room did something (src/room.js)
 //
 // The range's tutorial has two chapters. The first needs only a controller
 // of some kind - on a checkout the keyboard, on the site the badge's
@@ -231,7 +232,40 @@ export const STAGES_TUTORIAL = [
     why: 'Par is 64 ticks: an empty room takes 41, the cast costs 23 more. Every input inside its tick, or the plan slips a beat.',
     done: did('chase', 'win'),
   },
+  // ---- chapter 3: the community's rooms ----
+  {
+    id: 'room', chapter: 3, title: 'A room from the community', stage: 'rooms',
+    say: 'Open Rooms and pick one. The first is a lesson.',
+    why: 'Anyone with a checkout can make a room in the level maker and send it in; every room listed here solves, the checks proved it before it shipped. The badge plays them by the same rules as the two stages.',
+    done: (ev) => ev.kind === 'room' && ev.what === 'open',
+  },
+  {
+    id: 'lesson', chapter: 3, title: 'Follow the lesson', stage: 'rooms',
+    say: 'Do what the line under the room says, to the door.',
+    why: 'A room can carry a lesson: a few lines that tick themselves off as you do what they say. The first two rooms are the demos - one untimed, one on a clock. Then make one of your own.',
+    done: (ev) => ev.kind === 'room' && ev.what === 'win',
+  },
 ];
+
+// ------------------------------------------------------------ a lesson ----
+// A room's own tutorial: `lesson` on a stage module is a list of steps, each
+// a thing the room does and a line about it, shown under the room by
+// src/room.js and walked by a Tutor with no store. The events are the room's
+// (what src/room.js reports) and the titles are fixed per event, so a lesson
+// is written as one line per step: `event: what to say`.
+
+export const LESSON_TITLES = {
+  open: 'A room', move: 'A step', push: 'A shove', lever: 'The lever', button: 'A button held', blocked: 'A bump',
+  undo: 'A step back', reset: 'Start again', start: 'The clock starts', wait: 'Stand still', tick: 'A tick',
+  caught: 'Caught', restart: 'Once more', win: 'Out',
+};
+export const LESSON_EVENTS = Object.keys(LESSON_TITLES);
+
+/** The Tutor steps of a level's lesson: [] when it has none. */
+export const lessonSteps = (level) => (level.lesson ?? []).map((s, i) => ({
+  id: `lesson-${i + 1}-${s.on}`, chapter: 1, title: LESSON_TITLES[s.on] ?? s.on, say: String(s.say ?? ''), why: '',
+  done: (ev) => ev.kind === 'room' && ev.what === s.on,
+}));
 
 // --------------------------------------------------- the level studio's ----
 // "Painting the Roses": a first room in the studio (maker.html on a checkout).
@@ -240,7 +274,7 @@ export const STAGES_TUTORIAL = [
 // (`panel`), which the page scrolls to when the step comes up on request.
 // Events from src/maker.js:
 //   maker  { what: 'brush' | 'paint' | 'tool' | 'symmetry' | 'overlay' | 'transform' | 'lint' | 'check' |
-//                  'generate' | 'shelf' | 'play' | 'move' | 'win' | 'solution' | 'export' | 'chat' | 'hello', ... }
+//                  'generate' | 'shelf' | 'lesson' | 'play' | 'move' | 'win' | 'solution' | 'export' | 'chat' | 'hello', ... }
 
 const made = (what, test = () => true) => (ev) => ev.kind === 'maker' && ev.what === what && test(ev);
 
@@ -325,6 +359,12 @@ export const MAKER_TUTORIAL = [
     say: 'Put the room on your shelf.',
     why: 'The shelf is in this browser only: as many rooms as you like, each with its last verdict. The room in the editor is also kept between visits on its own.',
     done: made('shelf', (ev) => ev.did === 'save'),
+  },
+  {
+    id: 'lesson', chapter: 3, title: 'Write a lesson', panel: 'edit',
+    say: 'Give the room a lesson: one line per step in the box under the map, `event: what to say`.',
+    why: 'A lesson is what the stages page shows under your room, and it ticks itself off as the player does what it says. The events are what a room does: move, push, lever, button, wait, win. The first community room is one.',
+    done: made('lesson', (ev) => ev.steps > 0),
   },
   {
     id: 'export', chapter: 3, title: 'Send it in', panel: 'export',
