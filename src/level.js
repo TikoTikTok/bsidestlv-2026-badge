@@ -6,7 +6,11 @@
 //
 // A level is the same object a stage module exports:
 //
-//   { name, rows, theme?, tickMs?, hazards?: [{ id, character?, route, sight? }] }
+//   { name, rows, theme?, tickMs?, hazards?: [{ id, character?, route, sight? }],
+//     blurb?, lesson?: [{ on, say }] }
+//
+// blurb is one line about the room (the stages page's card); lesson is the
+// room's own tutorial (src/tutor.js lessonSteps, shown by src/room.js).
 //
 // rows is the ASCII map (src/puzzle.js's legend: # . A O b L G D). A level
 // with hazards or a tickMs is timed and judged by src/chase.js; without
@@ -14,6 +18,7 @@
 
 import { parse as parseTea, solve as solveTea, replay as replayTea, isGoal as teaGoal } from './puzzle.js';
 import { parse as parseChase, solve as solveChase, replay as replayChase, isGoal as chaseGoal } from './chase.js';
+import { LESSON_EVENTS } from './tutor.js';
 
 export const CHARS = {
   '#': 'wall', '.': 'floor', A: 'Alice', O: 'rock', b: 'button', L: 'lever', G: 'gate', D: 'door',
@@ -116,6 +121,15 @@ export function lint(level) {
     }
     if (hz.sight !== undefined && !(hz.sight >= 0 && hz.sight <= 8)) out.push(`${at}: sight must be 0..8`);
   }
+  if (level.blurb !== undefined && (typeof level.blurb !== 'string' || level.blurb.length > 160)) out.push('the blurb is one line of text, up to 160 characters');
+  if (level.lesson !== undefined) {
+    if (!Array.isArray(level.lesson)) out.push('the lesson must be a list of { on, say }');
+    else level.lesson.forEach((s, i) => {
+      if (!LESSON_EVENTS.includes(s?.on)) out.push(`lesson step ${i + 1}: 'on' must be one of ${LESSON_EVENTS.join(' ')}`);
+      if (typeof s?.say !== 'string' || !s.say.trim()) out.push(`lesson step ${i + 1}: needs something to say`);
+    });
+    if (level.lesson.length > 12) out.push('a lesson is at most 12 steps');
+  }
   return out;
 }
 
@@ -175,6 +189,7 @@ export function toModule(level, { author } = {}) {
   if (kind === 'chase') head.push('//', '// A timed room: every tick the cast advances one cell along its loop.');
   const body = [`export const ${name} = {`, `  name: ${JSON.stringify(level.name)},`];
   if (level.theme) body.push(`  theme: ${JSON.stringify(level.theme)},`);
+  if (level.blurb) body.push(`  blurb: ${JSON.stringify(level.blurb)},`);
   if (kind === 'chase') body.push(`  tickMs: ${level.tickMs ?? 320},`);
   body.push('  rows: [', ...level.rows.map(r => `    '${r}',`), '  ],');
   if (level.hazards?.length) {
@@ -186,6 +201,11 @@ export function toModule(level, { author } = {}) {
       if (hz.sight) parts.push(`sight: ${hz.sight}`);
       body.push(`    { ${parts.join(', ')} },`);
     }
+    body.push('  ],');
+  }
+  if (level.lesson?.length) {
+    body.push('  lesson: [');
+    for (const s of level.lesson) body.push(`    { on: ${JSON.stringify(s.on)}, say: ${JSON.stringify(s.say)} },`);
     body.push('  ],');
   }
   body.push('};');
@@ -211,6 +231,24 @@ export function normalize(level) {
     if (hz.sight) h.sight = +hz.sight;
     return h;
   });
+  if (level.blurb) out.blurb = String(level.blurb);
+  if (level.lesson?.length) out.lesson = level.lesson.map(s => ({ on: String(s.on), say: String(s.say) }));
+  return out;
+}
+
+// ------------------------------------------------------------- the lesson ----
+// A lesson as text, one step a line: `event: what to say`. The studio's box
+// edits it this way; the module carries it as { on, say }.
+
+export const lessonToText = (level) => (level.lesson ?? []).map(s => `${s.on}: ${s.say}`).join('\n');
+export function lessonFromText(text) {
+  const out = [];
+  for (const raw of String(text ?? '').split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = /^([a-z]+)\s*:\s*(.*)$/.exec(line);
+    out.push(m ? { on: m[1], say: m[2] } : { on: '?', say: line });
+  }
   return out;
 }
 
