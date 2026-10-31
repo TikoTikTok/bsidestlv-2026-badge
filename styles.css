@@ -446,6 +446,19 @@ html:not([data-look=classic]) .coach-actions { margin-left: 0; }
 .keys kbd { margin-right: .3em; }
 .status.hint { color: var(--accent); }
 
+/* ------------------------------------------------- the community's rooms -- */
+/* the cards (one per room in stages/community/index.json) and the lesson a room carries, under it */
+.rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .4rem; margin: .4rem 0 .6rem; }
+.room-card { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; padding: .45rem .6rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); }
+.room-card b { color: var(--text); font-size: 12px; }
+.room-card small { font-size: 10px; }
+.room-card:hover { border-color: var(--accent); color: var(--text); }
+.room-card.on { border-color: var(--accent-2); color: var(--text); }
+.lesson { margin: .4rem 0 .6rem; padding: .6rem .8rem; border-left: 3px solid var(--accent); background: var(--well); font-size: 12px; color: var(--text); }
+.lesson b { color: var(--accent); margin-right: .3em; }
+.lesson.done { border-color: var(--accent-2); }
+.lesson.done b { color: var(--accent-2); }
+
 /* ------------------------------------------------------------------ looks -- */
 /* How the site sits on a screen. The classic look is this file alone: every
    panel, the page scrolls. A phone look is one more stylesheet, src/looks/

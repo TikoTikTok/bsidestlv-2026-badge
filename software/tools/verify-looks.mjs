@@ -113,7 +113,9 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
 // <html> before paint and styles.css hides the class on the site.
 {
   const html = readFileSync(resolve(root, 'index.html'), 'utf8');
-  for (const id of ['solveBtn', 'chaseSolve']) if (!new RegExp(`id="${id}" class="[^"]*dev-only`).test(html)) say(`index.html: #${id} (Solve) is the bench's: class dev-only`);
+  for (const id of ['solveBtn', 'chaseSolve', 'roomSolve']) if (!new RegExp(`id="${id}" class="[^"]*dev-only`).test(html)) say(`index.html: #${id} (Solve) is the bench's: class dev-only`);
+  if (!/<section class="panel" id="roomsPanel" data-mode="rooms">/.test(html)) say('index.html: the community\'s rooms are a panel for everyone, data-mode="rooms"');
+  if (!/class="mode" data-mode="rooms"/.test(html)) say('index.html: the mode bar has a Rooms button for everyone (not dev-only)');
   for (const m of ['walk', 'art']) {
     if (!new RegExp(`class="mode dev-only" data-mode="${m}"`).test(html)) say(`index.html: the ${m} mode button is the bench's: class dev-only`);
     if (/<section class="panel" data-mode="(walk|art)"/.test(html)) say('index.html: every walk and art panel is the bench\'s: class dev-only');
@@ -150,7 +152,8 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
     if (!/from '\.\/coach\.js'/.test(js)) say(`${page}: ${mod} does not import src/coach.js`);
   }
   const index = readFileSync(resolve(root, 'index.html'), 'utf8');
-  if ((index.match(/<p class="keys"/g) ?? []).length !== 2) say('index.html: each stage carries a controls legend (p.keys)');
+  if ((index.match(/<p class="keys"/g) ?? []).length !== 3) say('index.html: each stage and the community\'s room carry a controls legend (p.keys)');
+  for (const id of ['roomKeyUndo', 'roomKeyWait', 'roomKeyReset', 'roomLesson']) if (!new RegExp(`id="${id}"`).test(index)) say(`index.html: no #${id} (the room's legend follows its rules; the lesson sits under it)`);
   if (!/id="undoBtn"/.test(index)) say('index.html: the tea party has an Undo button');
 }
 

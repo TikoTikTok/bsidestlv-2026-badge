@@ -2,7 +2,9 @@
 //
 // Two rooms - the tea party (src/puzzle.js) and the gauntlet (src/chase.js) -
 // drawn from the supplied art, driven by the badge, with a tutorial (src/
-// tutor.js, src/coach.js) that watches what the player does. The bench's
+// tutor.js, src/coach.js) that watches what the player does; then the
+// community's rooms (stages/community/, played by src/room.js by whichever
+// rules each is), with the lesson a room may carry. The bench's
 // walk-cycle viewer and asset sheets live here too, on a dev host only.
 // Everything drawn comes from assets/ through src/scene.js: five 8-way walk
 // cycles under assets/characters/ and the item and tile sets. Nothing is
@@ -17,6 +19,7 @@ import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
 import { Tutor, STAGES_TUTORIAL } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
+import { mountRoom } from './room.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -39,19 +42,22 @@ const hooks = {};
 const gatePromise = openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
 
 // Which stage the badge's d-pad drives: the one last tapped, or the one the
-// phone looks' mode bar shows; the tea party first.
+// phone looks' mode bar shows; the tea party first. 'rooms' is the community's
+// panel, whichever room is open in it.
 let armedStage = 'tea';
 function armStage(which) {
   armedStage = which;
   $('#teaPanel').classList.toggle('armed', which === 'tea');
   $('#chasePanel').classList.toggle('armed', which === 'chase');
+  $('#roomsPanel').classList.toggle('armed', which === 'rooms');
 }
 $('#teaPanel').addEventListener('pointerdown', () => armStage('tea'));
 $('#chasePanel').addEventListener('pointerdown', () => armStage('chase'));
+$('#roomsPanel').addEventListener('pointerdown', () => armStage('rooms'));
 
 // the look picker and the mode bar (src/looks.js), up before the gate so a
 // phone can pick its look while the badge is still being asked for
-const looksReady = initLooks({ onMode(m) { if (m === 'tea' || m === 'chase') armStage(m); } });
+const looksReady = initLooks({ onMode(m) { if (m === 'tea' || m === 'chase' || m === 'rooms') armStage(m); } });
 
 // The tutorial, A Caucus Race: every edge and everything a stage does is fed
 // to it; a step that comes up arms its stage and, on a phone, shows it. The
@@ -431,6 +437,7 @@ function tick(now) {
 
   drawStage(now);
   drawChase(now);
+  room.draw(now);
   requestAnimationFrame(tick);
 }
 
@@ -598,6 +605,55 @@ chaseRestart({ tell: false });
 if (mode === 'dev' && new URLSearchParams(location.search).get('autosolve') === 'chase')
   setTimeout(() => $('#chaseSolve').click(), 400);
 
+// ------------------------------------------------ the community's rooms ----
+// Every room stages/community/index.json lists, as cards; one open at a time,
+// played by src/room.js with the rules of whichever stage it is like (the
+// same src/puzzle.js or src/chase.js), its lesson under it. ?room=<id> opens
+// straight on one. Sealed like the stages through src/seal.js, should an
+// event want a community room hidden until the day.
+
+const room = mountRoom({
+  canvas: $('#room'), scene, pad, armed: () => armedStage === 'rooms',
+  status: $('#roomStatus'), lesson: $('#roomLesson'),
+  keys: { undo: $('#roomKeyUndo'), wait: $('#roomKeyWait'), reset: $('#roomKeyReset') },
+  feed: tutorFeed, keyboard: () => pad.allows('key'),
+});
+const rooms = [];   // the index: { id, name, author, kind }
+async function openRoom(id, { tell = true } = {}) {
+  const entry = rooms.find(r => r.id === id);
+  if (!entry) throw new Error(`no community room '${id}'`);
+  const level = await loadStage(id, badge?.key, { base: 'stages/community/' });
+  room.load(level, { id, tell });
+  $('#roomName').textContent = level.name;
+  $('#roomBlurb').textContent = `${level.blurb ? `${level.blurb} ` : ''}By ${entry.author}.`;
+  $('#roomUndo').hidden = room.kind !== 'tea';
+  $('#roomReset').textContent = room.kind === 'tea' ? 'Reset' : 'Restart';
+  for (const b of $('#roomList').children) b.classList.toggle('on', b.dataset.id === id);
+  return level;
+}
+{
+  const list = $('#roomList');
+  try {
+    const m = await (await fetch('stages/community/index.json', { cache: 'no-cache' })).json();
+    rooms.push(...(m.stages ?? []));
+  } catch { /* no index: the panel says so below */ }
+  if (!rooms.length) list.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'No rooms yet. The level maker is where the first one is made.' }));
+  for (const r of rooms) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'room-card'; b.dataset.id = r.id;
+    b.append(Object.assign(document.createElement('b'), { textContent: r.name }),
+             Object.assign(document.createElement('small'), { textContent: `${r.kind === 'chase' ? 'timed' : 'untimed'} · ${r.author}` }));
+    b.addEventListener('click', () => { armStage('rooms'); openRoom(r.id).catch((e) => { $('#roomStatus').textContent = `could not open ${r.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; }); });
+    list.append(b);
+  }
+  const wanted = new URLSearchParams(location.search).get('room');
+  const first = rooms.find(r => r.id === wanted) ?? rooms[0];
+  if (first) await openRoom(first.id, { tell: false }).catch((e) => { $('#roomStatus').textContent = `could not open ${first.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; });
+}
+$('#roomReset').addEventListener('click', () => room.reset());
+$('#roomUndo').addEventListener('click', () => room.undo());
+$('#roomSolve').addEventListener('click', () => room.solve());
+
 // The gate's pause (site only): the badge went, so the world stands still -
 // the gauntlet's cast does not move while nobody can move Alice, a solver's
 // playback holds its place, the walk cycle freezes. The status lines say
@@ -608,24 +664,26 @@ hooks.pause = (why) => {
   const text = `paused - the badge is ${why}`;
   chaseStatus.textContent = text; chaseStatus.className = 'status hot';
   setStatus(text, 'hot');
+  room.pause(why);
 };
 hooks.resume = () => {
   paused = false;
   setChaseStatus();
   refreshStatus();
+  room.resume();
 };
 
 // The tutorial's coach: a step that comes up arms its stage and, on a phone,
 // shows it. Mounted after both stages, since its first step arms one.
 coach = mountCoach(tutor, {
   looks,
-  chapters: { 1: 'Chapter one · a mad tea party', 2: "Chapter two · the queen's gauntlet" },
+  chapters: { 1: 'Chapter one · a mad tea party', 2: "Chapter two · the queen's gauntlet", 3: "Chapter three · the community's rooms" },
   finish: {
     title: 'A prize for everyone',
-    say: 'Both rooms are yours. The range is next door.',
-    note: (skipped) => 'You have been through both rooms' +
+    say: 'The rooms are yours. The range is next door, the level maker too.',
+    note: (skipped) => 'You have been through every room' +
       (skipped ? ` (${skipped} step${skipped === 1 ? '' : 's'} skipped)` : '') +
-      '. Start over any time, or cross to the glitch range, where the badge does the pressing.',
+      '. Start over any time, cross to the glitch range, where the badge does the pressing, or make a room of your own in the level maker.',
   },
   prepare(step, { show = false } = {}) {
     if (!step?.stage) return;
@@ -636,10 +694,13 @@ coach = mountCoach(tutor, {
   },
 });
 
+// ?room=<id> in the address: that room is the one armed, whatever the tutorial's step says, and on a phone the one on screen
+if (rooms.some(r => r.id === new URLSearchParams(location.search).get('room'))) { armStage('rooms'); if (looks.look.id !== 'classic') looks.setMode('rooms'); }
+
 // scripted tests read the stages through this (dev hosts; nothing here plays)
 window.__stages = { get tutor() { return tutor; }, get board() { return board; }, get history() { return history; },
                     get chase() { return { state: chaseState, ticks: chaseTicks, dead: chaseDead, waiting: chaseWaiting }; },
-                    get armed() { return armedStage; }, armStage };
+                    get armed() { return armedStage; }, armStage, room, rooms, openRoom };
 
 // The render loop starts last: everything it draws has to exist first.
 requestAnimationFrame(tick);
