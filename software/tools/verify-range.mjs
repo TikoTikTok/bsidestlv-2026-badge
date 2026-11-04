@@ -220,8 +220,9 @@ console.log('\nthe stages\' tutorial');
 // the export in the module by its shape. The watch and the dog carry no map,
 // so a finder that wants `rows` (as the one that came with the community
 // rooms did, 2026-10-31 to 2026-11-04) refuses the whole page: pin the shape
-// of every shipped module here. And the maps src/rangecheck.js carries for
-// the studio are the shipped modules' own, so the two never drift.
+// of every shipped module here. A community glitch level is found by its
+// `range` instead. And the maps src/rangecheck.js carries for the studio are
+// the shipped modules' own, so the two never drift.
 
 console.log('the loader');
 {
@@ -232,6 +233,8 @@ console.log('the loader');
     ok(stageOf(mod) === stage, `stages/${id}.js: loadStage finds its export (${stage.name})`);
   }
   ok(stageOf({ a: 1, b: null, c: { name: 'no map, no levels' } }) === undefined, 'a module with neither rows nor levels exports no stage');
+  const glitch = { name: 'Which side?', range: 'lock', id: 'which-side', length: 3 };
+  ok(stageOf({ WHICH_SIDE: glitch }) === glitch, 'a module exporting a glitch level (a range, no rows, no levels) is found by its range');
   for (const kind of RANGE_KINDS) {
     ok(SHIPPED[kind] === shipped[RANGE_FILES[kind]], `RANGE_FILES.${kind} names the shipped module (${RANGE_FILES[kind]})`);
     if (RANGE_MAPS[kind]) ok(RANGE_MAPS[kind].join('\n') === SHIPPED[kind].rows.join('\n'), `RANGE_MAPS.${kind} is the shipped map`);

@@ -75,10 +75,11 @@ function sealedIds(base) {
 
 /**
  * The stage a module exports, whatever it is called: a room has `rows` (the
- * map), a range has `levels` (the watch and the dog have no map at all).
- * Every loader that imports a stage module goes through this.
+ * map), a range has `levels` (the watch and the dog have no map at all), a
+ * community level for a range names its `range` (src/rangecheck.js). Every
+ * loader that imports a stage module goes through this.
  */
-export const stageOf = (mod) => Object.values(mod).find(v => v && typeof v === 'object' && (Array.isArray(v.rows) || Array.isArray(v.levels)));
+export const stageOf = (mod) => Object.values(mod).find(v => v && typeof v === 'object' && (Array.isArray(v.rows) || Array.isArray(v.levels) || typeof v.range === 'string'));
 
 /**
  * A stage by id, for a page: the sealed copy under stages/sealed/ when the
