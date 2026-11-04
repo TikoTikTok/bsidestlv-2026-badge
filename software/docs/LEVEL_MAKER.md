@@ -118,15 +118,29 @@ bench, the export, the assistant panel and the tutorial are class
 the site's pad with the badge as its only source; the studio builds a pad
 with every source on a dev host and none at all on the site).
 
-The first visit is guided: **Painting the Roses** (`MAKER_TUTORIAL` in
+The first visit is guided, and there is a choice of guides: the Learn panel
+at the bottom offers the **guided builds** (`MAKER_TUTORIALS` in
 `src/tutor.js`, drawn by `src/coach.js` as the line at the top of the page
-and the Learn panel at the bottom) is sixteen steps that watch what you do
-and tick themselves off - chapter one draws (a brush, a wall, a rock, its
-button, the lint green, a bigger tool, an overlay, Surprise me), chapter
-two proves and plays (Check, Run & debug, a step, the solution), chapter
-three ships (the shelf, a lesson, the export, an assistant). Skip any step; start
-over from the panel; progress is in `localStorage alice.tutor.maker`.
-`?` lists every key.
+and the panel's checklist) as cards; pick one and its steps watch what you
+do and tick themselves off. **Painting the Roses** (16 steps) is the tour of
+the studio - chapter one draws (a brush, a wall, a rock, its button, the
+lint green, a bigger tool, an overlay, Surprise me), chapter two proves and
+plays (Check, Run & debug, a step, the solution), chapter three ships (the
+shelf, a lesson, the export, an assistant). The others each lead to one
+finished room: **A Room with a Gate** (13 steps: from a blank room, Alice, a
+wall across with the line tool, a gate in it, the lever on her side, a rock
+and its button and the door behind, Check saying the gate is load-bearing,
+played to the door, sent in), **The Clock and the Cast** (11: the corridor
+turned timed, the tick, a hazard and a two-point route, Check, Run & debug,
+a wait, getting caught, START, out, sent in) and **A Room that Teaches** (9:
+a name, a blurb, a lesson of at least three steps, Check, the door, the
+shelf, sent in). Skip any step; start over from the panel; progress is kept
+per build (`localStorage alice.tutor.maker` for the tour,
+`alice.tutor.maker.<id>` for the rest), the choice under
+`alice.maker.tutorial`, and `?tutorial=gate` (or `roses`, `clock`, `teach`)
+in the address opens on that one. An assistant can read and steer the
+build over the bridge (the `tutorial` op, `maker_tutorial`). `?` lists
+every key.
 
 - **The room.** A palette of brushes (also keys `1`–`8`) and a bar of
   tools: the **pencil** (`P`, one cell or a drag), the **line** (`I`, drag
@@ -181,8 +195,10 @@ over from the panel; progress is in `localStorage alice.tutor.maker`.
   the log is every edge with its time and what the room made of it. *Play
   the solution* replays the checker's answer.
 - **Send it in** writes the module (copy or download), names the file,
-  and makes a link that carries the whole room (`?level=`), for a friend
-  with a checkout. *Import* reads a pasted module back.
+  and opens the **Share** dialog, which makes a link that carries the
+  whole room (`?level=`; the next section): what goes in, how the link
+  reads, where it opens, the room's JSON to edit, the length and a warning
+  when a chat would cut it. *Import* reads a pasted module back.
 - **The assistant** is the chat the bridge carries (next section): what you
   type goes to whoever is connected, what they say comes back here, and
   everything they do to the room is listed as it happens. The header's chip
@@ -192,10 +208,57 @@ The room is kept in the browser (`localStorage` `alice.maker.level`, the
 shelf under `alice.maker.shelf`, the overlays and zoom under
 `alice.maker.prefs`), so a reload keeps it. Headless, the page is driven
 through `window.__maker` (`level`, `setLevel`, `lint`, `check`, `play`,
-`solution`, `game`, `module`, `share`, `tool` / `setTool`, `brush` /
-`setBrush`, `symmetry` / `setSymmetry`, `overlays` / `setOverlay`, `undo` /
-`redo`, `surprise`, `shelf` / `shelfSave`, `loadById`, `ops`, `bridge`,
-`tutor`, `chat`) and `window.__pad.inject`.
+`solution`, `game`, `module`, `share({ format, play, where, parts })` (the
+link), `tool` / `setTool`, `brush` / `setBrush`, `symmetry` / `setSymmetry`,
+`overlays` / `setOverlay`, `undo` / `redo`, `surprise`, `shelf` /
+`shelfSave`, `loadById`, `ops`, `bridge`, `tutor` / `tutorials` /
+`pickTutorial` / `tutorial`, `chat`) and
+`window.__pad.inject`.
+
+## A room in a link
+
+There is no server, so the only way to hand a room to someone is to put
+the whole room in the address: `?level=<token>` is that link, and nothing
+is uploaded. The **Share** dialog (*Send it in*, or `window.__maker.share`,
+or the bridge's `share` op) writes one and lets you choose:
+
+- **How the link reads.** *Compact* is base64url of the room's JSON: short,
+  safe in any chat, and the spelling every link made so far is, so old
+  links keep working. *Readable JSON* is the JSON itself, percent-encoded
+  by the URL: longer, but a person or an assistant can read it in the
+  address bar and write one by hand. `decodeShare` (`src/level.js`) takes
+  either, or a whole link pasted in (`https://…?level=…`, `?level=…`,
+  `level=…`), and refuses what is not a room with a message that says why.
+- **What goes in.** The map, the clock and the cast always travel; the
+  **lesson**, the **blurb** and the **dressing** can be left out (`parts` in
+  `shareUrl`). The JSON box shows exactly what the link carries; edit it and
+  the link follows the edit until one of the parts is toggled again.
+- **Where it opens.** The same room, three doors: `maker.html?level=` on a
+  checkout is the studio, which loads it (with `&play=1`, "opens in Run &
+  debug", it starts playing it at once); `maker.html?level=` on the
+  published site is the landing, which paints that room in its hero (Alice
+  walks its solution when the solver finds one within 50,000 states, else
+  the room is painted still) and says under it where to play it;
+  `index.html?level=` is the stages page, where the room appears as a card
+  of its own, *Shared · name*, at the front of **Rooms**, opened and armed,
+  blurb and lesson with it, and played with the badge like any room
+  (`?level=` wins over `?room=`; a malformed link is reported in the
+  room's status and the page goes on). `shareUrl(base, level, { format,
+  play, parts })` builds the link, `shareInfo(url)` says how long it is.
+- **How long it is.** A room is a few hundred characters; a lesson of
+  twelve long steps gets a link past 2,000, where some chats and QR codes
+  cut it (the dialog warns), and past 8,000 it may not paste at all. The
+  compact spelling, or fewer parts, makes it shorter.
+
+A link can carry a glitch level too (see *Glitch levels*): that one opens on
+`glitch.html?level=`, as a tab of its range. The stages page refuses it with a
+line that says where it does open, the landing points at the range page, and
+**Rooms** lists only the index's rooms - an entry whose `kind` is a range is
+the range page's.
+
+Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":false,"parts":{"lesson":false}}}`
+answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
+`maker_share`.
 
 ## The bridge: an assistant in the studio
 
@@ -218,8 +281,11 @@ Two ways in:
   `maker_paint`, `maker_check`, `maker_play`, `maker_moves`, `maker_press`,
   `maker_reset`, `maker_stop`, `maker_say`, `maker_read_chat`,
   `maker_snapshot` (a picture of the board or the run, as an image),
-  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`. No
-  dependencies: JSON-RPC over stdio.
+  `maker_load`, `maker_generate`, `maker_module`, `maker_pr_brief` (the
+  brief that ships the room as a pull request, see *Sending a room in*),
+  `maker_tool`, `maker_share` (a link that carries the room),
+  `maker_tutorial` (which guided build the person is on and its step; pick
+  one, skip a step, start over). No dependencies: JSON-RPC over stdio.
 - **HTTP.** Anything that can `curl`:
 
   ```
@@ -235,8 +301,14 @@ Two ways in:
   ```
 
   The ops are `get`, `set`, `paint`, `check`, `play`, `stop`, `reset`,
-  `press`, `moves`, `say`, `snapshot`, `module`, `load`, `generate`,
-  `tool` - the same table (`ops` in `src/maker.js`) the MCP tools call. An
+  `press`, `moves`, `say`, `snapshot`, `module`, `pr` (`{ author? }` ->
+  `{ id, file, source, indexLine, branch, brief }`, the pull request's
+  brief), `load`, `generate`, `tool`, `share`, `tutorial` - the same table
+  (`ops` in `src/maker.js`) the MCP tools call. `get` reports the guided
+  build the person is on as `tutorial: { id, title, step, at, of }`;
+  `tutorial` with `{ id?, skip?, restart? }` picks one, skips that many
+  steps or starts it over, and answers the same summary, so an assistant
+  can walk a person through a build or follow one itself. An
   rpc waits for the page's answer (30 s by default, `timeoutMs`); with no
   page open it is 503, an error the page raised is 422, an op the page
   does not know is 400.
@@ -255,13 +327,31 @@ assistant all of this.
    hyphens; the export's name is the same in capitals. Keep the header the
    maker writes, it is the file's documentation.
 2. Add a line to `stages/community/index.json`:
-   `{ "id": "<id>", "name": "<name>", "author": "<you>", "kind": "tea" | "chase" }`.
+   `{ "id": "<id>", "name": "<name>", "author": "<you>", "kind": "tea" | "chase" }`
+   (a glitch level, below: `"kind"` is its range, `"watch" | "glass" | "lock" | "dog" | "wall"`).
 3. `npm run stage -- stages/community/<id>.js` prints the verdict CI will
    reach. `npm run verify` runs everything the deploy runs, including
    `verify-maker.mjs`, which checks every listed room and that nothing in
    the folder is unlisted.
 4. Open a pull request. Say in a sentence what the room is about and
    roughly how hard; the checks prove it solves, a maintainer plays it.
+
+Or hand all four steps to an assistant: **Open a pull request with your
+AI**, the fourth button of the export panel beside Copy, Download and the
+link, opens the prompt dialog in its PR mode with the brief for this room
+(`prPrompt` in `src/invite.js`): the module verbatim, the index line, the
+branch `community/<id>` from `main`, `npm run stage` then `npm run verify`,
+one commit *Community room: <name>*, a push to the repository or to a fork,
+`gh pr create` against `<owner>/<repo>` or the compare URL, the body (the
+room in a sentence, the par and the difficulty word when the room has been
+Checked, the lesson's step count if it has one, "the checks prove it
+solves") and the rules below. Copy puts it on the clipboard; *Open in
+Claude* / *Open in ChatGPT* carry it in the address, or, when the brief is
+too long for one, a short note saying it is on the clipboard (the status
+says to press Copy first). An assistant already on the bridge gets the
+same brief in its inbox (`maker_read_chat`) the moment the button is
+pressed, and can ask for it any time with `maker_pr_brief` (op `pr`). The
+button waits until the room is well formed.
 
 What gets a room merged: it solves, the gate (if any) is load-bearing, the
 par is honest (a 400-move untimed room is a chore, a timed room with a par
@@ -294,22 +384,145 @@ Suggested handling of pull requests:
   request; ask for it to be split.
 - Keep the index sorted by id, so two pull requests seldom conflict on it.
 
+## Glitch levels
+
+The studio's second category. The glitch range (`glitch.html`) is five
+games - the Rabbit's Pocket Watch, the Looking-Glass Glitch, the
+Caterpillar's Lock, the Dormouse's Watchdog and Humpty Dumpty's Wall - and
+each is a list of levels, a level being a handful of numbers (the shipped
+ones are `stages/rabbit-watch.js`, `looking-glass.js`, `caterpillar-lock.js`,
+`dormouse-watchdog.js`, `humpty-wall.js`; the rules are `src/range.js`,
+`src/lock.js`, `src/watchdog.js`, `src/wall.js`). A community level for one
+of them is a module like a room's, exporting one object that names its
+range instead of carrying a map:
+
+```js
+// Range level: "Which side?" - for The Caterpillar's Lock (range 'lock')
+export const WHICH_SIDE = {
+  name: 'Which side?',
+  range: 'lock',            // watch | glass | lock | dog | wall
+  id: 'which-side',         // the slug of the name: the file's, the index line's, the seed of the password
+  short: 'Side',            // a word for the tab
+  blurb: 'Three of the four directions: 64 passwords …',
+  pool: ['UP', 'DOWN', 'LEFT', 'RIGHT'],
+  length: 3, tickMs: 250, jitterTicks: 0, order: 'prefix',
+  hand: true,               // the design intent, which the checker measures
+};
+```
+
+The fields per range (`RANGE_FIELDS` in `src/rangecheck.js` holds each
+one's type, range and default; the shipped modules' comments say more):
+
+| range | fields |
+|---|---|
+| `watch` | `pool` (the buttons the tune is made of), `length` (presses in the tune), `windowMs` (from the first press to the last), `hand` |
+| `glass` | `lineMs` (one tick, one line), `pulseMaxLines` (a wider pulse browns the guard out), `listing` (the guard's routine: exactly one `!` target line, `*` crash lines, `goto label`, `delay(n)`, `ret`; the good ending calls `alice_jump`, the honest one `alice_bounce`), `hidden` (fade the listing) |
+| `lock` | `pool`, `length`, `tickMs` (one comparison), `jitterTicks` (noise on the answer, sigma in ticks), `order` (`prefix` first to last, `secret` an order of his own), `hand` |
+| `dog` | `button` (the nudge), `kicks` (good nudges in a row to win), `openMs`, `timeoutMs` (the window, measured from the last nudge), `hand` |
+| `wall` | `pool`, `size` (the buffer), `canary`, `address` (two symbols, `open_wall`'s), `gapMs` (the per-symbol timeout), `hidden` (`name[?]`), `listing` (must show `name[size]` or `name[?]` and `open_wall: @ …`), `hand` |
+
+Pools, buttons and addresses are the badge's eight face and direction
+buttons (`UP DOWN LEFT RIGHT A B X Y`). `hand` says whether the level is
+meant for a hand or for a take recorded on the badge and replayed faster
+(the glass has no `hand`: a tick of 80 ms or more is a hand level). `short`
+and `blurb` are optional. `rows` is accepted - a map of its own, in the
+range's legend (`# . A` plus `G T` for the glass, `m D` for the lock, `H`
+for the wall) - but the range page draws the range's own map either way.
+
+**How they are checked.** `rangeCheck()` in `src/rangecheck.js` is what
+`verify-range.mjs` runs on every shipped level and what the studio's Check,
+`npm run stage` and `verify-maker.mjs` run on yours, so the verdict is the
+same everywhere: the budgets (a hand sustains 4-6 accurate presses a second
+and lands a timed press within about ±40 ms; the browser samples the badge
+every ~16 ms, so a press needs 34 ms to be seen at all), a perfect replay
+that must win and a slow one that must lose, a hand simulated on the level
+(the glass over ±40 ms of landing, the dog over 400 attempts with ±40 ms a
+press), the reference attacker on a lock (40 passwords; with the badge's
+repeat and the median when there is jitter) and on a wall (8 frames) with
+what it cost in takes and in presses, and the rules exercised on the level
+(START resets, a wrong press is named, the door answers when it should and
+not before, too soon stirs and too late bites, the overflow lands where the
+frame says). A level that lies about its `hand` is refused - a hand level
+with a badge-only window, a badge level a hand could do, a hand lock the
+attacker needs more than 150 presses for - and so is one the attacker
+cannot clear, or whose jitter does nothing. The verdict is hand or
+badge-only, the attacker's cost in takes (the par of a lock or a wall) and
+every note the checker made; `rangeLint()` first says what is malformed
+(types and ranges, a listing with no check or a goto to nowhere, a window
+that never opens, an address outside the pool).
+
+**The studio.** *What are you making* at the top of the panel: a room, or a
+glitch level - then the range, and a form with that range's fields (pools
+as checkboxes, the glass listing in a box under its syntax legend, Humpty's
+listing written from the frame and following it while untouched). Beside
+the form the range's map is drawn (glyphs on tiles; the watch and the dog
+have none) with what the rules make of the numbers: the tune and its tempo,
+the glass's check and ideal offset, the lock's password space and the
+seed's password, the dog's window and the take to record, the wall's frame
+and canary. The lint sits under it and warns when the name's id is a
+shipped level's. *Start from…* lists the shipped levels of the range as
+copies to edit (the Load menu has them too, as `<range>:<id>`, or the id
+alone when one range has it); the shelf and the room kept between visits
+take glitch levels beside rooms, and a switch of category keeps what it
+leaves. There is no Run & debug for a glitch level - the five players are
+`glitch.html`'s - so **Try it on the range** opens
+`glitch.html?level=<the level as the share link carries it>`, where it is
+the last tab of its range, "· yours", selected and armed. The export
+writes the module with `range:` and the index line with `kind: <range>`.
+An assistant on the bridge uses `set`, `get`, `check`, `module` and `load`
+for a glitch level as for a room (`maker_set_level` takes the fields above;
+`maker_load` names the range ids); `paint`, `play`, `moves` and `generate`
+are rooms' and say so.
+
+**How they reach the site.** Listed in `stages/community/index.json` with
+`"kind": "<range>"`, a level is loaded by `glitch.html` through
+`src/seal.js` as the shipped ranges are - after the gate, like them - and
+added as the last tab of its range, "· community". `verify-maker.mjs` gates
+the deploy on it as on a room: it lints and checks it, it must agree with
+its kind, and it may not take a shipped level's id, since the range page
+and its tutorial find a level by it. `stages/community/which-side.js` is
+the demo: a lock of three symbols from the four directions at 250 ms a
+comparison and no jitter, 64 passwords, a hand level the attacker opens in
+seven takes.
+
+**Left out on purpose.**
+
+- A player in the studio. The five players are `src/glitch.js`'s, built
+  around that page's pad, timing traces, scenes and the badge's fire; a
+  second copy would drift from the first. The range page is one click
+  away and plays the level exactly as the badge will.
+- Hidden levels beyond the flag. `hidden` fades the glass listing or hides
+  the wall's size on the range page; the studio shows its author
+  everything, and CI prints the password and the canary.
+- Sealing a community glitch level. `stages/community/sealed.json` could
+  list one and `loadStage` would open it with the badge's key, but event
+  levels do not live in the community folder: seal a shipped range, not
+  these.
+- A map of its own on the range page. Accepted in the data and drawn in
+  the studio; the range page keeps drawing the range's map, which its
+  scenes are built around.
+- Recording the take. The studio says what to record and at what speed;
+  recording is the badge's.
+
 ## Files
 
 ```
 maker.html                      the page: the landing (site) and the studio (checkout)
 src/maker.js                    the page's module: hero, invitation, the studio, checker, bench, export, the assistant panel and the bridge's ops, the coach
+src/invite.js                   the two prompts, pure: aiPrompt (the invitation) and prPrompt (the brief that ships one room as a pull request), prParts, prShort
 src/maker.css                   its styles, on top of styles.css
-src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable
+src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable; a level with a range goes to rangecheck.js
+src/rangecheck.js               a glitch range level as data: the fields per range (RANGE_FIELDS), rangeLint, rangeCheck (what verify-range runs on the shipped levels), the maps, the budgets, rangeBlank
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
 src/check-worker.js             check() and generateSolvable() off the page's thread
 src/bridge.js                   the page's end of the bridge: the event stream, the replies, the mirror, the chat
-src/tutor.js                    MAKER_TUTORIAL, "Painting the Roses" (with the other two tutorials); src/coach.js draws it; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
+src/tutor.js                    MAKER_TUTORIALS, the studio's guided builds - Painting the Roses, A Room with a Gate, The Clock and the Cast, A Room that Teaches (with the other two pages' tutorials); src/coach.js draws the chosen one; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
 src/room.js                     the stages page's player for a community room: either rules, the badge, the lesson under it
-stages/community/               the community's rooms and index.json; the-first-lesson.js and tick-tock.js are the demos, one lesson each
+stages/community/               the community's levels and index.json; the-first-lesson.js and tick-tock.js are the demo rooms, one lesson each, which-side.js the demo lock level
+src/glitch.js                   the range page: plays the listed glitch levels as tabs of their range, and ?level= as yours
 software/tools/maker.mjs        npm run maker: serves the checkout, opens the page
 software/tools/maker-server.mjs the server: static files + the bridge under /__maker/ (loopback only)
 software/tools/maker-mcp.mjs    the bridge as MCP tools over stdio; .mcp.json at the root registers it
-software/tools/check-stage.mjs  npm run stage -- <file>: the verdict on a module
-software/tools/verify-maker.mjs part of npm run verify: level.js and the studio's logic, the tutorial, the bridge and the MCP server, the page's two faces, the community index
+software/tools/check-stage.mjs  npm run stage -- <file>: the verdict on a module, a room's or a glitch level's
+software/tools/verify-maker.mjs part of npm run verify: level.js and the studio's logic (the shipped ranges' levels through it too), the tutorial, the bridge and the MCP server, the page's two faces, the community index
 ```
