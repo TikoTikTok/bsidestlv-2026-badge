@@ -82,7 +82,9 @@ firmware/          NOT in the repo: pages.yml builds glitch.uf2 + index.json the
   src/vault.js       the badge's vault from the browser: feature report 0xF1 over WebHID, the
                      SELECT+Y stick-axis beacon decoder, wire formats mirrored from vault.h
   src/seal.js        sealed stages: AES-256-GCM under HKDF(badge key, stage id); loadStage() picks
-                     stages/sealed/<id>.json when stages/sealed.json lists it, else stages/<id>.js
+                     stages/sealed/<id>.json when stages/sealed.json lists it, else stages/<id>.js;
+                     stageOf(mod) is the one finder of a module's export (a room by rows, a range by
+                     levels - the watch and the dog have no map; verify-range.mjs pins every shipped module)
   src/gate.js        the gate dialog (site only): Connect (WebHID) or the beacon; input policy; after the
                      pass, the watch: badge gone -> pad muted, page paused (onPause), dialog back (reconnect)
   src/badge.js       the vault page (badge.html): read, provision at the booth, beacon test
