@@ -79,6 +79,13 @@ const SAMPLES = {
   'regex after a close paren is a division, elsewhere a literal': `
     export function f(s) { const n = (s.length) / 2; return /a+/.test(s) ? n : -n; }
     export const result = f('baaa');`,
+  'adjacent interpolations: a }${ piece is neither the end of a literal nor the start of one': `
+    export function f(a, b, c) {
+      const s = \`\${a}\${b}\${c}\`;
+      const o = { t: \`<\${s}\${a}-\${c}>\`, a, b };
+      return o.t + \`\${o.a}\${o.b}\${s}\`;
+    }
+    export const result = f(1, 2, 3);`,
   'var hoisting and function declarations in blocks': `
     export function f(flag) {
       if (flag) { var v = 1; function g() { return v + 1; } return g(); }

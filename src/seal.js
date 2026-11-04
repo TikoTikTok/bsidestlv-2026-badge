@@ -74,6 +74,14 @@ function sealedIds(base) {
 }
 
 /**
+ * The stage a module exports, whatever it is called: a room has `rows` (the
+ * map), a range has `levels` (the watch and the dog have no map at all), a
+ * community level for a range names its `range` (src/rangecheck.js). Every
+ * loader that imports a stage module goes through this.
+ */
+export const stageOf = (mod) => Object.values(mod).find(v => v && typeof v === 'object' && (Array.isArray(v.rows) || Array.isArray(v.levels) || typeof v.range === 'string'));
+
+/**
  * A stage by id, for a page: the sealed copy under stages/sealed/ when the
  * manifest lists it, else the plain module under stages/. `badgeKey` is the
  * 32-byte key from src/vault.js, or null when there is no badge - then a
@@ -86,7 +94,7 @@ export async function loadStage(id, badgeKey, { base = 'stages/' } = {}) {
     return unseal(await r.json(), badgeKey);
   }
   const mod = await import(`../${base}${id}.js`);
-  const stage = Object.values(mod).find(v => v && Array.isArray(v.rows));
+  const stage = stageOf(mod);
   if (!stage) throw new Error(`${base}${id}.js exports no stage`);
   return stage;
 }
