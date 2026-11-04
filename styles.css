@@ -584,8 +584,6 @@ html[data-flip="90"] .walk-stage, html[data-flip="270"] .walk-stage,
 html[data-flip="90"] .glass, html[data-flip="270"] .glass,
 html[data-flip="90"] .lock, html[data-flip="270"] .lock,
 html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways { grid-template-columns: 1fr; }
-html[data-flip="90"] .panel .pick .cards, html[data-flip="270"] .panel .pick .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: none; }
-html[data-flip="90"] .panel .pick[data-kind=theme] .cards, html[data-flip="270"] .panel .pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 /* the turn-over switch in the looks sheet: auto (the sensors), no, yes */
 .flip-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -599,10 +597,11 @@ html[data-flip="90"] .panel .pick[data-kind=theme] .cards, html[data-flip="270"]
 
 /* ------------------------------------------------------- the look picker -- */
 /* a chip in the header opens a sheet of cards: the themes, then the looks,
-   one card per entry in the manifests; a help panel's .look-cards host shows
-   the same. A look card's miniature is shaped by its `shape` (page / sheet /
-   device / dock) and painted in the theme in force; a theme card's is painted
-   in its own five swatch colours. A new look or theme needs no artwork. */
+   one card per entry in the manifests, and the sheet is the only place they
+   show (a page's help panel points at the chip). A look card's miniature is
+   shaped by its `shape` (page / sheet / device / dock) and painted in the
+   theme in force; a theme card's is painted in its own five swatch colours.
+   A new look or theme needs no artwork. */
 
 .look-chip {
   font: inherit; font-size: 10px; letter-spacing: .08em; color: var(--accent); white-space: nowrap;
@@ -675,10 +674,6 @@ html[data-flip="90"] .panel .pick[data-kind=theme] .cards, html[data-flip="270"]
 .pick-head small { font-size: 9px; color: var(--dim); }
 .pick .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px; }
 .pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-@media (min-width: 700px) {
-  .panel .pick .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 760px; }
-  .panel .pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 .look-card {
   display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font: inherit; color: var(--text);
   border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); cursor: pointer;

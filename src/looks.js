@@ -17,8 +17,8 @@
 //
 //   initLooks({ onLook, onTheme, onMode })
 //     builds the picker - the chip in the header opens a sheet with the
-//     theme cards and the look cards, and any .look-cards host on the page
-//     (a help panel) gets the same - swaps a stylesheet when a choice changes,
+//     theme cards and the look cards, the one place they show (a page's help
+//     panel points at the chip) - swaps a stylesheet when a choice changes,
 //     remembers it, and wires the page's mode bar (nav.modes) to its panels
 //     (main > .panel[data-mode]). onLook(look), onTheme(theme) and
 //     onMode(mode) are the page's hooks for what CSS cannot do; onTheme fires
@@ -99,7 +99,7 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   function mark() {
     if (chip) chip.querySelector('.look-name').textContent =
       byId.theme[current.theme].label + (current.look === 'classic' ? '' : ` · ${byId.look[current.look].label}`);
-    for (const c of document.querySelectorAll('.look-card')) c.classList.toggle('on', c.dataset.id === current[c.dataset.kind]);
+    for (const c of cards.querySelectorAll('.look-card')) c.classList.toggle('on', c.dataset.id === current[c.dataset.kind]);
   }
   function setLook(id, { remember: keep = true } = {}) {
     if (!byId.look[id]) id = 'classic';
@@ -120,9 +120,10 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   }
 
   // --- the picker: a bottom sheet behind the chip, the theme cards then the
-  // look cards; the same groups go into any .look-cards host on the page. A
-  // look's miniature is shaped by its `shape` and painted in the theme in
-  // force; a theme's is painted in its own five swatch colours. No artwork.
+  // look cards, and nowhere else on the page: a help panel says where the
+  // chip is, it does not repeat the deck. A look's miniature is shaped by
+  // its `shape` and painted in the theme in force; a theme's is painted in
+  // its own five swatch colours. No artwork.
   function card(kind, item) {
     const b = el('button', 'look-card');
     b.type = 'button';
@@ -155,7 +156,6 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
     }
   }
 
-  const pageHosts = [...document.querySelectorAll('.look-cards')];   // a help panel's cards, before the sheet adds its own
   const sheet = el('dialog', 'look-sheet');
   sheet.id = 'lookSheet';
   sheet.setAttribute('aria-labelledby', 'lookTitle');
@@ -312,7 +312,7 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
   tilt.apply();                     // src/tilt.js listens from load; the switch's remembered say is shown here too
   setInterval(() => { if (sheet.open || !pop?.hidden) markFlip(); }, 500);   // the angle line moves while the sheet or the popover is up
 
-  for (const host of [cards, ...pageHosts]) fill(host);
+  fill(cards);
   chip?.addEventListener('click', () => { if (tilt.needsPermission) tilt.request(); sheet.showModal(); });   // the chip is a tap iOS accepts for the sensors
   close.addEventListener('click', () => sheet.close());
   sheet.addEventListener('click', (e) => { if (e.target === sheet) sheet.close(); });   // a tap on the backdrop

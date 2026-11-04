@@ -207,9 +207,10 @@ the switch, the listener from load and the permission paths;
 the tip's gating and that every page reaches the module.
 
 Every page has a theme and a look — the ◐ chip in the header opens a sheet of
-cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
-address bar; both are remembered on the device. The theme is what the page is
-painted in: `bsides`, the conference's own lime on black (the default);
+cards, the only place they show (the ? panels point at the chip), or `?theme=`
+and `?look=` in the address bar; both are remembered on the device. The theme
+is what the page is painted in: `bsides`, the conference's own lime on black
+(the default);
 `classic`, the first deep-blue console; `teaparty`, parchment in daylight;
 `queen`, heart red and gold; `cheshire`, magenta and a teal grin; `phosphor`,
 green on black with scanlines. The look is how it sits on the screen: the

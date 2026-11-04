@@ -4,9 +4,10 @@
 // unlisted) fails the deploy instead of a phone; that a theme only paints and
 // a look only shapes (a theme file never names data-look, a look file never
 // data-theme); and every page against the picker, so a page cannot ship
-// without the boot script, the chip, a touch-screen look or a default theme.
-// Pages with a mode bar must name a button for every panel and for the mode
-// they open on. Part of `npm run verify`; see src/looks/index.json,
+// without the boot script, the chip, a touch-screen look or a default theme,
+// and the theme and look cards show in the chip's sheet only, never on a
+// page. Pages with a mode bar must name a button for every panel and for the
+// mode they open on. Part of `npm run verify`; see src/looks/index.json,
 // src/themes/index.json, src/looks.js.
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -90,6 +91,7 @@ for (const page of PAGES) {
   }
   if (/id="turnPop"/.test(html)) say(`${page}: the page-turn popover is built by src/looks.js; do not put it in the page`);
   if (/id="lookSheet"/.test(html)) say(`${page}: the picker sheet is built by src/looks.js; do not put it in the page`);
+  if (/look-cards/.test(html)) say(`${page}: the theme and look cards are the sheet's only, behind the ◐ chip; a page carries no .look-cards host`);
 
   // a mode bar: every panel's mode has a button, and the page opens on one of them
   const buttons = [...html.matchAll(/<button[^>]*class="mode[^"]*"[^>]*data-mode="([^"]+)"/g)].map(m => m[1]);
@@ -105,6 +107,14 @@ for (const page of PAGES) {
   pages.push({ page, touch, dflt, mode, modes: buttons });
 }
 if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different default themes: ${pages.map(p => `${p.page} ${p.dflt}`).join(', ')}`);
+
+// the cards: the sheet behind the chip is the only place they show, so no
+// page is a wall of swatches; a help panel says where the chip is instead
+{
+  const looksJs = readFileSync(resolve(root, 'src/looks.js'), 'utf8');
+  if (/querySelectorAll\('\.look-cards'\)/.test(looksJs) || /pageHosts/.test(looksJs)) say('src/looks.js: fill the sheet\'s cards only; a page has no .look-cards host to fill');
+  if (/\.panel \.pick\b/.test(readFileSync(resolve(root, 'styles.css'), 'utf8'))) say('styles.css: no .panel .pick rule; the cards never sit in a panel');
+}
 
 // ------------------------------------------------------- the bench's chrome ----
 // What only a local checkout shows - the walk and art panels and their mode
