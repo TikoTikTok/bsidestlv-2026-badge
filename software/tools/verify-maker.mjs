@@ -7,9 +7,11 @@
 // that maker.html keeps the studio to a checkout (class dev-only) and the
 // landing to the site (class site-only); the assistant's bridge (a server on
 // a free port, a fake page on its event stream, the round trips, the
-// guards) and the MCP server over stdio; and the community's rooms - every
+// guards) and the MCP server over stdio; and the community's levels - every
 // one listed in stages/community/index.json exists, is well formed and
-// solves, and nothing in that folder goes unlisted. Part of `npm run verify`.
+// solves (a room) or is what it claims to be (a glitch range level, judged
+// by src/rangecheck.js as the shipped ranges are), and nothing in that
+// folder goes unlisted. Part of `npm run verify`.
 //
 //   node software/tools/verify-maker.mjs
 
@@ -18,13 +20,24 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { blank, setCell, resize, lint, check, kindOf, toModule, fromModule, encodeShare, decodeShare, idOf, normalize,
+import { blank, setCell, resize, lint, check, kindOf, isGlitch, toModule, fromModule, encodeShare, decodeShare, idOf, normalize,
          lineCells, rectCells, regionCells, paintCells, mirrorCells, flipH, flipV, rotate, shift, analyse, difficulty,
          STARTERS, rng, generate, generateSolvable, lessonToText, lessonFromText } from '../../src/level.js';
+import { rangeBlank, RANGE_KINDS, RANGE_FILES, BUDGET } from '../../src/rangecheck.js';
+import { stageOf } from '../../src/seal.js';
 import { MAKER_TUTORIAL, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
 import { startMaker, OPS } from './maker-server.mjs';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
+import { RABBIT_WATCH } from '../../stages/rabbit-watch.js';
+import { LOOKING_GLASS } from '../../stages/looking-glass.js';
+import { CATERPILLAR_LOCK } from '../../stages/caterpillar-lock.js';
+import { DORMOUSE_WATCHDOG } from '../../stages/dormouse-watchdog.js';
+import { HUMPTY_WALL } from '../../stages/humpty-wall.js';
+
+const SHIPPED_RANGES = { watch: RABBIT_WATCH, glass: LOOKING_GLASS, lock: CATERPILLAR_LOCK, dog: DORMOUSE_WATCHDOG, wall: HUMPTY_WALL };
+/** A shipped range level as the data the maker holds: its range named, the watch's pool on the level. */
+const asGlitch = (kind, level) => ({ ...level, range: kind, ...(kind === 'watch' ? { pool: SHIPPED_RANGES.watch.pool } : {}) });
 
 const root = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 let failed = 0;
@@ -41,6 +54,48 @@ console.log('the maker judges the shipped stages as the verifiers do');
   const chase = check(QUEENS_GAUNTLET);
   ok(chase.ok && chase.kind === 'chase' && chase.par === 64, `the gauntlet: timed, par ${chase.par} (64)`);
   ok(chase.notes.some(n => /costs 23 tick/.test(n)), 'the gauntlet: the cast costs 23 ticks over an empty room');
+}
+
+// The five ranges' shipped levels, each turned into a glitch level as the
+// studio would hold it, reach the verdict verify-range.mjs reaches through
+// the same src/rangecheck.js: ok, and the hand as the level is marked.
+console.log('the maker judges the shipped ranges\' levels as verify-range does');
+{
+  for (const kind of RANGE_KINDS) {
+    const range = SHIPPED_RANGES[kind];
+    for (const shipped of range.levels) {
+      const level = asGlitch(kind, shipped);
+      const marked = shipped.hand ?? shipped.lineMs >= 2 * BUDGET.HAND_JITTER_MS;
+      ok(kindOf(level) === kind && isGlitch(level) && !isGlitch(shipped.rows ? { rows: shipped.rows } : TEA_PARTY), `${kind}/${shipped.id}: kindOf says ${kindOf(level)}; a room is not a glitch level`);
+      ok(lint(level).length === 0, `${kind}/${shipped.id}: lint is clean (${lint(level).join('; ')})`);
+      const r = check(level);
+      ok(r.ok && r.kind === kind && r.hand === marked, `${kind}/${shipped.id}: ok, ${r.hand ? 'a hand level' : 'badge-only'} as marked${r.par ? `, the attacker's cost ${r.par} takes` : ''}`);
+      ok(difficulty(r)?.label === (marked ? 'by hand' : 'badge only'), `${kind}/${shipped.id}: the difficulty is the hand / badge word`);
+    }
+    // one level of each kind round-trips: the module and the link
+    const level = asGlitch(kind, range.levels[0]);
+    const n = normalize(level);
+    ok(n.range === kind && n.id === idOf(level) && !('rows' in n) && !('levels' in n), `${kind}: normalize names the range, derives the id (${n.id}) and drops the range's own map`);
+    const src = toModule(level, { author: 'the verifier' });
+    const back = await fromModule(src);
+    ok(same(back, level) && back.range === kind, `${kind}: toModule -> fromModule is the identity`);
+    ok(/^\/\/ Range level: /.test(src) && src.includes(`range: "${kind}"`) && src.includes('// By the verifier') && src.includes(`"kind": "${kind}"`), `${kind}: the module says which range, carries the header and the index line's kind`);
+    ok(same(decodeShare(encodeShare(level)), level) && /^[A-Za-z0-9_-]+$/.test(encodeShare(level)), `${kind}: encodeShare -> decodeShare is the identity, URL-safe`);
+    const blankLevel = rangeBlank(kind);
+    ok(lint(blankLevel).length === 0 && check(blankLevel).ok && check(blankLevel).hand === true, `${kind}: the blank the studio starts from is a hand level (${check(blankLevel).problems.join('; ')})`);
+  }
+  // a map of its own travels; the range's own does not
+  const custom = normalize({ ...asGlitch('lock', CATERPILLAR_LOCK.levels[0]), rows: ['#######', '#.....#', '#A...D#', '#.....#', '#######'] });
+  ok(custom.rows?.length === 5 && same(await fromModule(toModule(custom)), custom) && !('rows' in normalize({ ...asGlitch('lock', CATERPILLAR_LOCK.levels[0]), rows: CATERPILLAR_LOCK.rows })), 'a lock level with a map of its own keeps it through the module; the range\'s map is dropped');
+  // lint catches what it should
+  const glass = asGlitch('glass', LOOKING_GLASS.levels[0]);
+  ok(lint({ ...glass, listing: glass.listing.map(l => l.replace(/^!/, ' ')) }).some(p => /exactly one target/.test(p)), 'a glass listing without a target is reported');
+  ok(lint({ ...asGlitch('dog', DORMOUSE_WATCHDOG.levels[0]), openMs: 1000, timeoutMs: 1000 }).some(p => /must open/.test(p)), 'a dog whose window opens as it bites is reported');
+  ok(lint({ ...asGlitch('wall', HUMPTY_WALL.levels[0]), pool: ['UP', 'DOWN', 'LEFT'], address: ['UP', 'A'] }).some(p => /from the pool/.test(p)), 'a wall address outside the pool is reported');
+  ok(lint({ ...asGlitch('watch', RABBIT_WATCH.levels[0]), length: 1 }).some(p => /length must be/.test(p)), 'a watch with a tune of one is reported');
+  ok(lint({ range: 'croquet', name: 'x' }).some(p => /range must be one of/.test(p)) && kindOf({ range: 'croquet' }) === 'croquet', 'an unknown range is reported, and is still not a room');
+  const liar = check({ ...asGlitch('watch', RABBIT_WATCH.levels[0]), windowMs: 200 });
+  ok(!liar.ok && liar.problems.some(p => /marked hand but/.test(p)), 'a hand level given a badge-only window is refused by Check, as in CI');
 }
 
 console.log('lint says what is wrong, and nothing when nothing is');
@@ -395,30 +450,44 @@ function chaseEvents(stage, moves) {
   }
   return out;
 }
-console.log('the community\'s rooms');
+console.log('the community\'s rooms and range levels');
 {
   const dir = resolve(root, 'stages/community');
   const index = JSON.parse(readFileSync(resolve(dir, 'index.json'), 'utf8'));
   const listed = new Set();
+  const KINDS = ['tea', 'chase', ...RANGE_KINDS];
+  // a community range level may not take a shipped level's id: the range page and its tutorial find a level by it
+  const shippedIds = Object.fromEntries(RANGE_KINDS.map(k => [k, new Set(SHIPPED_RANGES[k].levels.map(l => l.id))]));
   ok(Array.isArray(index.stages), 'stages/community/index.json has a "stages" list');
+  ok(/'watch' \| 'glass' \| 'lock' \| 'dog' \| 'wall'/.test(index._ ?? ''), 'the index says a range level\'s kind is its range');
   for (const s of index.stages ?? []) {
     const at = `community "${s?.id ?? '?'}"`;
     if (!/^[a-z0-9][a-z0-9-]*$/.test(s?.id ?? '')) { fail(`${at}: id must be a lower-case slug`); continue; }
     if (listed.has(s.id)) fail(`${at}: duplicate id`);
     listed.add(s.id);
     for (const k of ['name', 'author']) if (typeof s[k] !== 'string' || !s[k].trim()) fail(`${at}: ${k} is required`);
+    if (s.kind !== undefined && !KINDS.includes(s.kind)) fail(`${at}: kind must be one of ${KINDS.join(' ')}`);
     const file = resolve(dir, `${s.id}.js`);
     if (!existsSync(file)) { fail(`${at}: stages/community/${s.id}.js is missing`); continue; }
     let stage;
     try {
       const mod = await import(pathToFileURL(file).href);
-      stage = Object.values(mod).find(v => v && Array.isArray(v.rows));
+      stage = stageOf(mod);
     } catch (e) { fail(`${at}: ${e.message}`); continue; }
     if (!stage) { fail(`${at}: exports no stage`); continue; }
     const problems = lint(stage);
     for (const p of problems) fail(`${at}: ${p}`);
     if (problems.length) continue;
     if (s.kind && s.kind !== kindOf(stage)) fail(`${at}: listed as ${s.kind} but the module is ${kindOf(stage)}`);
+    if (isGlitch(stage)) {
+      const kind = kindOf(stage);
+      if (stage.id !== undefined && stage.id !== s.id) fail(`${at}: the module's id is ${stage.id}, the index's ${s.id}`);
+      if (shippedIds[kind]?.has(s.id) || shippedIds[kind]?.has(stage.id)) fail(`${at}: ${s.id} is a shipped level's id in the ${kind} range; give it an id of its own`);
+      const r = check(stage);
+      if (!r.ok) for (const p of r.problems) fail(`${at}: ${p}`);
+      else ok(true, `${at}: ${stage.name}, a ${kind} level, ${r.hand ? 'a hand can do it' : 'badge-only'}${r.par ? `, the attacker's cost ${r.par} takes` : ''}`);
+      continue;
+    }
     const r = check(stage, { limit: 2_000_000 });
     if (!r.ok) for (const p of r.problems) fail(`${at}: ${p}`);
     else ok(true, `${at}: ${stage.name}, ${kindOf(stage)}, par ${r.par}${stage.lesson ? `, a lesson of ${stage.lesson.length}` : ''}`);
@@ -437,7 +506,14 @@ console.log('the community\'s rooms');
     if (f.endsWith('.js') && !m) fail(`stages/community/${f}: the file name must be a lower-case slug`);
     if (m && !listed.has(m[1])) fail(`stages/community/${f} is not in index.json`);
   }
-  ok(true, `${listed.size} community room(s) listed`);
+  ok(index.stages.some(s => RANGE_KINDS.includes(s.kind)) && index.stages.some(s => s.kind === 'tea' || s.kind === 'chase'), 'the index carries a room and a range level, so both paths are walked');
+  // the refusals a community range level meets: a shipped id, a lie about its hand
+  {
+    const taken = { ...rangeBlank('watch', 'Tea time') };
+    ok(shippedIds.watch.has(idOf(taken)) && !shippedIds.lock.has(idOf(rangeBlank('lock', 'Who are you?'))), 'a level named after a shipped one takes its id (the studio warns, CI refuses); a name of its own is an id of its own');
+    ok(!check({ ...rangeBlank('dog'), openMs: 240, timeoutMs: 300 }).ok, 'a dog level marked hand with a 60 ms window is refused as a community level would be');
+  }
+  ok(true, `${listed.size} community level(s) listed`);
 }
 
 if (failed) { console.error(`verify-maker: ${failed} failure(s)`); process.exit(1); }
