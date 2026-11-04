@@ -218,8 +218,9 @@ Two ways in:
   `maker_paint`, `maker_check`, `maker_play`, `maker_moves`, `maker_press`,
   `maker_reset`, `maker_stop`, `maker_say`, `maker_read_chat`,
   `maker_snapshot` (a picture of the board or the run, as an image),
-  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`. No
-  dependencies: JSON-RPC over stdio.
+  `maker_load`, `maker_generate`, `maker_module`, `maker_pr_brief` (the
+  brief that ships the room as a pull request, see *Sending a room in*),
+  `maker_tool`. No dependencies: JSON-RPC over stdio.
 - **HTTP.** Anything that can `curl`:
 
   ```
@@ -235,8 +236,10 @@ Two ways in:
   ```
 
   The ops are `get`, `set`, `paint`, `check`, `play`, `stop`, `reset`,
-  `press`, `moves`, `say`, `snapshot`, `module`, `load`, `generate`,
-  `tool` - the same table (`ops` in `src/maker.js`) the MCP tools call. An
+  `press`, `moves`, `say`, `snapshot`, `module`, `pr` (`{ author? }` ->
+  `{ id, file, source, indexLine, branch, brief }`, the pull request's
+  brief), `load`, `generate`, `tool` - the same table (`ops` in
+  `src/maker.js`) the MCP tools call. An
   rpc waits for the page's answer (30 s by default, `timeoutMs`); with no
   page open it is 503, an error the page raised is 422, an op the page
   does not know is 400.
@@ -262,6 +265,23 @@ assistant all of this.
    the folder is unlisted.
 4. Open a pull request. Say in a sentence what the room is about and
    roughly how hard; the checks prove it solves, a maintainer plays it.
+
+Or hand all four steps to an assistant: **Open a pull request with your
+AI**, the fourth button of the export panel beside Copy, Download and the
+link, opens the prompt dialog in its PR mode with the brief for this room
+(`prPrompt` in `src/invite.js`): the module verbatim, the index line, the
+branch `community/<id>` from `main`, `npm run stage` then `npm run verify`,
+one commit *Community room: <name>*, a push to the repository or to a fork,
+`gh pr create` against `<owner>/<repo>` or the compare URL, the body (the
+room in a sentence, the par and the difficulty word when the room has been
+Checked, the lesson's step count if it has one, "the checks prove it
+solves") and the rules below. Copy puts it on the clipboard; *Open in
+Claude* / *Open in ChatGPT* carry it in the address, or, when the brief is
+too long for one, a short note saying it is on the clipboard (the status
+says to press Copy first). An assistant already on the bridge gets the
+same brief in its inbox (`maker_read_chat`) the moment the button is
+pressed, and can ask for it any time with `maker_pr_brief` (op `pr`). The
+button waits until the room is well formed.
 
 What gets a room merged: it solves, the gate (if any) is load-bearing, the
 par is honest (a 400-move untimed room is a chore, a timed room with a par
@@ -299,6 +319,7 @@ Suggested handling of pull requests:
 ```
 maker.html                      the page: the landing (site) and the studio (checkout)
 src/maker.js                    the page's module: hero, invitation, the studio, checker, bench, export, the assistant panel and the bridge's ops, the coach
+src/invite.js                   the two prompts, pure: aiPrompt (the invitation) and prPrompt (the brief that ships one room as a pull request), prParts, prShort
 src/maker.css                   its styles, on top of styles.css
 src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
