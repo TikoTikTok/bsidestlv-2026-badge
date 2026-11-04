@@ -398,6 +398,22 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/const dev = mode === 'dev'/.test(js) && /if \(!dev\) \{/.test(js) && /new Pad\(\{ sources: sourcesFor\(true\) \}\)/.test(js), 'the pad with every source is built on a dev host only');
   ok(/stages\/community\/index\.json/.test(js), 'the maker lists the community rooms');
   ok(/lessonFromText/.test(js) && /tell\('lesson'/.test(js), 'the studio edits the lesson as text and tells the tutorial');
+  // the glitch category: a switch, a range picker, a form per range, the range page as the player
+  for (const id of ['category', 'rangeKind', 'rangeStudio', 'rangeMap', 'rangeFacts', 'rangeLint', 'rangeStarters', 'rangeShort', 'tryRange', 'wallListingBtn'])
+    ok(new RegExp(`id="${id}"`).test(html), `the studio has #${id} (the glitch category)`);
+  for (const kind of RANGE_KINDS) ok(new RegExp(`<div class="range-form" data-range="${kind}">`).test(html), `a form for the ${kind} range (.range-form[data-range=${kind}])`);
+  ok(/<option value="room">A room<\/option>\s*<option value="glitch">A glitch level<\/option>/.test(html), '#category offers a room or a glitch level');
+  ok(/<button type="button" id="tryRange" class="btn glitch-only"/.test(html) && /<button type="button" id="playBtn" class="btn room-only"/.test(html), 'Run & debug is the room\'s, Try it on the range the glitch level\'s (by class, not removal)');
+  ok(/<div class="studio-bar room-only"/.test(html) && /<div class="maker-board room-only">/.test(html) && /<div class="maker-range glitch-only" id="rangeStudio">/.test(html), 'the tools and the board hide by class in the glitch category; the range studio shows');
+  ok(/from '\.\/rangecheck\.js'/.test(readFileSync(resolve(root, 'src/level.js'), 'utf8')) && /from '\.\/rangecheck\.js'/.test(js), 'src/level.js and src/maker.js reach src/rangecheck.js');
+  ok(/glitch\.html\?level=\$\{encodeShare\(level\)\}/.test(js) && /window\.open\(tryUrl\(\)/.test(js), 'Try it on the range opens glitch.html?level=<the share token> in a new tab');
+  ok(/dataset\.category = isGlitch\(level\) \? 'glitch' : 'room'/.test(js) && /if \(isGlitch\(level\)\) \{ renderRange\(\); return; \}/.test(js), 'render branches on the category and marks the panel');
+  for (const op of ['paint', 'play', 'moves', 'generate']) ok(new RegExp(`^  ${op}: [^\\n]*if \\(isGlitch\\(level\\)\\) throw new Error`, 'm').test(js) || new RegExp(`^  ${op}: [\\s\\S]{0,80}\\n\\s+if \\(isGlitch\\(level\\)\\) throw new Error`, 'm').test(js), `the bridge op '${op}' refuses a glitch level with a message`);
+  ok(/rangeLevelById/.test(js) && /<range>:<id>/.test(js), 'loadById takes a shipped range level as <range>:<id>');
+  const mcp = readFileSync(resolve(root, 'software/tools/maker-mcp.mjs'), 'utf8');
+  ok(/maker_load[^\n]*<range>:<id>[^\n]*tea-time[^\n]*kings-horses/.test(mcp) && /enum: \['watch', 'glass', 'lock', 'dog', 'wall'\]/.test(mcp), 'maker_load names the range ids and the level schema the range');
+  const makerCssText = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
+  ok(/#editPanel\[data-category=glitch\] \.room-only \{ display: none !important; \}/.test(makerCssText) && /#editPanel:not\(\[data-category=glitch\]\) \.glitch-only \{ display: none !important; \}/.test(makerCssText), 'src/maker.css hides .room-only and .glitch-only by the panel\'s category');
   // the stages page plays the community's rooms
   const stages = readFileSync(resolve(root, 'index.html'), 'utf8');
   for (const id of ['roomsPanel', 'roomList', 'room', 'roomName', 'roomBlurb', 'roomLesson', 'roomStatus', 'roomUndo', 'roomReset', 'roomSolve'])
