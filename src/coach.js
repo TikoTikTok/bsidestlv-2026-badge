@@ -10,23 +10,31 @@
 //
 //   const coach = mountCoach(tutor, {
 //     looks,                       // from initLooks(): the phone looks' mode bar
+//     title: 'A Caucus Race',      // the panel's heading (#learnTitle), on a page that has one
 //     chapters: { 1: 'Chapter one · by hand', 2: 'Chapter two · the badge' },
 //     finish: { title, say, note },// what the coach and the panel say when every step is done
 //     prepare(step, { show }),     // a step came up; show: put its panel on screen too
+//     onRender(),                  // the checklist was redrawn: a step done or skipped, a swap
 //     learnMode: 'learn',          // the mode bar's name for the Learn panel
 //   });
 //   coach.feed(ev);                // every event the page produces; renders on a completed step
 //   coach.render();
+//   coach.skip(); coach.restart(); // what the buttons do
+//   coach.use(other, { title, chapters, finish });   // another tutorial under the same coach (the maker's builds)
+//   coach.tutor                    // the one in use
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
-export function mountCoach(tutor, { looks, chapters = {}, finish, prepare = () => {}, learnMode = 'learn' } = {}) {
-  const n = tutor.steps.length;
+export function mountCoach(first, { looks, title = '', chapters = {}, finish, prepare = () => {}, onRender = () => {}, learnMode = 'learn' } = {}) {
+  let tutor = first;            // the tutorial in use; use() swaps it, the buttons stay bound once
   const classic = () => !looks || looks.look.id === 'classic';
 
   function render() {
+    const n = tutor.steps.length;
     const step = tutor.step;
+    const heading = $('#learnTitle');
+    if (heading && title) heading.textContent = title;
     const coach = $('#coach');
     coach.hidden = false;
     coach.classList.toggle('done', tutor.done);
@@ -68,6 +76,7 @@ export function mountCoach(tutor, { looks, chapters = {}, finish, prepare = () =
     });
     $('#learnProgress').textContent = `${Math.min(tutor.at, n)} / ${n}`;
     $('#learnProgress').style.visibility = 'visible';
+    onRender();
   }
 
   function feed(ev) {
@@ -100,16 +109,28 @@ export function mountCoach(tutor, { looks, chapters = {}, finish, prepare = () =
     if (!classic()) looks.setMode(learnMode);
     else $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
-  $('#learnRestart').addEventListener('click', () => {
+  function restart() {
     tutor.restart();
     $('#learnStatus').textContent = '';
     render();
     prepare(tutor.step, { show: !classic() });
-  });
+  }
+  $('#learnRestart').addEventListener('click', restart);
+
+  /** Put another tutorial under the coach: the maker's guided builds share one coach line and one panel. */
+  function use(next, opts = {}) {
+    tutor = next;
+    if (opts.title !== undefined) title = opts.title;
+    if (opts.chapters) chapters = opts.chapters;
+    if (opts.finish) finish = opts.finish;
+    $('#learnStatus').textContent = '';
+    render();
+    prepare(tutor.step, { show: false });
+  }
 
   render();
   prepare(tutor.step, { show: false });
-  return { feed, render, skip };
+  return { feed, render, skip, restart, use, get tutor() { return tutor; } };
 }
 
 /** Progress in localStorage under `key`, the store a Tutor takes. */

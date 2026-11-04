@@ -20,6 +20,7 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { MAKER_TUTORIALS } from '../../src/tutor.js';   // pure data, no DOM: the guided builds' ids for maker_tutorial
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const base = () => (process.env.MAKER_URL ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -58,6 +59,7 @@ const TOOLS = [
   { name: 'maker_pr_brief', description: 'Everything needed to open the pull request for the room on the page: the module, the index line, the branch and the steps, as a brief to follow in a checkout (also id, file, source, indexLine and branch as data). Read it, then do what it says and nothing else.', inputSchema: { type: 'object', properties: { author: { type: 'string' } } } },
   { name: 'maker_tool', description: 'Set the studio\'s tool (pencil, line, rect, fill, pick), brush (# . A O b L G D), symmetry (none, h, v, both) or an overlay (grid, coords, stuck, reach, path, sight: true/false).', inputSchema: { type: 'object', properties: { tool: { type: 'string' }, brush: { type: 'string' }, symmetry: { type: 'string' }, overlay: { type: 'string' }, on: { type: 'boolean' } } } },
   { name: 'maker_share', description: 'A link that carries the room on the page (?level=): nothing is uploaded, the whole room is in the address. Pasted anywhere it opens the same room - in the studio of a checkout (where: "studio", the default; the published landing shows it in its hero), or as a playable card on the stages page (where: "stages"). format "b64" is compact base64url (the default), "json" the room\'s JSON, readable but longer; play: true adds play=1 so the studio opens it in Run & debug; parts: { lesson, blurb, theme } set to false to leave one out. Returns { url, token, chars, format, where, warnings } - a warning says when the link is long enough to be cut by a chat or a QR code.', inputSchema: { type: 'object', properties: { format: { type: 'string', enum: ['b64', 'json'] }, where: { type: 'string', enum: ['studio', 'stages'] }, play: { type: 'boolean' }, parts: { type: 'object', properties: { lesson: { type: 'boolean' }, blurb: { type: 'boolean' }, theme: { type: 'boolean' } } } } } },
+  { name: 'maker_tutorial', description: `The studio's guided builds (the Learn panel on the page): which one the person is on, its current step (or 'done'), at / of. With no arguments it only reads. id opens one - ${MAKER_TUTORIALS.map(t => `${t.id} ("${t.title}", ${t.steps.length} steps)`).join(', ')}; skip skips that many steps (1 for the current one); restart starts it over. The coach line on the page follows, so say what you are doing.`, inputSchema: { type: 'object', properties: { id: { type: 'string', enum: MAKER_TUTORIALS.map(t => t.id) }, skip: { type: 'number' }, restart: { type: 'boolean' } } } },
 ];
 
 async function api(method, path, body) {
@@ -111,6 +113,7 @@ async function call(name, a = {}) {
     case 'maker_pr_brief': return rpc('pr', { author: a.author });
     case 'maker_tool': return rpc('tool', a);
     case 'maker_share': return rpc('share', { format: a.format, where: a.where, play: a.play, parts: a.parts });
+    case 'maker_tutorial': return rpc('tutorial', { id: a.id, skip: a.skip, restart: a.restart });
     default: throw new Error(`no such tool: ${name}`);
   }
 }
