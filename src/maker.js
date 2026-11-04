@@ -19,14 +19,16 @@
 //               that writes the stage module a pull request carries, with the
 //               room's blurb and lesson (what the stages page shows under it); the
 //               assistant panel, where whoever is on the bridge (src/bridge.js)
-//               talks and is seen working; and the tutorial "Painting the
-//               Roses" (src/tutor.js MAKER_TUTORIAL, src/coach.js).
+//               talks and is seen working; and the tutorials - the guided
+//               builds of src/tutor.js MAKER_TUTORIALS, one chosen in the
+//               Learn panel, drawn by src/coach.js.
 //
 // The keyboard plays here, and only here: the Pad is built with every source
 // on a dev host (src/pad.js sourcesFor), on the site it is not built at all.
 // A room is kept in localStorage (alice.maker.level) between visits, the
 // shelf under alice.maker.shelf, and a room can travel in a link (?level=,
-// src/level.js encodeShare).
+// src/level.js shareUrl: the Share dialog, below; the same link opens the
+// room on the stages page and in the landing's hero).
 
 import { Pad, sourcesFor, KEYS, BUTTONS } from './pad.js';
 import { gateMode } from './gate.js';
@@ -35,12 +37,19 @@ import { tilt } from './tilt.js';
 import { TILE, THEMES, HAZARD_CAST, loadScene, drawCell, drawRoom } from './scene.js';
 import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } from './chase.js';
-import { CHARS, BRUSHES, kindOf, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
-         idOf, encodeShare, decodeShare, lineCells, rectCells, regionCells, paintCells, mirrorCells,
+import { CHARS, BRUSHES, kindOf, isGlitch, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
+         idOf, encodeShare, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
          flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
-import { MAKER_TUTORIAL, LESSON_EVENTS, Tutor } from './tutor.js';
+import { MAKER_TUTORIALS, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
+import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
+import { RANGE_KINDS, RANGE_NAMES, RANGE_FILES, RANGE_MAPS, RANGE_GLYPHS, POOL_BUTTONS, BUDGET, rangeBlank, wallListing, takeFor } from './rangecheck.js';
+import { loadStage, stageOf } from './seal.js';
+import { comboSequence, buildLevel, idealOffsetMs } from './range.js';
+import { secretFor, orderFor } from './lock.js';
+import { windowOf } from './watchdog.js';
+import { frameOf, canaryFor } from './wall.js';
 
 const $ = (sel) => document.querySelector(sel);
 const mode = gateMode();
@@ -64,33 +73,51 @@ const repo = repoUrlFor();
 $('#repoClone').textContent = repo;
 $('#docsLink').href = `${repo}/blob/main/software/docs/LEVEL_MAKER.md`;
 
-/** The prompt a visitor hands to an assistant. It goes to the repository, which is readable; this site is not meant to be. */
-export const aiPrompt = (repoUrl) => `Help me build a level for "Alice in AI Land", the BSidesTLV 2026 badge puzzle game - with me, in its level studio, not on your own.
+// ------------------------------------------------------------ the invitation ----
+// Two prompts, from src/invite.js: the invitation (come and build a room with
+// me) under the hero and in the assistant panel, and the brief for one room
+// (open the pull request for THIS room) from the export panel. One dialog
+// shows either, data-kind saying which. The links carry the text in ?q=, or,
+// when a brief is too long for a link, a short note that says the brief is on
+// the clipboard - then Copy is what the person presses first, and the status
+// says so.
 
-1. Clone ${repoUrl} and read software/docs/LEVEL_MAKER.md: the stage format, the rules the checker applies, how a room gets onto the site, and the bridge you drive the studio through.
-2. Run \`npm run maker\` in the clone (Node 20+, no dependencies). It serves the checkout on http://localhost:8080, opens maker.html - the studio - in my browser, and mounts the bridge at http://localhost:8080/__maker/ (loopback only). Open the page yourself if it is not open.
-3. Connect to the studio. If you have MCP, the clone's .mcp.json registers the server \`alice-maker\` (node software/tools/maker-mcp.mjs): maker_status, maker_get, maker_set_level, maker_paint, maker_check, maker_play, maker_moves, maker_snapshot, maker_say, maker_read_chat, maker_generate, maker_module and more. Without MCP, the same over HTTP: POST http://localhost:8080/__maker/rpc with {"op": "get" | "set" | "paint" | "check" | "play" | "moves" | "say" | "snapshot" | "generate" | "module" | "load" | "tool", "args": {...}}; GET /__maker/inbox?since=0&wait=20000 is what I type in the page's chat. Say hello first (POST /__maker/hello {"name": "..."}) so the page shows you are here.
-4. Design the room with me. Ask in the page's chat what I want: how big, how many rocks, a gate and lever or not, timed with a cast walking loops or not, which dressing (garden, hall, court). Then work on the board where I can watch: set or paint the room, Check it (the real solver: par, whether the gate is load-bearing, how hard), play the solution so I see it, take a snapshot to see what I see, and iterate on what I say. Tell me what you are doing in the chat as you go.
-5. When we are happy, export the module (maker_module, or op "module"), save it as stages/community/<id>.js, add one line to stages/community/index.json, and run \`npm run stage -- stages/community/<id>.js\` to see what CI will say.
-6. Commit on a branch and open a pull request against ${repoUrl} with the stage and the index line. Describe the room in a sentence; the checks prove it solves.`;
-
-{
+const invite = (() => {
   const dialog = $('#aiDialog');
-  const text = aiPrompt(repo);
-  $('#aiPrompt').value = text;
-  $('#aiClaude').href = `https://claude.ai/new?q=${encodeURIComponent(text)}`;
-  $('#aiChatGPT').href = `https://chatgpt.com/?q=${encodeURIComponent(text)}`;
-  const say = (s) => { $('#aiStatus').textContent = s; setTimeout(() => { $('#aiStatus').textContent = ''; }, 1500); };
-  const open = () => { tilt.request?.(); dialog.showModal(); };
+  const title = $('#aiTitle'), note = $('#aiNote'), box = $('#aiPrompt'), status = $('#aiStatus');
+  const prose = {
+    invite: [title.textContent, note.textContent],
+    pr: ['Ship this room: hand your assistant the pull request',
+         'Copy this brief into Claude, ChatGPT or an assistant on the bridge. It carries the room\'s module, its index line, the branch, the commands to run and the pull request\'s body; an assistant that can run commands on your machine does the rest, and you review the pull request.'],
+  };
+  const LINK_MAX = 6000;           // a ?q= longer than this is cut or refused by the front doors
+  let text = '', hint = '';
+  const say = (s) => { status.textContent = s; setTimeout(() => { status.textContent = hint; }, 1500); };
+  function show(kind, prompt, { short } = {}) {
+    text = prompt;
+    dialog.dataset.kind = kind;
+    [title.textContent, note.textContent] = prose[kind];
+    box.value = text;
+    const long = !!short && encodeURIComponent(text).length > LINK_MAX;
+    const carried = encodeURIComponent(long ? short : text);
+    $('#aiClaude').href = `https://claude.ai/new?q=${carried}`;
+    $('#aiChatGPT').href = `https://chatgpt.com/?q=${carried}`;
+    hint = long ? 'too long for a link: press Copy first; the links carry a note saying you will paste the brief' : '';
+    status.textContent = hint;
+    tilt.request?.();
+    dialog.showModal();
+  }
+  const open = () => show('invite', aiPrompt(repo));
   $('#aiBtn').addEventListener('click', open);
   $('#aiBtn2')?.addEventListener('click', open);
   $('#aiClose').addEventListener('click', () => dialog.close());
   $('#aiCopy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(text); say('copied'); }
-    catch { $('#aiPrompt').select(); say('select and copy'); }
+    catch { box.select(); say('select and copy'); }
   });
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
-}
+  return { show };
+})();
 
 // ------------------------------------------------------------------ the hero ----
 // A small room paints itself a row at a time, Alice walks the solution the
@@ -111,13 +138,48 @@ const HERO = {
 };
 const scene = await loadScene();
 
+// A room that came in a link (?level=, src/level.js decodeShare; the studio's
+// Share dialog writes one). On the site it is the room in the hero, and the
+// line under it says where it plays - the stages page, where the badge plays
+// it; on a checkout the studio below loads it instead, as any room.
+const sharedToken = new URLSearchParams(location.search).get('level');
+let sharedRoom = null, sharedError = null;
+if (sharedToken !== null) {
+  try { sharedRoom = decodeShare(sharedToken); sharedError = lint(sharedRoom)[0] ?? null; }
+  catch (e) { sharedError = e.message; }
+}
+const sharedGlitch = !!sharedRoom && !sharedError && isGlitch(sharedRoom);   // a glitch range level: the range page plays it, the hero cannot draw it
+const sharedOk = !!sharedRoom && !sharedError && !sharedGlitch;
+{
+  const note = $('#sharedNote');
+  if (sharedOk) {
+    note.append('Someone shared a room with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
+                Object.assign(document.createElement('a'), { href: `index.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the stages page' }),
+                ', or open this same link in the studio of a checkout.');
+    note.hidden = false;
+  } else if (sharedGlitch) {
+    note.append('Someone shared a glitch level with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
+                Object.assign(document.createElement('a'), { href: `glitch.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the range page' }),
+                ', or open this same link in the studio of a checkout.');
+    note.hidden = false;
+  } else if (sharedToken !== null) {
+    note.textContent = `The link carries a room this page could not ${sharedRoom ? 'show' : 'read'}: ${sharedError}.`;
+    note.hidden = false;
+  }
+}
+
 {
   const canvas = $('#heroCanvas');
   const ctx = canvas.getContext('2d');
-  const map = parseTea(HERO.rows);
+  const hero = (!dev && sharedOk) ? sharedRoom : HERO;     // the landing shows what was shared; the studio has its own board for it
+  const timed = kindOf(hero) === 'chase';
+  const map = timed ? parseChase(hero) : parseTea(hero.rows);
+  const step = timed ? chaseStep : teaStep;
   canvas.width = map.w * TILE; canvas.height = map.h * TILE;
-  const moves = check(HERO).moves ?? [];
-  const dressings = ['garden', 'hall', 'court'];
+  // Alice walks the solution when the solver finds one within reason; a shared room it cannot clear in time is painted still
+  const moves = check(hero, { limit: 50_000 }).moves ?? [];
+  const dressings = hero === HERO ? ['garden', 'hall', 'court'] : [THEMES[hero.theme] ? hero.theme : 'garden'];
+  const beat = timed ? Math.max(120, Math.min(400, hero.tickMs ?? 320)) : 170;
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let dressing = 0, phase = 'paint', t0 = performance.now(), state = map.start, at = 0, facing = 'S', alpha = 1;
 
@@ -131,8 +193,8 @@ const scene = await loadScene();
       drawRoom(ctx, scene, map, state, theme, { now, facing, onlyRows: rows });
       if (rows >= map.h && dt > map.h * 110 + 500) { phase = still ? 'hold' : 'walk'; t0 = now; }
     } else if (phase === 'walk') {
-      while (at < moves.length && dt > (at + 1) * 170) { const n = teaStep(map, state, moves[at]); facing = moves[at]; if (n) state = n; at++; }
-      drawRoom(ctx, scene, map, state, theme, { now, facing, walking: at < moves.length, beatMs: 170 });
+      while (at < moves.length && dt > (at + 1) * beat) { const n = step(map, state, moves[at]); if (moves[at] !== 'wait') facing = moves[at]; if (n) state = n; at++; }
+      drawRoom(ctx, scene, map, state, theme, { now, facing, walking: at < moves.length, beatMs: beat });
       if (at >= moves.length) { phase = 'hold'; t0 = now; }
     } else if (phase === 'hold') {
       drawRoom(ctx, scene, map, state, theme, { now, facing });
@@ -175,10 +237,20 @@ const load = (k) => { try { return localStorage.getItem(k); } catch { return nul
 const save = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage may be off */ } };
 const loadJson = (k, or) => { const s = load(k); if (!s) return or; try { return JSON.parse(s); } catch { return or; } };
 
-// the tutorial: every event the studio produces goes through here
-const tutor = new Tutor(MAKER_TUTORIAL, tutorStore('alice.tutor.maker'));
+// the tutorials: one Tutor per guided build, each with its own progress
+// (alice.tutor.maker for the first, alice.tutor.maker.<id> for the rest), the
+// chosen one remembered under alice.maker.tutorial, ?tutorial=<id> picking one
+// for the visit; every event the studio produces goes through tell() to the
+// coach, which feeds the build in use
+const TUTORIAL = 'alice.maker.tutorial';
+const tutorKey = (id) => (id === MAKER_TUTORIALS[0].id ? 'alice.tutor.maker' : `alice.tutor.maker.${id}`);
+const tutorialById = (id) => MAKER_TUTORIALS.find(t => t.id === id) ?? null;
+const tutors = new Map(MAKER_TUTORIALS.map(t => [t.id, new Tutor(t.steps, tutorStore(tutorKey(t.id)))]));
+let picked = [new URLSearchParams(location.search).get('tutorial'), load(TUTORIAL)].find(id => tutorialById(id)) ?? MAKER_TUTORIALS[0].id;
+let tutor = tutors.get(picked);
 let coach = null;
 const tell = (what, extra = {}) => coach?.feed({ ...extra, kind: 'maker', what });
+const tutorialSummary = () => ({ id: picked, title: tutorialById(picked).title, step: tutor.step?.id ?? 'done', at: tutor.at, of: tutor.steps.length });
 
 // ---------------------------------------------------------------- the level ----
 
@@ -248,6 +320,7 @@ const cssVar = (name, or) => getComputedStyle(document.documentElement).getPrope
 let ghost = null;   // the cells a line or rectangle stroke would paint, while the pointer is down
 
 function drawEdit() {
+  if (!level.rows) return;    // a glitch level: the board is hidden, the range's map is drawn by renderRange
   const { w, h } = dims();
   board.width = w * cell; board.height = h * cell;
   const theme = THEMES[level.theme] ?? THEMES.garden;
@@ -338,6 +411,8 @@ function drawEdit() {
   }
 }
 
+/** A hazard changed - added, a route point laid, its cast or sight edited: which one, and its route so far (the tutorial watches it grow). */
+const tellHazard = (did, n) => { const h = level.hazards?.[n]; if (h) tell('hazard', { did, n, route: h.route.map(([x, y]) => [x, y]), sight: h.sight ?? 0, character: h.character ?? h.id }); };
 function renderHazards() {
   hazardsEl.textContent = '';
   (level.hazards ?? []).forEach((hz, n) => {
@@ -365,7 +440,7 @@ function renderHazards() {
     row.append(who, sight, pick, back, del, route);
     hazardsEl.append(row);
   });
-  function edit(n, fn) { const hazards = level.hazards.map(h => ({ ...h, route: [...h.route] })); fn(hazards[n]); setLevel({ ...level, hazards }); }
+  function edit(n, fn) { const hazards = level.hazards.map(h => ({ ...h, route: [...h.route] })); fn(hazards[n]); setLevel({ ...level, hazards }); tellHazard('edit', n); }
 }
 function uniqueId(base, except) {
   const taken = new Set((level.hazards ?? []).filter((_, i) => i !== except).map(h => h.id));
@@ -374,6 +449,9 @@ function uniqueId(base, except) {
 }
 
 function render() {
+  $('#editPanel').dataset.category = isGlitch(level) ? 'glitch' : 'room';
+  if (isGlitch(level)) { renderRange(); return; }
+  $('#category').value = 'room';
   const kind = kindOf(level);
   $('#name').value = level.name;
   const { w, h } = dims();
@@ -398,6 +476,8 @@ function render() {
   if (!problems.length) ul.append(Object.assign(document.createElement('li'), { className: 'ok', textContent: '✓ the room is well formed - Check asks the solver' }));
   $('#checkBtn').disabled = !!problems.length;
   $('#playBtn').disabled = !!problems.length;
+  $('#prBtn').disabled = !!problems.length;
+  $('#prBtn').title = problems.length ? `not yet: ${problems[0]}` : 'hand your assistant the module, the index line, the branch and the steps: everything the pull request for this room needs';
   const id = idOf(level);
   $('#fileName').textContent = `${id}.js`; $('#fileName2').textContent = id;
   $('#moduleOut').textContent = toModule(level, { author: $('#author').value.trim() || undefined });
@@ -410,6 +490,7 @@ function showReport() {
   verdict.hidden = true;
   if (!report) { el.textContent = ''; el.className = 'status'; return; }
   if (report.pending) { el.textContent = 'asking the solver…'; el.className = 'status busy'; return; }
+  if (isGlitch(level)) { showRangeReport(); return; }
   if (!report.ok) { el.textContent = report.problems.join(' · '); el.className = 'status hot'; return; }
   const unit = report.kind === 'chase' ? 'ticks' : 'moves';
   el.textContent = `solvable: par ${report.par} ${unit} (${report.explored} states, ${report.ms} ms)`;
@@ -452,19 +533,21 @@ board.addEventListener('pointerdown', (e) => {
     const last = route.at(-1);
     if (last && last[0] === c.x && last[1] === c.y) route.pop(); else route.push([c.x, c.y]);
     setLevel({ ...level, hazards });
+    tellHazard('route', hazardPick);
     return;
   }
   if (tool === 'pick' || (e.altKey && e.button === 0)) { const ch = level.rows[c.y][c.x]; if (ch in CHARS) setBrush(ch); return; }
   const ch = e.button === 2 ? '.' : brush;
+  // a stroke is told before the room changes under it, so what lint then says is the news after the paint
   if (tool === 'fill') {
     const cells = withMirror(regionCells(level, c.x, c.y));
-    setLevel(paintCells(level, cells, ch));
     tell('paint', { ch, cells: cells.length, tool }); tell('tool', { tool, used: true });
+    setLevel(paintCells(level, cells, ch));
     return;
   }
   stroke = { tool, ch, from: c, before: level, filled: e.shiftKey };
   board.setPointerCapture(e.pointerId);
-  if (tool === 'pencil') { setLevel(paintCells(level, withMirror([[c.x, c.y]]), ch)); tell('paint', { ch, cells: 1, tool }); }
+  if (tool === 'pencil') { tell('paint', { ch, cells: 1, tool }); setLevel(paintCells(level, withMirror([[c.x, c.y]]), ch)); }
   else { ghost = withMirror([[c.x, c.y]]); drawEdit(); }
 });
 board.addEventListener('pointermove', (e) => {
@@ -489,9 +572,9 @@ function endStroke(e) {
   if (c && s.tool !== 'pencil') ghost = withMirror(s.tool === 'line' ? lineCells(s.from.x, s.from.y, c.x, c.y) : rectCells(s.from.x, s.from.y, c.x, c.y, { filled: e.shiftKey || s.filled }));
   if (s.tool !== 'pencil' && ghost) {
     const cells = ghost; ghost = null;
-    // the stroke is one history step on top of the level before it
-    level = s.before; setLevel(paintCells(level, cells, s.ch));
+    // the stroke is one history step on top of the level before it, told before the room changes
     tell('paint', { ch: s.ch, cells: cells.length, tool: s.tool }); tell('tool', { tool: s.tool, used: true });
+    level = s.before; setLevel(paintCells(level, cells, s.ch));
   } else if (ghost) { ghost = null; drawEdit(); }
   void e;
 }
@@ -519,28 +602,30 @@ function setOverlay(name, on) {
 $('#zoom').value = cell;
 $('#zoom').addEventListener('input', (e) => { cell = +e.target.value; prefs.zoom = cell; savePrefs(); drawEdit(); });
 
-$('#name').addEventListener('input', (e) => setLevel({ ...level, name: e.target.value }, { remember: false }));
+$('#name').addEventListener('input', (e) => { setLevel({ ...level, name: e.target.value }, { remember: false }); tell('name', { name: level.name }); });
 $('#width').addEventListener('change', (e) => setLevel(resize(level, +e.target.value, dims().h)));
 $('#height').addEventListener('change', (e) => setLevel(resize(level, dims().w, +e.target.value)));
 $('#theme').addEventListener('change', (e) => setLevel({ ...level, theme: e.target.value }));
 $('#kind').addEventListener('change', (e) => {
   if (e.target.value === 'chase') setLevel({ ...level, tickMs: level.tickMs ?? 320 });
   else { const { tickMs, hazards, ...rest } = level; hazardPick = -1; setLevel(rest); }
+  tell('tick', { ms: level.tickMs ?? null, timed: kindOf(level) === 'chase' });
 });
-$('#tickMs').addEventListener('change', (e) => setLevel({ ...level, tickMs: +e.target.value }));
+$('#tickMs').addEventListener('change', (e) => { setLevel({ ...level, tickMs: +e.target.value }); tell('tick', { ms: level.tickMs ?? null, timed: kindOf(level) === 'chase' }); });
 $('#addHazard').addEventListener('click', () => {
   const used = new Set((level.hazards ?? []).map(h => h.character ?? h.id));
   const c = HAZARD_CAST.find(c => !used.has(c.id)) ?? HAZARD_CAST[0];
   const hz = { id: uniqueId(c.id, -1), character: c.id, route: [], sight: c.sight };
   hazardPick = (level.hazards ?? []).length;
   setLevel({ ...level, tickMs: level.tickMs ?? 320, hazards: [...(level.hazards ?? []), hz] });
+  tellHazard('add', hazardPick);
 });
 ascii.addEventListener('input', () => {
   const rows = ascii.value.replace(/\r/g, '').split('\n').filter((r, i, a) => r.length || i < a.length - 1);
   if (rows.length) setLevel({ ...level, rows }, { remember: false });
 });
 ascii.addEventListener('change', () => render());
-blurbEl.addEventListener('input', () => setLevel({ ...level, blurb: blurbEl.value }, { remember: false }));
+blurbEl.addEventListener('input', () => { setLevel({ ...level, blurb: blurbEl.value }, { remember: false }); tell('blurb', { chars: blurbEl.value.trim().length }); });
 lessonEl.addEventListener('input', () => {
   const lesson = lessonFromText(lessonEl.value);
   setLevel({ ...level, lesson }, { remember: false });
@@ -574,7 +659,7 @@ addEventListener('keydown', (e) => {
   if (k === 'm') { setSymmetry(SYMS[(SYMS.indexOf(symmetry) + 1) % SYMS.length]); return; }
   if (k === 'g') { setOverlay('grid', !overlays.grid); }
 });
-$('#newBtn').addEventListener('click', () => { hazardPick = -1; setLevel(blank(9, 7), { why: 'new' }); });
+$('#newBtn').addEventListener('click', () => { hazardPick = -1; setLevel(freshLevel(), { why: 'new' }); });
 
 // ------------------------------------------------------------------ loading ----
 // The shipped stages and the community's, as starting points. ?level= in the
@@ -584,13 +669,18 @@ const SHIPPED = [['tea-party', 'A Mad Tea Party'], ['queens-gauntlet', "The Quee
 const community = [];
 async function loadById(id) {
   const starter = STARTERS.find(s => s.id === id);
-  if (starter) { hazardPick = -1; setLevel(starter.level(), { why: 'starter' }); return level; }
+  if (starter) { hazardPick = -1; setLevel(starter.level(), { why: 'starter' }); tell('load', { id, from: 'starter' }); return level; }
   const path = SHIPPED.some(([s]) => s === id) ? `stages/${id}.js` : community.some(s => s.id === id) ? `stages/community/${id}.js` : null;
-  if (!path) throw new Error(`no stage, starter or community room called '${id}'`);
+  if (!path) {
+    const ranged = await rangeLevelById(id);
+    if (!ranged) throw new Error(`no stage, starter, community level or shipped range level (<range>:<id>) called '${id}'`);
+    hazardPick = -1; setLevel(ranged, { why: 'load' }); return level;
+  }
   const mod = await import(`../${path}`);
-  const stage = Object.values(mod).find(v => v && Array.isArray(v.rows));
+  const stage = stageOf(mod);
   hazardPick = -1;
   setLevel(stage, { why: 'load' });
+  tell('load', { id, from: path.startsWith('stages/community/') ? 'community' : 'stage' });
   return level;
 }
 {
@@ -603,7 +693,7 @@ async function loadById(id) {
       // a community room is a starter too: the demos carry a lesson to learn the format from
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'starter community';
-      b.append(Object.assign(document.createElement('b'), { textContent: s.name }), Object.assign(document.createElement('small'), { textContent: `the community's · ${s.kind === 'chase' ? 'timed' : 'untimed'} · by ${s.author}` }));
+      b.append(Object.assign(document.createElement('b'), { textContent: s.name }), Object.assign(document.createElement('small'), { textContent: `the community's · ${s.kind === 'chase' ? 'timed' : RANGE_KINDS.includes(s.kind) ? `a ${s.kind} level` : 'untimed'} · by ${s.author}` }));
       b.addEventListener('click', () => loadById(s.id).catch((e) => { report = { ok: false, problems: [`could not load ${s.id}: ${e.message}`] }; showReport(); }));
       $('#starters').append(b);
     }
@@ -624,13 +714,242 @@ async function loadById(id) {
   }
 }
 
+// ------------------------------------------------------------ a glitch level ----
+// The second category: a level for one of the glitch range's five games
+// (glitch.html), held as data ({ name, range, ...the range's fields },
+// src/rangecheck.js) and judged by the same check() CI runs on the shipped
+// ranges. There is no player here - the players are src/glitch.js's - so
+// "Try it on the range" opens the level there as a tab. While this category
+// is on (data-category on the panel) the board, the palette and the tools
+// are hidden by class, never removed; the forms below take their place.
+
+const GLYPH = { UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶', A: 'A', B: 'B', X: 'X', Y: 'Y' };
+const glyphs = (list) => (list ?? []).map(b => GLYPH[b] ?? b).join(' ');
+const rangeMap = $('#rangeMap'), rmctx = rangeMap.getContext('2d');
+const forms = [...document.querySelectorAll('#rangeForms .range-form')];
+const stash = { room: null, glitch: {} };    // the level of whichever category is off screen, so a switch loses nothing
+const shippedRanges = {};                    // kind -> the shipped module's export, once loaded
+const shippedLoad = Promise.all(RANGE_KINDS.map(kind => loadStage(RANGE_FILES[kind], null).then(r => { shippedRanges[kind] = r; }).catch(() => {})));
+const shippedIds = (kind) => new Set((shippedRanges[kind]?.levels ?? []).map(l => l.id));
+const handOf = (lv) => lv.hand ?? (lv.range === 'glass' ? lv.lineMs >= 2 * BUDGET.HAND_JITTER_MS : true);
+
+/** What New makes: a room, or a blank level of the range on screen. */
+function freshLevel() { return isGlitch(level) ? rangeBlank(level.range) : blank(9, 7); }
+/** A line for the shelf: a room's size and clock, a glitch level's range and hand. */
+function describeShelf(lv) {
+  return isGlitch(lv) ? `${RANGE_NAMES[lv.range] ?? lv.range} · ${handOf(lv) ? 'a hand level' : 'badge-only'}`
+                      : `${lv.rows[0].length}×${lv.rows.length} · ${kindOf(lv) === 'chase' ? 'timed' : 'untimed'}`;
+}
+
+/** A shipped range level as a copy to edit: '<range>:<id>', or the id alone when one range has it. null when none. */
+async function rangeLevelById(id) {
+  await shippedLoad;
+  const m = /^(watch|glass|lock|dog|wall):(.+)$/.exec(id);
+  const hits = [];
+  for (const kind of m ? [m[1]] : RANGE_KINDS) {
+    const lv = shippedRanges[kind]?.levels.find(l => l.id === (m ? m[2] : id));
+    if (lv) hits.push({ kind, lv });
+  }
+  if (hits.length > 1) throw new Error(`'${id}' is a level of ${hits.map(h => h.kind).join(' and ')}: say which, as <range>:${id}`);
+  if (!hits.length) return null;
+  const { kind, lv } = hits[0];
+  return { ...lv, range: kind, ...(kind === 'watch' ? { pool: lv.pool ?? shippedRanges.watch.pool } : {}) };
+}
+
+// the category and the range: a switch keeps what it leaves
+function setCategory(cat) {
+  if (cat === (isGlitch(level) ? 'glitch' : 'room')) return;
+  if (isGlitch(level)) stash.glitch[level.range] = level; else stash.room = level;
+  hazardPick = -1;
+  const kind = $('#rangeKind').value;
+  setLevel(cat === 'glitch' ? (stash.glitch[kind] ?? rangeBlank(kind)) : (stash.room ?? blank(9, 7)), { why: 'category' });
+}
+function setRangeKind(kind) {
+  if (!RANGE_KINDS.includes(kind)) throw new Error(`no range '${kind}'; they are ${RANGE_KINDS.join(' ')}`);
+  if (isGlitch(level)) { if (level.range === kind) return; stash.glitch[level.range] = level; }
+  hazardPick = -1;
+  setLevel(stash.glitch[kind] ?? rangeBlank(kind), { why: 'range' });
+}
+$('#category').addEventListener('change', (e) => setCategory(e.target.value));
+$('#rangeKind').addEventListener('change', (e) => setRangeKind(e.target.value));
+$('#rangeShort').addEventListener('input', (e) => setLevel({ ...level, short: e.target.value }, { remember: false }));
+
+// the forms: one per range, the one on screen filled from the level and read back on every edit
+function fillForm(form) {
+  for (const el of form.querySelectorAll('[data-field]')) {
+    const field = el.dataset.field, v = level[field];
+    if (el.tagName === 'FIELDSET') { for (const c of el.querySelectorAll('input')) c.checked = Array.isArray(v) && v.includes(c.value); continue; }
+    if (document.activeElement === el) continue;
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (field === 'address') el.value = Array.isArray(v) ? (v[+el.dataset.slot] ?? '') : '';
+    else if (el.tagName === 'TEXTAREA') el.value = Array.isArray(v) ? v.join('\n') : (v ?? '');
+    else el.value = v ?? '';
+  }
+}
+/** What one control says its field is now, as a patch on the level. */
+function readField(form, el) {
+  const fs = el.closest('fieldset[data-field]');
+  if (fs) { const on = new Set([...fs.querySelectorAll('input:checked')].map(c => c.value)); return { [fs.dataset.field]: POOL_BUTTONS.filter(b => on.has(b)) }; }
+  const field = el.dataset.field;
+  if (el.type === 'checkbox') return { [field]: el.checked };
+  if (field === 'address') return { address: [...form.querySelectorAll('[data-field=address]')].map(s => s.value) };
+  if (el.tagName === 'TEXTAREA') return { [field]: el.value.replace(/\r/g, '').split('\n') };
+  if (el.type === 'number') return { [field]: el.value === '' ? undefined : +el.value };
+  return { [field]: el.value };
+}
+function editField(form, el, { remember }) {
+  if (!isGlitch(level) || level.range !== form.dataset.range) return;
+  const patch = readField(form, el);
+  // Humpty's listing follows the frame while it is still the one written from the fields
+  if (level.range === 'wall' && !('listing' in patch) && (level.listing ?? []).join('\n') === wallListing(level).join('\n')) patch.listing = wallListing({ ...level, ...patch });
+  setLevel({ ...level, ...patch }, { remember });
+}
+for (const form of forms) {
+  form.addEventListener('input', (e) => { const el = e.target; if (el.type === 'checkbox' || el.tagName === 'SELECT') return; editField(form, el, { remember: false }); });
+  form.addEventListener('change', (e) => { const el = e.target; if (el.type === 'checkbox' || el.tagName === 'SELECT') editField(form, el, { remember: true }); else render(); });
+}
+$('#wallListingBtn').addEventListener('click', () => { if (isGlitch(level) && level.range === 'wall') setLevel({ ...level, listing: wallListing(level) }); });
+
+// the preview: the range's map (or the level's own), and what the rules make of the numbers
+function drawRangeMap(kind) {
+  const rows = level.rows ?? RANGE_MAPS[kind];
+  const wrap = $('#rangeMapWrap'), note = $('#rangeMapNote');
+  if (!rows) { wrap.hidden = true; note.textContent = `${RANGE_NAMES[kind] ?? kind} has no map: the badge is the board, the page draws the clock.`; return; }
+  wrap.hidden = false;
+  note.textContent = level.rows ? 'a map of its own (the range page draws the range\'s)'
+    : `the range's map, the same for every level of it: ${Object.entries(RANGE_GLYPHS[kind] ?? {}).map(([g, w]) => `${g} ${w}`).join(', ')}`;
+  const w = Math.max(...rows.map(r => r.length)), h = rows.length, size = TILE;
+  rangeMap.width = w * size; rangeMap.height = h * size;
+  rmctx.imageSmoothingEnabled = false;
+  const accent = cssVar('--accent', '#6fb0f0'), ink = cssVar('--ink', '#05080f');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const ch = rows[y][x] ?? '.';
+    drawCell(rmctx, scene, THEMES.garden, ch === '#' ? '#' : '.', x, y, size);
+    if (ch === 'A') rmctx.drawImage(scene.byId.alice2.images.S[0], x * size, y * size, size, size);
+    else if (ch !== '#' && ch !== '.') {
+      rmctx.fillStyle = accent; rmctx.beginPath(); rmctx.arc(x * size + size / 2, y * size + size / 2, size / 3, 0, Math.PI * 2); rmctx.fill();
+      rmctx.fillStyle = ink; rmctx.font = `bold ${Math.round(size / 2.4)}px monospace`; rmctx.textAlign = 'center'; rmctx.textBaseline = 'middle';
+      rmctx.fillText(ch, x * size + size / 2, y * size + size / 2 + 1);
+    }
+  }
+}
+function rangeFacts(kind) {
+  const lv = normalize(level);
+  const out = [];
+  try {
+    if (kind === 'watch') {
+      const rate = (lv.length - 1) / (lv.windowMs / 1000);
+      out.push(['tempo', `${rate.toFixed(1)} presses/s, ${(lv.windowMs / (lv.length - 1)).toFixed(0)} ms a press`], ['the tune', glyphs(comboSequence(lv))],
+               ['a hand', rate <= BUDGET.HAND_RATE ? `can do this (${BUDGET.HAND_RATE}/s is the budget)` : `cannot (${BUDGET.HAND_RATE}/s is the budget): a take, replayed faster`]);
+    } else if (kind === 'glass') {
+      const b = buildLevel(lv);
+      out.push(['the run', `${b.honest.length} steps × ${lv.lineMs} ms = ${b.totalMs} ms`], ['the check', `step ${b.targetStep} (line ${b.program.target + 1}), ${b.targetStartMs}–${b.targetEndMs} ms`],
+               ['ideal offset', `${idealOffsetMs(b)} ms`], ['a hand', lv.lineMs >= 2 * BUDGET.HAND_JITTER_MS ? `lands a tick this long (±${BUDGET.HAND_JITTER_MS} ms)` : `cannot (±${BUDGET.HAND_JITTER_MS} ms on a tick under ${2 * BUDGET.HAND_JITTER_MS}): the badge`]);
+    } else if (kind === 'lock') {
+      out.push(['passwords', `${lv.pool.length}^${lv.length} = ${Math.pow(lv.pool.length, lv.length).toLocaleString('en')}`], ['the right answer', `${(lv.length + 1) * lv.tickMs} ms (${lv.length + 1} ticks)`],
+               ['password, seed 0', glyphs(secretFor(lv))], ['order', lv.order === 'secret' ? `${orderFor(lv).join('')} (his own)` : 'first to last'],
+               ['a hand', `${BUDGET.HAND_PRESSES} presses is the budget; Check runs the attacker`]);
+    } else if (kind === 'dog') {
+      const w = windowOf(lv), t = takeFor(lv), rate = 1000 / t.gapMs;
+      out.push(['the window', `${w.widthMs} ms wide, ideal gap ${t.gapMs} ms`], ['tempo', `${rate.toFixed(1)} nudges/s`], ['the take', `record a tap every ${t.recordMs} ms, play it at ${t.speed}×`],
+               ['a hand', w.widthMs >= 2 * BUDGET.HAND_JITTER_MS && rate <= BUDGET.HAND_RATE ? 'can do this' : `cannot: ±${BUDGET.HAND_JITTER_MS} ms a press, ${BUDGET.HAND_RATE}/s`]);
+    } else if (kind === 'wall') {
+      const f = frameOf(lv);
+      out.push(['the frame', `name[${f.size}]${lv.canary ? ' [canary]' : ''} lr[2] = ${f.total} slots`], ['canary, seed 0', lv.canary ? glyphs([canaryFor(lv)]) : 'none'],
+               ['tempo', `${(1000 / lv.gapMs).toFixed(1)} symbols/s`], ['open_wall', glyphs(lv.address)],
+               ['a hand', 1000 / lv.gapMs <= BUDGET.HAND_RATE ? 'can type this' : `cannot: ${BUDGET.HAND_RATE} symbols a second is the budget`]);
+    }
+  } catch (e) { out.push(['—', e.message]); }
+  return out;
+}
+let startersKey = null;
+function renderRangeStarters(kind) {
+  const key = `${kind}:${shippedRanges[kind] ? 1 : 0}:${community.length}`;
+  if (startersKey === key) return;
+  const box = $('#rangeStarters');
+  box.textContent = '';
+  if (!shippedRanges[kind]) { shippedLoad.then(() => { if (isGlitch(level) && level.range === kind) renderRangeStarters(kind); }); return; }
+  startersKey = key;
+  const add = (name, small, id) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'starter';
+    b.append(Object.assign(document.createElement('b'), { textContent: name }), Object.assign(document.createElement('small'), { textContent: small }));
+    b.addEventListener('click', () => loadById(id).catch((e) => { report = { ok: false, problems: [`could not load ${id}: ${e.message}`] }; showReport(); }));
+    box.append(b);
+  };
+  for (const lv of shippedRanges[kind].levels) add(lv.name, `${RANGE_NAMES[kind]} · ${handOf({ ...lv, range: kind }) ? 'a hand level' : 'badge-only'} · a copy to edit`, `${kind}:${lv.id}`);
+  for (const s of community.filter(s => s.kind === kind)) add(s.name, `the community's · by ${s.author}`, s.id);
+}
+function renderRange() {
+  const kind = level.range;
+  $('#category').value = 'glitch';
+  if (RANGE_KINDS.includes(kind)) $('#rangeKind').value = kind;
+  $('#name').value = level.name;
+  if (document.activeElement !== blurbEl) blurbEl.value = level.blurb ?? '';
+  const shortEl = $('#rangeShort');
+  if (document.activeElement !== shortEl) shortEl.value = level.short ?? '';
+  for (const f of forms) { f.hidden = f.dataset.range !== kind; if (!f.hidden) fillForm(f); }
+  $('#undoEdit').disabled = !past.length; $('#redoEdit').disabled = !future.length;
+  const problems = lint(level);
+  const warnings = shippedIds(kind).has(level.id) ? [`'${level.id}' is a shipped level's id in this range: give it a name of its own before sending it in`] : [];
+  $('#editName').textContent = `${RANGE_NAMES[kind] ?? `range '${kind}'`} · ${handOf(level) ? 'a hand level' : 'badge-only'}`;
+  drawRangeMap(kind);
+  const dl = $('#rangeFacts');
+  dl.textContent = '';
+  for (const [k, v] of problems.length ? [] : rangeFacts(kind)) dl.append(Object.assign(document.createElement('dt'), { textContent: k }), Object.assign(document.createElement('dd'), { textContent: v }));
+  const ul = $('#rangeLint');
+  ul.textContent = '';
+  for (const p of [...problems, ...warnings]) ul.append(Object.assign(document.createElement('li'), { textContent: p }));
+  if (!problems.length) ul.append(Object.assign(document.createElement('li'), { className: 'ok', textContent: '✓ the level is well formed - Check runs what CI runs' }));
+  $('#checkBtn').disabled = !!problems.length;
+  $('#playBtn').disabled = true;
+  $('#tryRange').disabled = !!problems.length;
+  const id = idOf(level);
+  $('#fileName').textContent = `${id}.js`; $('#fileName2').textContent = id;
+  $('#moduleOut').textContent = toModule(level, { author: $('#author').value.trim() || undefined });
+  renderRangeStarters(kind);
+  showReport();
+  bridge?.state(snapshotState());
+}
+/** The verdict on a glitch level: hand or badge-only, the attacker's cost, every note the checker made - problems first. */
+function showRangeReport() {
+  const el = $('#report'), verdict = $('#verdict');
+  verdict.hidden = true;
+  if (!report.ok) { el.textContent = report.problems.join(' · '); el.className = 'status hot'; }
+  else { el.textContent = `checked: ${report.hand ? 'a hand level' : 'badge-only'}${report.par ? `, the attacker needs ${report.par} takes` : ''} (${report.ms} ms)`; el.className = 'status win'; }
+  if (!report.notes?.length) return;
+  verdict.hidden = false;
+  verdict.textContent = '';
+  const d = difficulty(report);
+  if (d) {
+    const meter = document.createElement('div'); meter.className = 'meter';
+    for (let i = 1; i <= 5; i++) { const s = document.createElement('i'); if (i <= d.level) s.className = 'on'; meter.append(s); }
+    verdict.append(meter, Object.assign(document.createElement('b'), { textContent: d.label }));
+  }
+  verdict.append(Object.assign(document.createElement('span'), { textContent: report.notes.join(' · ') }));
+}
+/** The address glitch.html opens the level on: a tab of its range, named "· yours". */
+const tryUrl = () => `glitch.html?level=${encodeShare(level)}`;
+$('#tryRange').addEventListener('click', () => { if (!isGlitch(level) || lint(level).length) return; window.open(tryUrl(), '_blank', 'noopener'); });
+// the shipped levels in the Load menu, a group per range, once the modules are in
+shippedLoad.then(() => {
+  const sel = $('#load');
+  for (const kind of RANGE_KINDS) {
+    if (!shippedRanges[kind]) continue;
+    const group = document.createElement('optgroup');
+    group.label = RANGE_NAMES[kind];
+    for (const lv of shippedRanges[kind].levels) group.append(new Option(lv.name, `${kind}:${lv.id}`));
+    sel.append(group);
+  }
+});
+const rangeStudio = { setCategory, setRangeKind, rangeLevelById, tryUrl, shipped: shippedRanges, shippedLoad, categoryOf: () => (isGlitch(level) ? 'glitch' : 'room') };
+
 {
-  const token = new URLSearchParams(location.search).get('level');
-  let first = null;
-  if (token) { try { first = decodeShare(token); } catch { first = null; } }
-  if (!first) first = loadJson(STORE, null);
+  // a link's room first (malformed or not: the lint says what is wrong with it), then the room left here last time, then a blank one
+  const first = sharedRoom ?? loadJson(STORE, null);
   $('#author').value = load(AUTHOR) ?? '';
   setLevel(first ?? blank(9, 7), { reset: true, why: 'open' });
+  if (sharedToken !== null && !sharedRoom) $('#importStatus').textContent = `the link's room could not be read: ${sharedError}`;
 }
 
 // ------------------------------------------------------------------ checking ----
@@ -651,7 +970,8 @@ function runCheck() {
   return ask({ level: lvl }, 'report').then((r) => {
     if (level !== lvl) return r;        // the room changed under the solver; its answer is for the old one
     report = r; render();
-    tell('check', { ok: !!r.ok, par: r.par ?? null, rules: r.kind ?? null });
+    const gate = r.notes?.some(n => /load-bearing/.test(n)) ? 'load-bearing' : r.notes?.some(n => /decoration/.test(n)) ? 'decoration' : null;
+    tell('check', { ok: !!r.ok, par: r.par ?? null, rules: r.kind ?? null, gate });
     return r;
   });
 }
@@ -694,7 +1014,7 @@ function renderShelf() {
     const li = document.createElement('li');
     const open = document.createElement('button'); open.type = 'button'; open.className = 'shelf-open';
     open.append(Object.assign(document.createElement('b'), { textContent: item.level.name }),
-                Object.assign(document.createElement('small'), { textContent: `${item.level.rows[0].length}×${item.level.rows.length} · ${kindOf(item.level) === 'chase' ? 'timed' : 'untimed'}${item.par ? ` · par ${item.par}` : ''} · ${new Date(item.at).toLocaleDateString()}` }));
+                Object.assign(document.createElement('small'), { textContent: `${describeShelf(item.level)}${item.par ? ` · par ${item.par}` : ''} · ${new Date(item.at).toLocaleDateString()}` }));
     open.addEventListener('click', () => { hazardPick = -1; setLevel(item.level, { why: 'shelf' }); if (item.par) { report = item.report; render(); } tell('shelf', { did: 'open' }); });
     const del = document.createElement('button'); del.type = 'button'; del.className = 'btn ghost'; del.textContent = '✕'; del.title = 'take it off the shelf';
     del.addEventListener('click', () => { shelf.splice(i, 1); save(SHELF, JSON.stringify(shelf)); renderShelf(); tell('shelf', { did: 'drop' }); });
@@ -742,6 +1062,7 @@ function log(text, kind = '') {
 
 function startPlay() {
   if (lint(level).length) return;
+  if (isGlitch(level)) { say('a glitch level plays on the range page: Try it on the range', 'hot'); return; }
   const kind = kindOf(level);
   const map = kind === 'tea' ? parseTea(level.rows) : parseChase(level);
   game = { kind, map, state: map.start, history: [], facing: 'S', ticks: 0, dead: false, waiting: true, plan: null, planAt: 0,
@@ -805,11 +1126,12 @@ function tick() {
     game.dead = true; game.plan = null;
     log(`tick ${game.ticks + 1}: ${action} - caught`, 'hot');
     status();
+    tell('caught', { ticks: game.ticks + 1 });
     return;
   }
   game.state = next; game.ticks++;
   if (!planned || game.planAt % 8 === 1) log(`tick ${game.ticks}: ${action}${action === 'wait' ? '' : ` → ${cellName(game.map, next.alice)}`}`);
-  if (!planned && action !== 'wait') tell('move', { dir: action });
+  if (!planned) tell('move', { dir: action });
   if (game.plan && game.planAt >= game.plan.length) game.plan = null;
   if (chaseGoal(game.map, next)) { log(`out in ${game.ticks} ticks`, 'win'); tell('win', { ticks: game.ticks }); }
   status();
@@ -820,6 +1142,7 @@ function resetPlay() {
   const { kind } = game;
   startPlay();
   log(kind === 'tea' ? 'reset' : 'restart');
+  tell('restart', { rules: kind });
 }
 function undoPlay() {
   if (!game || game.kind !== 'tea' || game.plan || !game.history.length) return;
@@ -951,12 +1274,6 @@ void KEYS;
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     tell('export', { how: 'download' });
   });
-  $('#shareBtn').addEventListener('click', async () => {
-    const url = `${location.origin}${location.pathname}?level=${encodeShare(level)}`;
-    try { await navigator.clipboard.writeText(url); flash($('#exportStatus'), 'link copied'); }
-    catch { prompt('the link', url); }
-    tell('export', { how: 'link' });
-  });
   $('#importBtn').addEventListener('click', async () => {
     try {
       const lvl = await fromModule($('#importText').value);
@@ -965,6 +1282,95 @@ void KEYS;
       flash($('#importStatus'), `imported ${lvl.name}`);
     } catch (e) { $('#importStatus').textContent = e.message; }
   });
+  // the fourth way: the whole pull request, handed to an assistant - the one in
+  // the dialog's links or the clipboard, and whoever is on the bridge, who reads
+  // the same brief from the inbox (maker_read_chat) or asks for it (op pr)
+  $('#prBtn').addEventListener('click', async () => {
+    if (lint(level).length) return;
+    const author = $('#author').value.trim() || undefined;
+    const last = report?.ok ? report : null;
+    const brief = prPrompt(repo, level, { author, report: last, difficulty: last ? difficulty(last, analysis?.pushes ?? 0) : null });
+    invite.show('pr', brief, { short: prShort(repo) });
+    tell('export', { how: 'pr' });
+    const who = bridge?.agents ?? [];
+    if (who.length) { chat(`asked ${who.join(', ')} to open the pull request`, 'act'); await bridge.post(brief); }
+  });
+}
+
+// ----------------------------------------------------------------- the share ----
+// The room as one link (src/level.js shareUrl): nothing is uploaded, the whole
+// room travels in the address, so the same link opens it in the studio of any
+// checkout, as a playable card on the stages page (index.html?level=) and as
+// the hero of the published landing. The dialog (#shareDialog) lets the person
+// pick what goes in (the lesson, the blurb, the dressing), how the link reads
+// (compact base64url, or the JSON itself) and where it opens, shows the
+// room's JSON and follows an edit of it until the parts change, and says how
+// long the link is and when that is a problem. shareLink is the one answer:
+// the dialog, window.__maker.share and the bridge's op all go through it.
+
+const shareDialog = $('#shareDialog');
+const shareUrlEl = $('#shareUrl'), shareJsonEl = $('#shareJson'), shareStatus = $('#shareStatus'), shareOpen = $('#shareOpen');
+let shareEdited = false, shareLast = null;      // the JSON box was edited by hand: the link follows it until the parts change
+const shareBase = (where) => new URL(where === 'stages' ? 'index.html' : 'maker.html', location.href).href;
+/** The link for `room` (the one on the board unless given) under { format, play, where, parts }: { url, token, chars, format, where, warnings }. */
+function shareLink({ format = 'b64', where = 'studio', play = false, parts = {} } = {}, room = level) {
+  if (where !== 'studio' && where !== 'stages') throw new Error(`no such place '${where}' (studio or stages)`);
+  const url = shareUrl(shareBase(where), room, { format, play: !!play, parts: parts ?? {} });
+  const info = shareInfo(url);
+  return { url, token: new URL(url).searchParams.get('level'), chars: info.chars, format: info.format, where, warnings: info.warnings };
+}
+{
+  const opts = () => ({
+    format: shareDialog.querySelector('input[name="shareFormat"]:checked')?.value ?? 'b64',
+    where: shareDialog.querySelector('input[name="shareWhere"]:checked')?.value ?? 'studio',
+    play: $('#sharePlay').checked,
+    parts: Object.fromEntries([...shareDialog.querySelectorAll('[data-part]')].map(i => [i.dataset.part, i.checked])),
+  });
+  function refresh() {
+    const o = opts();
+    try {
+      let room;
+      if (shareEdited) room = decodeShare(shareJsonEl.value);
+      else {
+        room = normalize(level);
+        for (const p of SHARE_PARTS) if (!o.parts[p]) delete room[p];
+        shareJsonEl.value = JSON.stringify(room, null, 2);
+      }
+      shareLast = shareLink({ ...o, parts: {} }, room);        // the parts are already out of `room`; an edit decides for itself
+      shareUrlEl.value = shareLast.url;
+      shareOpen.href = shareLast.url;
+      const bits = [`${shareLast.chars} characters`, o.format === 'json' ? 'readable JSON' : 'compact',
+                    o.where === 'stages' ? 'opens on the stages page' : o.play ? 'opens in Run & debug' : 'opens in the studio'];
+      if (room.hazards?.length) bits.push(`${room.hazards.length} in the cast`);
+      if (room.blurb) bits.push('the blurb');
+      if (room.lesson?.length) bits.push(`a lesson of ${room.lesson.length}`);
+      const problems = lint(room);
+      const warn = [...(problems.length ? [`the room is malformed: ${problems[0]}`] : []), ...shareLast.warnings];
+      shareStatus.textContent = [...bits, ...warn].join(' · ');
+      shareStatus.className = `status${warn.length ? ' hot' : ''}`;
+    } catch (e) {
+      shareLast = null; shareUrlEl.value = ''; shareOpen.removeAttribute('href');
+      shareStatus.textContent = `the room: ${e.message}`; shareStatus.className = 'status hot';
+    }
+  }
+  const told = () => tell('export', { how: 'link', format: shareLast?.format ?? 'b64', chars: shareLast?.chars ?? 0, where: shareLast?.where ?? 'studio' });
+  $('#shareBtn').addEventListener('click', () => { shareEdited = false; refresh(); shareDialog.showModal(); shareUrlEl.focus(); told(); });
+  for (const i of shareDialog.querySelectorAll('[data-part], input[name="shareFormat"], input[name="shareWhere"], #sharePlay'))
+    i.addEventListener('change', () => { if (i.dataset.part) shareEdited = false; refresh(); });
+  shareJsonEl.addEventListener('input', () => { shareEdited = true; refresh(); });
+  $('#shareCopy').addEventListener('click', async () => {
+    if (!shareLast) return;
+    const btn = $('#shareCopy');
+    try { await navigator.clipboard.writeText(shareLast.url); btn.textContent = 'Copied ✓'; }
+    catch { shareUrlEl.focus(); shareUrlEl.select(); btn.textContent = 'Select all, then copy'; }
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+    told();
+  });
+  shareOpen.addEventListener('click', () => { if (shareLast) told(); });
+  shareUrlEl.addEventListener('focus', () => shareUrlEl.select());
+  $('#shareClose').addEventListener('click', () => shareDialog.close());
+  shareDialog.addEventListener('click', (e) => { if (e.target === shareDialog) shareDialog.close(); });
+  shareDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys (brushes, tools) stay out of the dialog
 }
 
 // ------------------------------------------------------------- the assistant ----
@@ -1004,18 +1410,19 @@ const gameSummary = () => {
            buttonsHeld: state.rocks.filter(r => map.buttons.has(r)).length, buttons: map.buttons.size, dead: game.dead, waiting: game.waiting,
            won: kind === 'tea' ? teaGoal(map, state) : chaseGoal(map, state), phase: state.phase ?? 0, planned: !!game.plan };
 };
-const snapshotState = () => ({ level, kind: kindOf(level), lint: lint(level), report: report?.pending ? null : report, game: gameSummary(), tool, brush, symmetry });
+const snapshotState = () => ({ level, kind: kindOf(level), category: isGlitch(level) ? 'glitch' : 'room', lint: lint(level), report: report?.pending ? null : report, game: gameSummary(), tool, brush, symmetry });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const ops = {
-  get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutor.step?.id ?? 'done' }),
+  get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutorialSummary() }),
   set: ({ level: next }) => {
-    if (!next || !Array.isArray(next.rows)) throw new Error('set wants { level: { name, rows, ... } }');
+    if (!next || (!Array.isArray(next.rows) && !isGlitch(next))) throw new Error('set wants { level: { name, rows, ... } } for a room, or { level: { name, range, ... } } for a glitch level');
     hazardPick = -1; setLevel(normalize(next), { why: 'assistant' });
-    chat(`set the room to "${level.name}" (${dims().w}×${dims().h})`, 'act');
+    chat(isGlitch(level) ? `set the level to "${level.name}" (${RANGE_NAMES[level.range] ?? level.range})` : `set the room to "${level.name}" (${dims().w}×${dims().h})`, 'act');
     return { lint: lint(level), kind: kindOf(level) };
   },
   paint: ({ cells }) => {
+    if (isGlitch(level)) throw new Error('paint is for rooms: this is a glitch level, set its fields with set');
     if (!Array.isArray(cells)) throw new Error('paint wants { cells: [[x, y, ch], ...] }');
     let next = level;
     for (const [x, y, ch] of cells) { if (!(ch in CHARS)) throw new Error(`no brush '${ch}'`); next = setCell(next, +x, +y, ch); }
@@ -1027,10 +1434,10 @@ const ops = {
     const problems = lint(level);
     if (problems.length) return { ok: false, problems };
     const r = await runCheck();
-    chat(r.ok ? `checked: par ${r.par} ${unitOf(r)}, ${difficulty(r, analysis?.pushes ?? 0)?.label}` : `checked: ${r.problems.join('; ')}`, 'act');
+    chat(r.ok ? (isGlitch(level) ? `checked: ${difficulty(r)?.label}${r.par ? `, the attacker needs ${r.par} takes` : ''}` : `checked: par ${r.par} ${unitOf(r)}, ${difficulty(r, analysis?.pushes ?? 0)?.label}`) : `checked: ${r.problems.join('; ')}`, 'act');
     return r.ok ? { ...r, pushes: analysis?.pushes ?? 0, difficulty: difficulty(r, analysis?.pushes ?? 0) } : r;
   },
-  play: () => { if (lint(level).length) throw new Error('the room is malformed: ' + lint(level).join('; ')); startPlay(); chat('started Run & debug', 'act'); return gameSummary(); },
+  play: () => { if (isGlitch(level)) throw new Error('a glitch level plays on glitch.html (the studio\'s "Try it on the range", or ?level= with its share token), not in Run & debug'); if (lint(level).length) throw new Error('the room is malformed: ' + lint(level).join('; ')); startPlay(); chat('started Run & debug', 'act'); return gameSummary(); },
   stop: () => { stopPlay(); chat('left Run & debug', 'act'); return { playing }; },
   reset: () => { if (!game) throw new Error('nothing is running'); resetPlay(); return gameSummary(); },
   press: async ({ button, holdMs = 60 }) => {
@@ -1039,6 +1446,7 @@ const ops = {
     return gameSummary();
   },
   moves: async ({ moves, stepMs }) => {
+    if (isGlitch(level)) throw new Error('moves are for rooms: a glitch level plays on glitch.html, not in Run & debug');
     if (!game || !playing) startPlay();
     const toButton = { N: 'UP', S: 'DOWN', W: 'LEFT', E: 'RIGHT', wait: 'Y' };
     const lines = [];
@@ -1056,14 +1464,22 @@ const ops = {
   },
   say: ({ text, from }) => { chat(String(text ?? ''), from || bridge?.agents.at(-1) || 'the assistant'); return { ok: true }; },
   snapshot: ({ what = 'board' } = {}) => {
-    const c = what === 'run' ? run : board;
+    const c = what === 'run' ? run : isGlitch(level) ? rangeMap : board;
     if (what === 'run' && !game) throw new Error('nothing is running: play first, or take the board');
-    return { png: c.toDataURL('image/png'), note: what === 'run' ? `${level.name}, ${runStatus.textContent}` : `${level.name}, ${dims().w}×${dims().h}; shaded cells lose a rock, the green line is the last solution` };
+    if (what !== 'run' && isGlitch(level) && !level.rows && !RANGE_MAPS[level.range]) throw new Error(`${RANGE_NAMES[level.range] ?? level.range} has no map to picture; get has the level`);
+    return { png: c.toDataURL('image/png'), note: what === 'run' ? `${level.name}, ${runStatus.textContent}` : isGlitch(level) ? `${level.name}, the ${level.range} range's map` : `${level.name}, ${dims().w}×${dims().h}; shaded cells lose a rock, the green line is the last solution` };
   },
   module: ({ author } = {}) => ({ id: idOf(level), file: `stages/community/${idOf(level)}.js`, source: toModule(level, { author: author || $('#author').value.trim() || undefined }),
                                 indexLine: { id: idOf(level), name: level.name, author: author || $('#author').value.trim() || '', kind: kindOf(level) } }),
+  pr: ({ author } = {}) => {
+    const a = author || $('#author').value.trim() || undefined;
+    const last = report?.ok ? report : null;
+    chat('took the pull request brief', 'act');
+    return { ...prParts(level, { author: a }), brief: prPrompt(repo, level, { author: a, report: last, difficulty: last ? difficulty(last, analysis?.pushes ?? 0) : null }) };
+  },
   load: async ({ id }) => { await loadById(id); chat(`loaded ${level.name}`, 'act'); return { level, lint: lint(level) }; },
   generate: async (a = {}) => {
+    if (isGlitch(level)) throw new Error('generate draws rooms: this is a glitch level - set a room first (a level with rows), then generate');
     const opts = { width: a.width ?? 11, height: a.height ?? 8, rocks: a.rocks ?? 2, walls: a.walls ?? 0.12, gate: !!a.gate, timed: !!a.timed, cast: a.cast ?? 2, seed: a.seed };
     const found = await surprise(opts, { minPar: a.minPar ?? 12 });
     chat(found ? `drew "${found.level.name}" from seed ${found.seed}, par ${found.report.par}` : 'drew nothing solvable', 'act');
@@ -1075,6 +1491,19 @@ const ops = {
     if (a.symmetry) { if (!SYMS.includes(a.symmetry)) throw new Error(`no symmetry '${a.symmetry}'`); setSymmetry(a.symmetry); }
     if (a.overlay) { if (!(a.overlay in overlays)) throw new Error(`no overlay '${a.overlay}'`); setOverlay(a.overlay, a.on ?? !overlays[a.overlay]); }
     return { tool, brush, symmetry, overlays };
+  },
+  share: (a = {}) => {
+    const r = shareLink(a);
+    chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'stages' ? 'on the stages page' : 'in the studio'}`, 'act');
+    return r;
+  },
+  tutorial: ({ id, skip, restart } = {}) => {
+    if (id !== undefined) { pickTutorial(id); chat(`opened the guided build "${tutorialById(picked).title}"`, 'act'); }
+    if (restart) { coach.restart(); chat(`started "${tutorialById(picked).title}" over`, 'act'); }
+    const skips = skip === true ? 1 : Math.max(0, Math.min(tutor.steps.length, +skip || 0));
+    for (let i = 0; i < skips; i++) coach.skip();
+    if (skips) chat(`skipped ${skips} step${skips === 1 ? '' : 's'} of the guided build`, 'act');
+    return tutorialSummary();
   },
 };
 
@@ -1094,22 +1523,47 @@ bridge = connectBridge(ops, {
 });
 
 // ---------------------------------------------------------------- the coach ----
-// The tutorial, mounted once the studio exists: a step that comes up scrolls
-// to its panel when asked to show it.
+// The tutorials, mounted once the studio exists: a card per guided build in
+// the Learn panel picks one, the coach line and the checklist follow the one
+// in use, and a step that comes up scrolls to its panel when asked to show it.
 
 const PANELS = { edit: '#editPanel', play: '#playPanel', export: '#exportPanel', assistant: '#assistantPanel' };
+const coachOpts = (t) => ({ title: t.title, chapters: t.chapters, finish: t.finish });
+/** The cards: every build with where the player is in it; redrawn whenever the coach redraws. */
+function renderPicks() {
+  const box = $('#learnPick');
+  box.textContent = '';
+  for (const t of MAKER_TUTORIALS) {
+    const tu = tutors.get(t.id);
+    const n = tu.steps.length, at = Math.min(tu.at, n);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `learn-pick${t.id === picked ? ' on' : ''}${tu.done ? ' done' : ''}`;
+    b.setAttribute('data-id', t.id);
+    b.setAttribute('aria-pressed', String(t.id === picked));
+    b.append(Object.assign(document.createElement('b'), { textContent: t.title }),
+             Object.assign(document.createElement('small'), { textContent: t.blurb }),
+             Object.assign(document.createElement('i'), { textContent: tu.done ? `done · ${n} steps` : at ? `${at} / ${n}` : `${n} steps` }));
+    b.addEventListener('click', () => pickTutorial(t.id));
+    box.append(b);
+  }
+}
+/** Put a guided build under the coach. Remembered unless told not to; an unknown id is refused with the list. */
+function pickTutorial(id, { remember = true } = {}) {
+  const t = tutorialById(id);
+  if (!t) throw new Error(`no tutorial '${id}'; they are ${MAKER_TUTORIALS.map(t => t.id).join(', ')}`);
+  picked = t.id; tutor = tutors.get(t.id);
+  if (remember) save(TUTORIAL, t.id);
+  coach.use(tutor, coachOpts(t));
+  return tutorialSummary();
+}
 coach = mountCoach(tutor, {
-  chapters: { 1: 'Chapter one · the brushes', 2: 'Chapter two · the proof', 3: 'Chapter three · ship it' },
-  finish: {
-    title: 'The roses are painted',
-    say: 'You know the studio. Make a room nobody has seen.',
-    note: (skipped) => 'You have been through the whole studio' + (skipped ? ` (${skipped} step${skipped === 1 ? '' : 's'} skipped)` : '') +
-      '. Start over any time; the shelf keeps your rooms, the export sends one in.',
-  },
+  ...coachOpts(tutorialById(picked)),
   prepare(step, { show = false } = {}) {
     if (!show || !step?.panel) return;
     $(PANELS[step.panel])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
+  onRender: renderPicks,
 });
 tell('lint', { ok: !lint(level).length, why: 'open' });
 
@@ -1130,10 +1584,15 @@ window.__maker = {
   dev: true, repo, prompt: aiPrompt(repo),
   get level() { return level; }, setLevel, lint: () => lint(level), check: runCheck, get report() { return report; }, get analysis() { return analysis; },
   play: startPlay, stop: stopPlay, get game() { return game; }, get playing() { return playing; }, solution: playSolution,
-  module: () => toModule(level), share: () => encodeShare(level),
+  module: () => toModule(level), share: (opts) => shareLink(opts).url, shareLink,
   get tool() { return tool; }, setTool, get brush() { return brush; }, setBrush, get symmetry() { return symmetry; }, setSymmetry, overlays, setOverlay,
   undo: undoEdit, redo: redoEdit, get past() { return past.length; }, get future() { return future.length; },
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
+  tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
+  ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
 };
+
+// ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once
+if (sharedOk && new URLSearchParams(location.search).get('play') === '1') startPlay();
 
 }
