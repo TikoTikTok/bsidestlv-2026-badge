@@ -42,6 +42,7 @@ import { CHARS, BRUSHES, kindOf, blank, setCell, resize, lint, check, toModule, 
 import { MAKER_TUTORIAL, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
+import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
 
 const $ = (sel) => document.querySelector(sel);
 const mode = gateMode();
@@ -65,33 +66,51 @@ const repo = repoUrlFor();
 $('#repoClone').textContent = repo;
 $('#docsLink').href = `${repo}/blob/main/software/docs/LEVEL_MAKER.md`;
 
-/** The prompt a visitor hands to an assistant. It goes to the repository, which is readable; this site is not meant to be. */
-export const aiPrompt = (repoUrl) => `Help me build a level for "Alice in AI Land", the BSidesTLV 2026 badge puzzle game - with me, in its level studio, not on your own.
+// ------------------------------------------------------------ the invitation ----
+// Two prompts, from src/invite.js: the invitation (come and build a room with
+// me) under the hero and in the assistant panel, and the brief for one room
+// (open the pull request for THIS room) from the export panel. One dialog
+// shows either, data-kind saying which. The links carry the text in ?q=, or,
+// when a brief is too long for a link, a short note that says the brief is on
+// the clipboard - then Copy is what the person presses first, and the status
+// says so.
 
-1. Clone ${repoUrl} and read software/docs/LEVEL_MAKER.md: the stage format, the rules the checker applies, how a room gets onto the site, and the bridge you drive the studio through.
-2. Run \`npm run maker\` in the clone (Node 20+, no dependencies). It serves the checkout on http://localhost:8080, opens maker.html - the studio - in my browser, and mounts the bridge at http://localhost:8080/__maker/ (loopback only). Open the page yourself if it is not open.
-3. Connect to the studio. If you have MCP, the clone's .mcp.json registers the server \`alice-maker\` (node software/tools/maker-mcp.mjs): maker_status, maker_get, maker_set_level, maker_paint, maker_check, maker_play, maker_moves, maker_snapshot, maker_say, maker_read_chat, maker_generate, maker_module and more. Without MCP, the same over HTTP: POST http://localhost:8080/__maker/rpc with {"op": "get" | "set" | "paint" | "check" | "play" | "moves" | "say" | "snapshot" | "generate" | "module" | "load" | "tool", "args": {...}}; GET /__maker/inbox?since=0&wait=20000 is what I type in the page's chat. Say hello first (POST /__maker/hello {"name": "..."}) so the page shows you are here.
-4. Design the room with me. Ask in the page's chat what I want: how big, how many rocks, a gate and lever or not, timed with a cast walking loops or not, which dressing (garden, hall, court). Then work on the board where I can watch: set or paint the room, Check it (the real solver: par, whether the gate is load-bearing, how hard), play the solution so I see it, take a snapshot to see what I see, and iterate on what I say. Tell me what you are doing in the chat as you go.
-5. When we are happy, export the module (maker_module, or op "module"), save it as stages/community/<id>.js, add one line to stages/community/index.json, and run \`npm run stage -- stages/community/<id>.js\` to see what CI will say.
-6. Commit on a branch and open a pull request against ${repoUrl} with the stage and the index line. Describe the room in a sentence; the checks prove it solves.`;
-
-{
+const invite = (() => {
   const dialog = $('#aiDialog');
-  const text = aiPrompt(repo);
-  $('#aiPrompt').value = text;
-  $('#aiClaude').href = `https://claude.ai/new?q=${encodeURIComponent(text)}`;
-  $('#aiChatGPT').href = `https://chatgpt.com/?q=${encodeURIComponent(text)}`;
-  const say = (s) => { $('#aiStatus').textContent = s; setTimeout(() => { $('#aiStatus').textContent = ''; }, 1500); };
-  const open = () => { tilt.request?.(); dialog.showModal(); };
+  const title = $('#aiTitle'), note = $('#aiNote'), box = $('#aiPrompt'), status = $('#aiStatus');
+  const prose = {
+    invite: [title.textContent, note.textContent],
+    pr: ['Ship this room: hand your assistant the pull request',
+         'Copy this brief into Claude, ChatGPT or an assistant on the bridge. It carries the room\'s module, its index line, the branch, the commands to run and the pull request\'s body; an assistant that can run commands on your machine does the rest, and you review the pull request.'],
+  };
+  const LINK_MAX = 6000;           // a ?q= longer than this is cut or refused by the front doors
+  let text = '', hint = '';
+  const say = (s) => { status.textContent = s; setTimeout(() => { status.textContent = hint; }, 1500); };
+  function show(kind, prompt, { short } = {}) {
+    text = prompt;
+    dialog.dataset.kind = kind;
+    [title.textContent, note.textContent] = prose[kind];
+    box.value = text;
+    const long = !!short && encodeURIComponent(text).length > LINK_MAX;
+    const carried = encodeURIComponent(long ? short : text);
+    $('#aiClaude').href = `https://claude.ai/new?q=${carried}`;
+    $('#aiChatGPT').href = `https://chatgpt.com/?q=${carried}`;
+    hint = long ? 'too long for a link: press Copy first; the links carry a note saying you will paste the brief' : '';
+    status.textContent = hint;
+    tilt.request?.();
+    dialog.showModal();
+  }
+  const open = () => show('invite', aiPrompt(repo));
   $('#aiBtn').addEventListener('click', open);
   $('#aiBtn2')?.addEventListener('click', open);
   $('#aiClose').addEventListener('click', () => dialog.close());
   $('#aiCopy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(text); say('copied'); }
-    catch { $('#aiPrompt').select(); say('select and copy'); }
+    catch { box.select(); say('select and copy'); }
   });
   dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
-}
+  return { show };
+})();
 
 // ------------------------------------------------------------------ the hero ----
 // A small room paints itself a row at a time, Alice walks the solution the
@@ -428,6 +447,8 @@ function render() {
   if (!problems.length) ul.append(Object.assign(document.createElement('li'), { className: 'ok', textContent: '✓ the room is well formed - Check asks the solver' }));
   $('#checkBtn').disabled = !!problems.length;
   $('#playBtn').disabled = !!problems.length;
+  $('#prBtn').disabled = !!problems.length;
+  $('#prBtn').title = problems.length ? `not yet: ${problems[0]}` : 'hand your assistant the module, the index line, the branch and the steps: everything the pull request for this room needs';
   const id = idOf(level);
   $('#fileName').textContent = `${id}.js`; $('#fileName2').textContent = id;
   $('#moduleOut').textContent = toModule(level, { author: $('#author').value.trim() || undefined });
@@ -988,6 +1009,19 @@ void KEYS;
       flash($('#importStatus'), `imported ${lvl.name}`);
     } catch (e) { $('#importStatus').textContent = e.message; }
   });
+  // the fourth way: the whole pull request, handed to an assistant - the one in
+  // the dialog's links or the clipboard, and whoever is on the bridge, who reads
+  // the same brief from the inbox (maker_read_chat) or asks for it (op pr)
+  $('#prBtn').addEventListener('click', async () => {
+    if (lint(level).length) return;
+    const author = $('#author').value.trim() || undefined;
+    const last = report?.ok ? report : null;
+    const brief = prPrompt(repo, level, { author, report: last, difficulty: last ? difficulty(last, analysis?.pushes ?? 0) : null });
+    invite.show('pr', brief, { short: prShort(repo) });
+    tell('export', { how: 'pr' });
+    const who = bridge?.agents ?? [];
+    if (who.length) { chat(`asked ${who.join(', ')} to open the pull request`, 'act'); await bridge.post(brief); }
+  });
 }
 
 // ----------------------------------------------------------------- the share ----
@@ -1161,6 +1195,12 @@ const ops = {
   },
   module: ({ author } = {}) => ({ id: idOf(level), file: `stages/community/${idOf(level)}.js`, source: toModule(level, { author: author || $('#author').value.trim() || undefined }),
                                 indexLine: { id: idOf(level), name: level.name, author: author || $('#author').value.trim() || '', kind: kindOf(level) } }),
+  pr: ({ author } = {}) => {
+    const a = author || $('#author').value.trim() || undefined;
+    const last = report?.ok ? report : null;
+    chat('took the pull request brief', 'act');
+    return { ...prParts(level, { author: a }), brief: prPrompt(repo, level, { author: a, report: last, difficulty: last ? difficulty(last, analysis?.pushes ?? 0) : null }) };
+  },
   load: async ({ id }) => { await loadById(id); chat(`loaded ${level.name}`, 'act'); return { level, lint: lint(level) }; },
   generate: async (a = {}) => {
     const opts = { width: a.width ?? 11, height: a.height ?? 8, rocks: a.rocks ?? 2, walls: a.walls ?? 0.12, gate: !!a.gate, timed: !!a.timed, cast: a.cast ?? 2, seed: a.seed };

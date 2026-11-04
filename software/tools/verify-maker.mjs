@@ -26,6 +26,7 @@ import { MAKER_TUTORIAL, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from
 import { startMaker, OPS } from './maker-server.mjs';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
+import { aiPrompt, prPrompt, prParts, prShort, repoParts, indexLineText } from '../../src/invite.js';
 
 const root = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 let failed = 0;
@@ -260,6 +261,47 @@ console.log('the tutorial "Painting the Roses" ticks on the studio\'s events');
   tutor.restart(); ok(tutor.at === 0 && at === 0, 'tutorial: start over');
 }
 
+// -------------------------------------------------------------- the invitation ----
+console.log('the invitation and the pull-request brief tell an assistant everything it needs');
+{
+  const repo = 'https://github.com/someone/their-badge';
+  const inv = aiPrompt(repo);
+  ok(inv.includes(repo) && /npm run maker/.test(inv) && /__maker\/rpc/.test(inv) && /maker-mcp\.mjs|\.mcp\.json/.test(inv), 'the invitation names the repository, npm run maker, the bridge and the MCP server');
+  ok(/"pr"/.test(inv) && /maker_pr_brief/.test(inv) && /op "pr", or maker_pr_brief/.test(inv), 'and says the page can hand over the pull-request brief: op pr, or maker_pr_brief');
+  ok(repoParts(repo).owner === 'someone' && repoParts(repo).repo === 'their-badge' && repoParts('https://github.com/a/b.git').repo === 'b' && repoParts('not a url') === null, 'repoParts reads owner and repository from the URL');
+  // a sample room: the tea party, with an author and a Check shaped as check() answers (the solve itself is verify-stage's)
+  const level = normalize(TEA_PARTY);
+  const author = 'the verifier';
+  const report = { ok: true, kind: 'tea', par: 106, explored: 31000, ms: 300, notes: ['the gate is load-bearing'] };
+  const d = { label: 'a labyrinth' };
+  const id = idOf(level);
+  const parts = prParts(level, { author });
+  ok(parts.id === id && parts.file === `stages/community/${id}.js` && parts.branch === `community/${id}` && parts.source === toModule(level, { author }) &&
+     JSON.stringify(parts.indexLine) === JSON.stringify({ id, name: level.name, author, kind: 'tea' }), 'prParts: id, file, source, index line and branch');
+  ok(JSON.parse(indexLineText(parts.indexLine)).kind === 'tea' && readFileSync(resolve(root, 'stages/community/index.json'), 'utf8').includes('{ "id": "tick-tock", "name": "Tick Tock", "author": "the maker", "kind": "chase" }') &&
+     indexLineText({ id: 'tick-tock', name: 'Tick Tock', author: 'the maker', kind: 'chase' }) === '{ "id": "tick-tock", "name": "Tick Tock", "author": "the maker", "kind": "chase" }', 'the index line is written as index.json writes one');
+  const brief = prPrompt(repo, level, { author, report, difficulty: d });
+  ok(brief.includes(`stages/community/${id}.js`) && brief.includes(indexLineText(parts.indexLine)) && /"kind": "tea"/.test(brief), 'the brief names the file and the index line with the right kind');
+  ok(brief.includes(`git checkout -b community/${id} origin/main`) && brief.includes(`git push -u origin community/${id}`), 'the branch community/<id>, from main');
+  ok(brief.includes('gh pr create --repo someone/their-badge --base main') && brief.includes(`https://github.com/someone/their-badge/compare/main...<your GitHub login>:community/${id}?expand=1`) && brief.includes('gh repo fork someone/their-badge'),
+     'the repository\'s owner and name: gh pr create, the compare URL, the fork');
+  ok(brief.includes(`npm run stage -- stages/community/${id}.js`) && /`npm run verify`/.test(brief), 'both run commands');
+  ok(brief.includes('```js\n' + toModule(level, { author }) + '```'), 'the module source, verbatim, fenced');
+  ok(brief.includes(`Community room: ${level.name}`) && (brief.match(new RegExp(`Community room: ${level.name}`, 'g')) ?? []).length >= 3, 'one commit and the title, "Community room: <name>"');
+  ok(brief.includes('par 106 moves, a labyrinth') && brief.includes('the gate is load-bearing') && /the checks prove it solves/.test(brief), 'the par, the difficulty word and the notes when a Check is given, and that the checks prove it');
+  const bare = prPrompt(repo, level, {});
+  ok(!/par \d/.test(bare) && !bare.includes('a labyrinth') && !bare.includes('load-bearing') && /the checks prove it solves/.test(bare), 'and no par or difficulty without one');
+  ok(/No author is set/.test(bare) && !/No author is set/.test(brief) && /"author": ""/.test(bare), 'no author: the brief says to ask for one');
+  ok(/one room per pull request/.test(brief) && /one commit/.test(brief) && /nothing under src\//.test(brief) && /sorted by id/.test(brief), 'the handling rules: one room, one commit, nothing under src/, the index sorted');
+  const timed = normalize({ ...QUEENS_GAUNTLET, lesson: [{ on: 'start', say: 'the clock' }, { on: 'wait', say: 'wait' }] });
+  const tb = prPrompt(repo, timed, { author, report: { ok: true, kind: 'chase', par: 64, explored: 9000, ms: 50, notes: [] }, difficulty: { label: 'a riddle' } });
+  ok(/"kind": "chase"/.test(tb) && /a timed room \(320 ms a tick\)/.test(tb) && /par 64 ticks, a riddle/.test(tb) && /lesson of 2 steps/.test(tb) && /Its lesson has 2 steps/.test(tb), 'a timed room: kind chase, ticks, the lesson\'s step count');
+  ok(!/lesson/.test(brief.split('The module,')[0]), 'and no lesson line without one');
+  const short = prShort(repo);
+  ok(short.includes(repo) && /clipboard/.test(short) && /paste/.test(short) && encodeURIComponent(short).length < 1000 && encodeURIComponent(brief).length < 6000 && encodeURIComponent(inv).length < 6000,
+     'the short form for a link says the brief is on the clipboard; the tea party\'s brief and the invitation fit a link themselves');
+}
+
 // ------------------------------------------------------------------ the bridge ----
 console.log('the bridge carries commands to a page and its answers back');
 {
@@ -293,6 +335,7 @@ console.log('the bridge carries commands to a page and its answers back');
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
         else if (cmd.op === 'check') await api('POST', '/reply', { id: cmd.id, error: 'the room is malformed' });
         else if (cmd.op === 'share') { const url = shareUrl(`http://localhost/${cmd.args.where === 'stages' ? 'index' : 'maker'}.html`, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: cmd.args.where ?? 'studio' } }); }
+        else if (cmd.op === 'pr') await api('POST', '/reply', { id: cmd.id, result: { ...prParts(TEA_PARTY, { author: cmd.args?.author }), brief: prPrompt('https://github.com/someone/their-badge', TEA_PARTY, { author: cmd.args?.author }) } });
         // 'play' is never answered: the timeout path
       }
     }
@@ -356,6 +399,11 @@ console.log('the bridge carries commands to a page and its answers back');
   c = await call('tools/call', { name: 'maker_share', arguments: { format: 'json', where: 'stages' } });
   const link = c.result.isError ? null : JSON.parse(c.result.content[0].text);
   ok(link && link.url.startsWith('http://localhost/index.html?level=') && link.format === 'json' && link.chars === link.url.length && same(decodeShare(link.url), TEA_PARTY) && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'mcp: maker_share asks the page for a link, and the link carries the room');
+  ok(tools.some(t => t.name === 'maker_pr_brief' && /pull request/.test(t.description) && t.inputSchema.properties.author), 'mcp: maker_pr_brief is offered, with the author');
+  c = await call('tools/call', { name: 'maker_pr_brief', arguments: { author: 'the verifier over MCP' } });
+  const pr = c.result.isError ? null : JSON.parse(c.result.content[0].text);
+  ok(pr && pr.branch === `community/${idOf(TEA_PARTY)}` && pr.file === `stages/community/${idOf(TEA_PARTY)}.js` && pr.indexLine.author === 'the verifier over MCP' && pr.brief.includes(pr.source) && seen.at(-1).op === 'pr',
+     'mcp: maker_pr_brief is the op pr: the branch, the file, the index line and the brief with the module in it');
   const unknown = await call('no/such');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
@@ -382,7 +430,18 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const mod = readFileSync(resolve(root, 'src/maker.js'), 'utf8');
   for (const op of OPS) ok(new RegExp(`^  ${op}: `, 'm').test(mod), `src/maker.js implements the bridge op '${op}'`);
   ok(/from '\.\/bridge\.js'/.test(mod) && /from '\.\/coach\.js'/.test(mod) && /MAKER_TUTORIAL/.test(mod), 'src/maker.js reaches the bridge, the coach and the tutorial');
-  ok(/__maker\//.test(mod) && /maker-mcp\.mjs|\.mcp\.json/.test(mod), 'the prompt tells the assistant about the bridge and the MCP server');
+  const inviteJs = readFileSync(resolve(root, 'src/invite.js'), 'utf8');
+  ok(/__maker\//.test(inviteJs) && /maker-mcp\.mjs|\.mcp\.json/.test(inviteJs), 'the prompt tells the assistant about the bridge and the MCP server');
+  ok(/from '\.\/invite\.js'/.test(mod) && !/export const aiPrompt/.test(mod) && /prompt: aiPrompt\(repo\)/.test(mod), 'the prompts live in src/invite.js, where Node can read them; window.__maker.prompt is still the invitation');
+  // the fourth way to send a room in: the pull request, handed to an assistant
+  ok(/<button type="button" id="shareBtn"[^>]*>[^<]*<\/button>\s*<button type="button" id="prBtn" class="btn ghost">Open a pull request with your AI<\/button>/.test(html), '#prBtn sits in the export\'s stage-bar after #shareBtn');
+  ok(/<dialog id="aiDialog" class="ai" data-kind="invite">\s*<h2 id="aiTitle">/.test(html) && /<p class="note" id="aiNote">/.test(html), 'the dialog has a kind, and a title and a note the PR mode rewrites');
+  ok(/dialog\.dataset\.kind = kind/.test(mod) && /invite\.show\('pr', brief, \{ short: prShort\(repo\) \}\)/.test(mod) && /show\('invite', aiPrompt\(repo\)\)/.test(mod), 'the button opens the dialog in PR mode with the brief and a short form; #aiBtn / #aiBtn2 reopen the invitation');
+  ok(/LINK_MAX = 6000/.test(mod) && /press Copy first/.test(mod), 'a brief too long for a link sends the short form and says to Copy first');
+  ok(/tell\('export', \{ how: 'pr' \}\)/.test(mod), 'the button reports export how pr to the tutorial');
+  ok(/bridge\.post\(brief\)/.test(mod) && /asked \$\{who\.join\(', '\)\} to open the pull request/.test(mod), 'and posts the brief to whoever is on the bridge, with one act line in the chat');
+  ok(/\$\('#prBtn'\)\.disabled = !!problems\.length/.test(mod) && /\$\('#prBtn'\)\.title = problems\.length \?/.test(mod), 'the button is disabled, with a title saying why, while lint has problems');
+  ok(/Open a pull request with your AI<\/b> in the studio/.test(html.slice(html.indexOf('<ol class="steps three">'), html.indexOf('</ol>'))), 'the landing\'s step 3 says the button hands the assistant the room and the steps');
   const mcpJson = JSON.parse(readFileSync(resolve(root, '.mcp.json'), 'utf8'));
   ok(mcpJson.mcpServers?.['alice-maker']?.args?.includes('software/tools/maker-mcp.mjs'), '.mcp.json registers the MCP server for a clone opened in Claude Code');
   ok(!/\.mcp\.json|maker-mcp/.test(readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml does not publish the MCP server or .mcp.json');
