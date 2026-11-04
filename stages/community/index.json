@@ -4,6 +4,7 @@
     { "id": "the-first-lesson", "name": "The First Lesson", "author": "the maker", "kind": "tea" },
     { "id": "the-garden-gate", "name": "The Garden Gate", "author": "TikoTikTok", "kind": "tea" },
     { "id": "the-queens-court", "name": "The Queen's Court", "author": "Gili Yankovitch", "kind": "chase" },
+    { "id": "the-rose-walk", "name": "The Rose Walk", "author": "Gili Yankovitch", "kind": "tea" },
     { "id": "tick-tock", "name": "Tick Tock", "author": "the maker", "kind": "chase" },
     { "id": "which-side", "name": "Which side?", "author": "the maker", "kind": "lock" }
   ]
