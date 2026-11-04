@@ -268,17 +268,34 @@ export const lessonSteps = (level) => (level.lesson ?? []).map((s, i) => ({
 }));
 
 // --------------------------------------------------- the level studio's ----
-// "Painting the Roses": a first room in the studio (maker.html on a checkout).
-// Chapter one draws, chapter two proves and plays, chapter three ships and
-// hands the room to an assistant. Every step names the panel it happens in
-// (`panel`), which the page scrolls to when the step comes up on request.
+// The guided builds of the studio (maker.html on a checkout). MAKER_TUTORIALS
+// is the catalogue the Learn panel offers as cards, one entry per build: its
+// id, title and blurb, the chapter titles, what the coach says once it is
+// finished, and the steps. "Painting the Roses" is the tour of the studio;
+// each of the others leads to one particular finished room - a room the gate
+// holds shut, a timed room with a watcher on a loop, a room with a name, a
+// blurb and a lesson. Every step names the panel it happens in (`panel`),
+// which the page scrolls to when the step comes up on request, and its
+// `done` predicate is made with made(what, test), which carries the event it
+// waits on as `.what` so the verifier can prove src/maker.js emits it.
 // Events from src/maker.js:
 //   maker  { what: 'brush' | 'paint' | 'tool' | 'symmetry' | 'overlay' | 'transform' | 'lint' | 'check' |
-//                  'generate' | 'shelf' | 'lesson' | 'play' | 'move' | 'win' | 'solution' | 'export' | 'chat' | 'hello', ... }
+//                  'generate' | 'shelf' | 'lesson' | 'play' | 'move' | 'win' | 'solution' | 'export' | 'chat' | 'hello' |
+//                  'load' | 'tick' | 'hazard' | 'caught' | 'restart' | 'name' | 'blurb', ... }
+//     paint { ch, cells, tool }      check { ok, par, rules, gate: 'load-bearing' | 'decoration' | null }
+//     load { id, from }              tick { ms, timed }        hazard { did: 'add' | 'route' | 'edit', n, route, sight, character }
+//     move { dir: N S W E | 'wait' } caught { ticks }          restart { rules }     name { name }     blurb { chars }
+//     export { how: 'copy' | 'download' | 'link' | 'pr' | 'png' }
 
-const made = (what, test = () => true) => (ev) => ev.kind === 'maker' && ev.what === what && test(ev);
+const made = (what, test = () => true) => Object.assign(
+  (ev) => ev.kind === 'maker' && (Array.isArray(what) ? what.includes(ev.what) : ev.what === what) && test(ev), { what });
+const skippedNote = (n) => (n ? ` (${n} step${n === 1 ? '' : 's'} skipped)` : '');
+/** An export that sends the room somewhere (not the picture): the last step of every build. */
+const SENT = (ev) => ['copy', 'download', 'link', 'pr'].includes(ev.how);
 
-export const MAKER_TUTORIAL = [
+// "Painting the Roses": the tour. Chapter one draws, chapter two proves and
+// plays, chapter three ships and hands the room to an assistant.
+const ROSES = [
   // ---- chapter 1: the brushes ----
   {
     id: 'brush', chapter: 1, title: 'Pick up a brush', panel: 'edit',
@@ -345,7 +362,7 @@ export const MAKER_TUTORIAL = [
     id: 'move', chapter: 2, title: 'Take a step', panel: 'play',
     say: 'Move Alice: WASD, the arrows, or click the d-pad.',
     why: 'Here the keyboard stands in for the badge. On the published site only the badge plays.',
-    done: made('move'),
+    done: made('move', (ev) => ev.dir !== 'wait'),
   },
   {
     id: 'solution', chapter: 2, title: 'Watch the answer', panel: 'play',
@@ -376,9 +393,275 @@ export const MAKER_TUTORIAL = [
     id: 'assistant', chapter: 3, title: 'Bring an assistant', panel: 'assistant',
     say: 'Type to the assistant, or connect one: the prompt under the hero tells it how.',
     why: 'With `npm run maker` serving the page, an assistant on this machine can see the room, paint it, prove it, play it and talk to you here. Skip this if you would rather build alone.',
-    done: (ev) => ev.kind === 'maker' && (ev.what === 'chat' || ev.what === 'hello'),
+    done: made(['chat', 'hello']),
   },
 ];
+
+// "A Room with a Gate": from a blank room to one the gate holds shut - a wall
+// across, a gate in it, the lever on Alice's side, the rock's button and the
+// door behind - proven load-bearing by Check, played to the door, sent in.
+const GATE = [
+  {
+    id: 'blank', chapter: 1, title: 'A blank room', panel: 'edit',
+    say: 'Open Start from… under the map and pick A blank room.',
+    why: 'A starter is a room to begin from: a blank is walls all round, Alice in one corner and the door in the other. Each of the six is one idea; the community\'s rooms are listed after them.',
+    done: made('load', (ev) => ev.id === 'blank' || ev.id === 'wide'),
+  },
+  {
+    id: 'alice', chapter: 1, title: 'Alice', panel: 'edit',
+    say: 'Paint Alice (brush 3) on the left side of the room, a cell or two in from the wall.',
+    why: 'Alice is single: painting her moves her. Keep her and the lever on one side of the wall you are about to draw, the door and the button on the other.',
+    done: made('paint', (ev) => ev.ch === 'A'),
+  },
+  {
+    id: 'wall', chapter: 1, title: 'A wall across', panel: 'edit',
+    say: 'Pick the line tool (I) and drag a wall from the top edge to the bottom, a few cells right of Alice.',
+    why: 'The line tool paints a straight run in one stroke, one undo step. A wall that reaches both edges splits the room in two; the only way through will be the gate.',
+    done: made('paint', (ev) => ev.ch === '#' && ev.cells >= 3),
+  },
+  {
+    id: 'gate', chapter: 1, title: 'A gate in it', panel: 'edit',
+    say: 'Paint a gate (brush 7) over one cell of the wall.',
+    why: 'A gate is a wall until the lever is thrown, then floor; the next step on the lever shuts it again. Every gate in a room answers the one lever.',
+    done: made('paint', (ev) => ev.ch === 'G'),
+  },
+  {
+    id: 'lever', chapter: 1, title: 'The lever on her side', panel: 'edit',
+    say: 'Paint the lever (brush 6) on Alice\'s side of the wall.',
+    why: 'Alice steps on the lever and the gate opens; steps on it again and it shuts. On her side she can reach it; behind the wall she never could.',
+    done: made('paint', (ev) => ev.ch === 'L'),
+  },
+  {
+    id: 'rock', chapter: 1, title: 'A rock', panel: 'edit',
+    say: 'Paint a rock (brush 4) on Alice\'s side, in the gate\'s row, with floor behind it for her to push from.',
+    why: 'A rock moves one cell per push, away from Alice, so she needs the cell behind it. The rock has to go through the gate to reach its button: that is what makes the gate matter. The hatched cells are corners where a rock is lost.',
+    done: made('paint', (ev) => ev.ch === 'O'),
+  },
+  {
+    id: 'button', chapter: 1, title: 'And its button behind', panel: 'edit',
+    say: 'Paint a button (brush 5) behind the wall, in the gate\'s row.',
+    why: 'The door opens when every button holds a rock. One rock and one button is a room; the lint counts them for you.',
+    done: made('paint', (ev) => ev.ch === 'b'),
+  },
+  {
+    id: 'door', chapter: 1, title: 'The door behind', panel: 'edit',
+    say: 'Paint the door (brush 8) behind the wall too.',
+    why: 'The door is single like Alice; painting it moves it. Behind the wall, the gate is the only way to it, which Check is about to confirm.',
+    done: made('paint', (ev) => ev.ch === 'D'),
+  },
+  {
+    id: 'formed', chapter: 1, title: 'Well formed', panel: 'edit',
+    say: 'Make the lint go green: walls all round, one Alice, one door, a rock for the button, the lever for the gate.',
+    why: 'Lint is the shape of the room: a gate without a lever or a button without a rock is refused before the solver ever runs.',
+    done: made('lint', (ev) => ev.ok === true),
+  },
+  {
+    id: 'check', chapter: 2, title: 'Prove the gate', panel: 'edit',
+    say: 'Press Check and read the verdict: the gate must be load-bearing.',
+    why: 'Check solves the room twice: as it is, and with the gate welded shut. If it still solves welded, the gate is decoration - there is a way round - and this step waits until the wall is closed.',
+    done: made('check', (ev) => ev.ok === true && ev.gate === 'load-bearing'),
+  },
+  {
+    id: 'play', chapter: 2, title: 'Play it', panel: 'play',
+    say: 'Press Run & debug.',
+    why: 'The room is played with the rules the site uses. The gate is drawn shut until Alice stands on the lever.',
+    done: made('play'),
+  },
+  {
+    id: 'win', chapter: 2, title: 'Through the gate to the door', panel: 'play',
+    say: 'Throw the lever, push the rock through the gate onto its button, and walk to the door.',
+    why: 'What the solver found in a second you have to find by hand: that is the test of the room, and of its par. B takes a move back; START starts again.',
+    done: made('win'),
+  },
+  {
+    id: 'export', chapter: 3, title: 'Send it in', panel: 'export',
+    say: 'Copy the module, download it, copy a link, or hand it to your AI to open the pull request.',
+    why: 'The module is the file a pull request carries, stages/community/<id>.js, plus one line in the index. CI runs the same Check before the room ships.',
+    done: made('export', SENT),
+  },
+];
+
+// "The Clock and the Cast": an untimed room turned into a chase - the clock,
+// a watcher on a loop - then proved, played with a wait, lost to the cast,
+// restarted and won, and sent in.
+const CLOCK = [
+  {
+    id: 'corridor', chapter: 1, title: 'A room to time', panel: 'edit',
+    say: 'Open Start from… and pick The corridor.',
+    why: 'A timed room is an untimed one with a clock and a cast: the same walls, rocks and buttons. The corridor is one rock and a straight run, so a watcher has somewhere to walk.',
+    done: made('load', (ev) => ev.id === 'corridor'),
+  },
+  {
+    id: 'tick', chapter: 1, title: 'The clock', panel: 'edit',
+    say: 'Switch Clock to timed, under the map, and set the tick. 320 ms is the shipped pace.',
+    why: 'Every tick the player acts - a step or a wait - and then the cast moves one cell. The tick is how long a tick lasts: 100 ms is frantic, 2000 a crawl.',
+    done: made('tick', (ev) => ev.timed === true),
+  },
+  {
+    id: 'hazard', chapter: 1, title: 'Add a hazard', panel: 'edit',
+    say: 'Press Add a hazard. The Red Queen comes first.',
+    why: 'A hazard is one of the cast - the Queen, the Cheshire Cat, the White Rabbit, the Hatter - with a route and, for a watcher, a sight: how many cells of open floor ahead she sees. Sharing her cell, swapping places with her or standing in her sight ends the run.',
+    done: made('hazard', (ev) => ev.did === 'add'),
+  },
+  {
+    id: 'route', chapter: 1, title: 'Lay her route', panel: 'edit',
+    say: 'With "laying the route…" lit, click two floor cells in one row, in the order she walks them.',
+    why: 'A route is a loop through its points and back: two points is a patrol there and back. Consecutive points share a row or a column and lie on floor. Click the last point again to take it back.',
+    done: made('hazard', (ev) => ev.route.length >= 2),
+  },
+  {
+    id: 'check', chapter: 2, title: 'Prove it', panel: 'edit',
+    say: 'Press Check.',
+    why: 'The timed solver searches Alice, the rocks and the clock together, so the par is in ticks, and the notes say how many of them are waits and what the cast costs over an empty room.',
+    done: made('check', (ev) => ev.ok === true && ev.rules === 'chase'),
+  },
+  {
+    id: 'play', chapter: 2, title: 'Play it', panel: 'play',
+    say: 'Press Run & debug. The clock holds until your first press.',
+    why: 'Every run starts on the beat the solver assumes: the first press is taken at once and starts the clock.',
+    done: made('play', (ev) => ev.rules === 'chase'),
+  },
+  {
+    id: 'wait', chapter: 2, title: 'Stand still', panel: 'play',
+    say: 'Wait a tick: Y on the badge, or Space.',
+    why: 'A wait is a move in a timed room: the cast walks on while Alice stands. The par counts it, and most timed rooms need a few.',
+    done: made('move', (ev) => ev.dir === 'wait'),
+  },
+  {
+    id: 'caught', chapter: 2, title: 'Get caught', panel: 'play',
+    say: 'Walk into the Queen\'s path and let her catch you.',
+    why: 'Caught ends the run, not the room: the log says on which tick, and the cast\'s sight overlay under the board shows what she sees. Knowing where a room catches people is knowing where its difficulty is.',
+    done: made('caught'),
+  },
+  {
+    id: 'restart', chapter: 2, title: 'Once more', panel: 'play',
+    say: 'Press START.',
+    why: 'START puts everyone back on their marks and holds the clock again until the first press.',
+    done: made('restart'),
+  },
+  {
+    id: 'win', chapter: 2, title: 'Out', panel: 'play',
+    say: 'Push the rock onto its button and reach the door while she looks away.',
+    why: 'The timed rules forbid nothing the untimed ones allow; they add the clock. If the room needed a wait, you now know where.',
+    done: made('win'),
+  },
+  {
+    id: 'export', chapter: 3, title: 'Send it in', panel: 'export',
+    say: 'Copy the module, download it, copy a link, or hand it to your AI to open the pull request.',
+    why: 'The module carries the clock and the cast with the map. A timed room with a par over about 120 ticks is unplayable by hand; the verdict says what yours is.',
+    done: made('export', SENT),
+  },
+];
+
+// "A Room that Teaches": a room with a name, a blurb and a lesson the stages
+// page follows, proved and played, kept on the shelf and sent in.
+const TEACH = [
+  {
+    id: 'room', chapter: 1, title: 'A room to teach with', panel: 'edit',
+    say: 'Open Start from… and pick The gate - or any room that checks.',
+    why: 'A lesson is written against one room: what it asks for has to happen on the solver\'s own way out, or CI refuses it. The gate has a shove, a lever and a button to talk about.',
+    done: made('load'),
+  },
+  {
+    id: 'name', chapter: 1, title: 'Name it', panel: 'edit',
+    say: 'Type a name of your own in the Name box.',
+    why: 'The name is the room\'s title on the stages page and, lower-case with hyphens, the id of its file and its index line. Two rooms cannot share one.',
+    done: made('name', (ev) => ev.name.trim().length >= 3 && !/untitled/i.test(ev.name)),
+  },
+  {
+    id: 'blurb', chapter: 1, title: 'A line about it', panel: 'edit',
+    say: 'Write a blurb: one line, what the room is about.',
+    why: 'The blurb is what the card on the stages page shows beside the room, up to 160 characters. Say what the idea is, not how to solve it.',
+    done: made('blurb', (ev) => ev.chars >= 10),
+  },
+  {
+    id: 'lesson', chapter: 1, title: 'Three steps of a lesson', panel: 'edit',
+    say: 'Write a lesson of at least three steps in the box under the map, one a line: `move: …`, `push: …`, `win: …`.',
+    why: 'Each step is an event the room reports and the line to show for it: move, push, lever, button, blocked, undo, reset in any room; start, wait, tick, caught, restart in a timed one; win for the door. The stages page ticks them off as the player does them; the lint refuses an event it does not know.',
+    done: made('lesson', (ev) => ev.steps >= 3 && ev.malformed === 0),
+  },
+  {
+    id: 'check', chapter: 2, title: 'Prove it', panel: 'edit',
+    say: 'Press Check.',
+    why: 'The solver\'s answer is what proves the lesson: replayed as the room\'s events, it has to complete every step in order. A lesson that asks for a lever the par never throws fails in CI, so keep the steps to what the room must do.',
+    done: made('check', (ev) => ev.ok === true),
+  },
+  {
+    id: 'play', chapter: 2, title: 'Play it', panel: 'play',
+    say: 'Press Run & debug.',
+    why: 'Play the room the way the lesson tells it, and see whether the words come in the order the room does things.',
+    done: made('play'),
+  },
+  {
+    id: 'win', chapter: 2, title: 'To the door', panel: 'play',
+    say: 'Play through to the door.',
+    why: 'If you had to do something the lesson does not mention, add it; if the lesson mentions something you never did, cut it.',
+    done: made('win'),
+  },
+  {
+    id: 'shelf', chapter: 3, title: 'Keep it', panel: 'edit',
+    say: 'Put the room on your shelf (Ctrl+S).',
+    why: 'The shelf keeps the room, words and all, with its last verdict, in this browser. The room in the editor is kept between visits on its own too.',
+    done: made('shelf', (ev) => ev.did === 'save'),
+  },
+  {
+    id: 'export', chapter: 3, title: 'Send it in', panel: 'export',
+    say: 'Copy the module, download it, copy a link, or hand it to your AI to open the pull request.',
+    why: 'The module carries the name, the blurb and the lesson with the map; the index line names the author. One room per pull request.',
+    done: made('export', SENT),
+  },
+];
+
+/** The catalogue: what the Learn panel offers as cards, in this order. */
+export const MAKER_TUTORIALS = [
+  {
+    id: 'roses', title: 'Painting the Roses',
+    blurb: 'The tour of the studio: the brushes, the proof, the shelf, the export, an assistant.',
+    chapters: { 1: 'Chapter one · the brushes', 2: 'Chapter two · the proof', 3: 'Chapter three · ship it' },
+    finish: {
+      title: 'The roses are painted',
+      say: 'You know the studio. Make a room nobody has seen.',
+      note: (skipped) => `You have been through the whole studio${skippedNote(skipped)}. Start over any time; the shelf keeps your rooms, the export sends one in.`,
+    },
+    steps: ROSES,
+  },
+  {
+    id: 'gate', title: 'A Room with a Gate',
+    blurb: 'From a blank room to one the gate holds shut: a wall, a gate, its lever, a rock through it, the door behind.',
+    chapters: { 1: 'Chapter one · the room', 2: 'Chapter two · the proof', 3: 'Chapter three · ship it' },
+    finish: {
+      title: 'The gate holds',
+      say: 'A wall, a gate and a lever the room cannot do without. Now make it harder.',
+      note: (skipped) => `You built a room around a gate that earns its keep${skippedNote(skipped)}. Start from a blank again and try two rocks behind the wall, or a second gate.`,
+    },
+    steps: GATE,
+  },
+  {
+    id: 'clock', title: 'The Clock and the Cast',
+    blurb: 'A timed room: the clock, a watcher on a loop, a wait, a catch, a restart and the way out.',
+    chapters: { 1: 'Chapter one · the clock', 2: 'Chapter two · the chase', 3: 'Chapter three · ship it' },
+    finish: {
+      title: 'The cast is on its marks',
+      say: 'A room with a clock. Tighten the tick, or give the Queen a longer walk.',
+      note: (skipped) => `You turned a room into a chase${skippedNote(skipped)}. The par of a timed room counts ticks, waits included; keep it under about 120 so it can be played by hand.`,
+    },
+    steps: CLOCK,
+  },
+  {
+    id: 'teach', title: 'A Room that Teaches',
+    blurb: 'A name, a blurb and a lesson the stages page follows; kept on the shelf and sent in.',
+    chapters: { 1: 'Chapter one · the words', 2: 'Chapter two · the proof', 3: 'Chapter three · ship it' },
+    finish: {
+      title: 'The room has a voice',
+      say: 'A room that explains itself. The stages page will show every word.',
+      note: (skipped) => `Your room has a name, a blurb and a lesson${skippedNote(skipped)}. The two demo rooms under Start from… are lessons too; open one to see what one reads like.`,
+    },
+    steps: TEACH,
+  },
+];
+
+/** "Painting the Roses", the first of the catalogue, as it has always been exported. */
+export const MAKER_TUTORIAL = ROSES;
 
 /**
  * The engine. `at` is the index of the current step; past the end it is
