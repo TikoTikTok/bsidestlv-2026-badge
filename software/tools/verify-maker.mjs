@@ -18,7 +18,8 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { blank, setCell, resize, lint, check, kindOf, toModule, fromModule, encodeShare, decodeShare, idOf, normalize,
+import { blank, setCell, resize, lint, check, kindOf, toModule, fromModule, encodeShare, decodeShare, shareUrl, shareInfo,
+         SHARE_PARTS, SHARE_LONG, SHARE_TOO_LONG, idOf, normalize,
          lineCells, rectCells, regionCells, paintCells, mirrorCells, flipH, flipV, rotate, shift, analyse, difficulty,
          STARTERS, rng, generate, generateSolvable, lessonToText, lessonFromText } from '../../src/level.js';
 import { MAKER_TUTORIAL, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
@@ -86,6 +87,56 @@ for (const stage of [TEA_PARTY, QUEENS_GAUNTLET]) {
   ok(/^[A-Za-z0-9_-]+$/.test(encodeShare(stage)), `${stage.name}: the share token is URL-safe`);
 }
 ok(idOf({ name: "The Queen's Gauntlet" }) === 'the-queens-gauntlet', 'the id of a name drops the apostrophe');
+
+console.log('a room in a link: both spellings, a pasted link, the old token, what is refused, how long it is');
+{
+  const index = JSON.parse(readFileSync(resolve(root, 'stages/community/index.json'), 'utf8'));
+  const community = await Promise.all((index.stages ?? []).map(async (s) =>
+    Object.values(await import(pathToFileURL(resolve(root, 'stages/community', `${s.id}.js`)).href)).find(v => v && Array.isArray(v.rows))));
+  for (const stage of [TEA_PARTY, QUEENS_GAUNTLET, ...community]) {
+    for (const format of ['b64', 'json']) {
+      const back = decodeShare(encodeShare(stage, { format }));
+      ok(same(back, stage), `${stage.name}: encodeShare(${format}) -> decodeShare is the identity`);
+      ok((back.lesson?.length ?? 0) === (stage.lesson?.length ?? 0) && (back.blurb ?? '') === (stage.blurb ?? '') && (back.hazards?.length ?? 0) === (stage.hazards?.length ?? 0) && (back.theme ?? '') === (stage.theme ?? ''),
+         `${stage.name}: the lesson, the blurb, the cast and the dressing survive the ${format} link`);
+      const url = shareUrl('http://localhost:8080/maker.html?old=1#top', stage, { format });
+      ok(url.startsWith('http://localhost:8080/maker.html?level=') && !url.includes('old=') && !url.includes('#') && same(decodeShare(url), stage), `${stage.name}: a whole ${format} link decodes (the base's own query and hash dropped)`);
+      ok(same(decodeShare(url.slice(url.indexOf('?'))), stage) && same(decodeShare(url.slice(url.indexOf('level='))), stage), `${stage.name}: a pasted ?level=… and a bare level=… decode too`);
+    }
+  }
+  ok(encodeShare(TEA_PARTY) === encodeShare(TEA_PARTY, { format: 'b64' }) && encodeShare(TEA_PARTY, { format: 'json' }).startsWith('{'), 'the default is the compact token; the readable one is the JSON itself');
+  const old = Buffer.from(JSON.stringify(normalize(TEA_PARTY)), 'utf8').toString('base64url');
+  ok(same(decodeShare(old), TEA_PARTY), 'an old-style token (base64url of the JSON, no format) still decodes');
+  ok(same(decodeShare(`/bsidestlv-2026-badge/index.html?room=x&level=${old}&play=1`), TEA_PARTY), 'a site path with other parameters around level= decodes');
+  try { encodeShare(TEA_PARTY, { format: 'xml' }); fail('an unknown format should be refused'); } catch (e) { ok(/no such link format/.test(e.message), 'an unknown link format is refused'); }
+  for (const [bad, re, what] of [
+    ['', /empty/, 'an empty token'], ['   ', /empty/, 'blank'], ['not a token!', /not JSON and not/, 'garbage'],
+    ['e30', /rows/, '{} (no rows)'], ['{"name":"x","rows":"####"}', /rows/, 'rows that are not a list'], ['{"name":"x","rows":[1,2]}', /rows/, 'rows that are not strings'],
+    ['{"name":1,"rows":["####"]}', /name/, 'a name that is not a string'], ['[1,2]', /object/, 'a list'], ['"x"', /object/, 'a string'], ['{nope', /not valid JSON/, 'broken JSON'],
+    ['{"rows":["####"],"hazards":[{"id":"q"}]}', /route/, 'a hazard with no route'], ['{"rows":["####"],"hazards":"q"}', /route/, 'hazards that are not a list'],
+    ['{"rows":["####"],"lesson":"move"}', /lesson/, 'a lesson that is not a list'],
+    ['http://x/maker.html?room=1', /no level=/, 'a link without level='], ['?level=', /empty/, 'a link with an empty level='], ['http://x/?level=%7Bnope', /not valid JSON/, 'a link whose JSON is broken'],
+  ]) try { decodeShare(bad); fail(`${what} should be refused`); } catch (e) { ok(re.test(e.message), `${what} is refused: ${e.message}`); }
+  // shareUrl: the parts turned off are stripped, play=1 only when asked
+  const taught = { ...STARTERS.find(s => s.id === 'corridor').level(), theme: 'hall', blurb: 'one shove', lesson: [{ on: 'move', say: 'Walk.' }, { on: 'push', say: 'Shove.' }, { on: 'win', say: 'Out.' }] };
+  const bare = decodeShare(shareUrl('http://x/maker.html', taught, { play: true, parts: { lesson: false, blurb: false, theme: false } }));
+  ok(!('lesson' in bare) && !('blurb' in bare) && !('theme' in bare) && same(bare, { name: taught.name, rows: taught.rows }), 'shareUrl strips the parts turned off');
+  ok(/[?&]play=1$/.test(shareUrl('http://x/maker.html', taught, { play: true })) && !/play=/.test(shareUrl('http://x/maker.html', taught)), 'play=1 rides along only when asked');
+  const whole = decodeShare(shareUrl('http://x/index.html', taught, { parts: { lesson: true } }));
+  ok(whole.lesson.length === 3 && whole.blurb === 'one shove' && whole.theme === 'hall', 'every part travels unless turned off');
+  ok(SHARE_PARTS.join() === 'lesson,blurb,theme', 'the parts a link may leave out are the lesson, the blurb and the dressing');
+  ok(shareUrl('index.html', taught).startsWith('index.html?level=') && same(decodeShare(shareUrl('index.html', taught)), taught), 'a relative base works too (the pages are relative on the site)');
+  // shareInfo: the length, the spelling, the warnings
+  const short = shareUrl('http://x/maker.html', TEA_PARTY);
+  const info = shareInfo(short);
+  ok(info.chars === short.length && info.format === 'b64' && info.warnings.length === 0, `shareInfo: ${info.chars} characters, compact, nothing to warn about`);
+  ok(shareInfo(shareUrl('http://x/maker.html', TEA_PARTY, { format: 'json' })).format === 'json' && shareInfo(encodeShare(TEA_PARTY, { format: 'json' })).format === 'json' && shareInfo(encodeShare(TEA_PARTY)).format === 'b64', 'shareInfo tells the readable form from the compact one, in a link or bare');
+  const wordy = { ...TEA_PARTY, blurb: 'x'.repeat(160), lesson: Array.from({ length: 12 }, () => ({ on: 'move', say: 'y'.repeat(150) })) };
+  const long = shareUrl('http://x/maker.html', wordy);
+  ok(long.length > SHARE_LONG && long.length <= SHARE_TOO_LONG && shareInfo(long).warnings.length === 1 && /cut/.test(shareInfo(long).warnings[0]), `a link of ${long.length} characters warns that chats and QR codes cut it`);
+  ok(shareInfo('x'.repeat(SHARE_TOO_LONG + 1)).warnings.some(w => /not paste/.test(w)), `over ${SHARE_TOO_LONG} it may not paste at all`);
+  ok(SHARE_LONG === 2000 && SHARE_TOO_LONG === 8000, 'the thresholds are 2,000 and 8,000 characters');
+}
 
 console.log('a blurb and a lesson travel with a room');
 {
@@ -241,6 +292,7 @@ console.log('the bridge carries commands to a page and its answers back');
         if (cmd.op === 'get') await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, lint: [] } });
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
         else if (cmd.op === 'check') await api('POST', '/reply', { id: cmd.id, error: 'the room is malformed' });
+        else if (cmd.op === 'share') { const url = shareUrl(`http://localhost/${cmd.args.where === 'stages' ? 'index' : 'maker'}.html`, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: cmd.args.where ?? 'studio' } }); }
         // 'play' is never answered: the timeout path
       }
     }
@@ -292,6 +344,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(init.result?.serverInfo?.name === 'alice-maker' && init.result.capabilities.tools, 'mcp: initialize');
   const tools = (await call('tools/list')).result.tools;
   ok(tools.length >= 15 && tools.every(t => t.name.startsWith('maker_') && t.inputSchema?.type === 'object' && t.description), `mcp: ${tools.length} tools, all described`);
+  ok(tools.some(t => t.name === 'maker_share' && t.inputSchema.properties.format?.enum?.includes('json') && t.inputSchema.properties.where?.enum?.includes('stages') && t.inputSchema.properties.parts), 'mcp: maker_share is a tool, with the format, the place and the parts');
   let c = await call('tools/call', { name: 'maker_status', arguments: {} });
   ok(!c.result.isError && JSON.parse(c.result.content[0].text).page === true, 'mcp: maker_status sees the page');
   c = await call('tools/call', { name: 'maker_get', arguments: {} });
@@ -300,6 +353,9 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(c.result.isError && /malformed/.test(c.result.content[0].text), 'mcp: an error is an error result, not a crash');
   c = await call('tools/call', { name: 'maker_read_chat', arguments: { since: 0 } });
   ok(!c.result.isError && JSON.parse(c.result.content[0].text).messages[0].text === 'make it timed', 'mcp: maker_read_chat reads the inbox');
+  c = await call('tools/call', { name: 'maker_share', arguments: { format: 'json', where: 'stages' } });
+  const link = c.result.isError ? null : JSON.parse(c.result.content[0].text);
+  ok(link && link.url.startsWith('http://localhost/index.html?level=') && link.format === 'json' && link.chars === link.url.length && same(decodeShare(link.url), TEA_PARTY) && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'mcp: maker_share asks the page for a link, and the link carries the room');
   const unknown = await call('no/such');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
@@ -343,12 +399,33 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/const dev = mode === 'dev'/.test(js) && /if \(!dev\) \{/.test(js) && /new Pad\(\{ sources: sourcesFor\(true\) \}\)/.test(js), 'the pad with every source is built on a dev host only');
   ok(/stages\/community\/index\.json/.test(js), 'the maker lists the community rooms');
   ok(/lessonFromText/.test(js) && /tell\('lesson'/.test(js), 'the studio edits the lesson as text and tells the tutorial');
+  // a room in a link: the Share dialog (the studio's, at the end of the page), the landing's note, the studio's part
+  for (const id of ['shareBtn', 'shareDialog', 'shareUrl', 'shareCopy', 'shareOpen', 'sharePlay', 'shareStatus', 'shareJson', 'shareClose'])
+    ok(new RegExp(`id="${id}"`).test(html), `the Share dialog has #${id}`);
+  ok(/<dialog id="shareDialog" class="ai share dev-only"/.test(html) && html.indexOf('id="shareDialog"') > html.indexOf('id="keysDialog"'), 'the Share dialog is the studio\'s (dev-only) and comes after the keys dialog, at the end of the page');
+  for (const p of SHARE_PARTS) ok(new RegExp(`<input type="checkbox" data-part="${p}" checked>`).test(html), `the Share dialog offers the ${p}, on by default`);
+  ok(/name="shareFormat" value="b64" checked/.test(html) && /name="shareFormat" value="json"/.test(html), 'the Share dialog offers the compact and the readable link, compact by default');
+  ok(/name="shareWhere" value="studio" checked/.test(html) && /name="shareWhere" value="stages"/.test(html), 'the Share dialog offers the studio and the stages page');
+  ok(/<p id="sharedNote" class="note site-only[^"]*" hidden>/.test(html), '#sharedNote is the landing\'s (site-only), hidden until a link brings a room');
+  ok(/shareUrl\(/.test(js) && /shareInfo\(/.test(js) && /decodeShare\(sharedToken\)/.test(js) && /SHARE_PARTS/.test(js), 'src/maker.js makes and reads the link through src/level.js');
+  ok(/tell\('export', \{ how: 'link', format: /.test(js), 'the Share dialog tells the tutorial it made a link, with its format and length');
+  ok(/share: \(opts\) => shareLink\(opts\)\.url/.test(js) && /^  share: \(a = \{\}\) => \{/m.test(js), 'window.__maker.share returns the link and the bridge op share returns { url, token, chars, warnings }');
+  ok(/\(!dev && sharedOk\) \? sharedRoom : HERO/.test(js) && /check\(hero, \{ limit: 50_000 \}\)/.test(js), 'the landing paints a shared room in the hero and walks it only when the solver finds a way in time');
+  ok(/get\('play'\) === '1'\) startPlay\(\)/.test(js), 'play=1 starts Run & debug on a checkout');
+  ok(OPS.includes('share'), 'the bridge\'s op list has share');
   // the stages page plays the community's rooms
   const stages = readFileSync(resolve(root, 'index.html'), 'utf8');
   for (const id of ['roomsPanel', 'roomList', 'room', 'roomName', 'roomBlurb', 'roomLesson', 'roomStatus', 'roomUndo', 'roomReset', 'roomSolve'])
     ok(new RegExp(`id="${id}"`).test(stages), `index.html has #${id} (the community's rooms)`);
   const gallery = readFileSync(resolve(root, 'src/gallery.js'), 'utf8');
   ok(/from '\.\/room\.js'/.test(gallery) && /stages\/community\/index\.json/.test(gallery) && /base: 'stages\/community\/'/.test(gallery), 'src/gallery.js plays the listed rooms through src/room.js and src/seal.js');
+  // and a room that came in a link, as a card of its own
+  ok(/import \{ decodeShare, lint, kindOf \} from '\.\/level\.js'/.test(gallery) && /function openShared\(token\)/.test(gallery) && /openRoom, openShared \}/.test(gallery), 'src/gallery.js reads a ?level= link through src/level.js and exposes openShared');
+  ok(/id: 'shared', name: level\.name, author: 'a link', kind: kindOf\(level\), shared: true/.test(gallery) && /`Shared · \$\{r\.name\}`/.test(gallery) && /room-card\$\{r\.shared \? ' shared' : ''\}/.test(gallery), 'the shared room is a card "Shared · <name>", class room-card shared, in rooms as id shared');
+  ok(/q\.get\('level'\) !== null\) openShared\(q\.get\('level'\)\);\s*else if \(rooms\.some/.test(gallery), '?level= wins over ?room=');
+  ok(/the shared room could not be opened: \$\{e\.message\}`; \$\('#roomStatus'\)\.className = 'status hot'; return null;/.test(gallery), 'a link that is not a room is said so in #roomStatus (status hot) and nothing crashes');
+  ok(/\.room-card\.shared \{/.test(css) && css.indexOf('.room-card.shared {') > css.indexOf('.room-card {'), 'styles.css styles the shared card next to .room-card');
+  ok(/data-part="lesson"/.test(html) && !/shareDialog/.test(readFileSync(resolve(root, 'src/tutor.js'), 'utf8')), 'the dialog is the page\'s; the tutorial only hears the export event');
   const roomJs = readFileSync(resolve(root, 'src/room.js'), 'utf8');
   ok(/lessonSteps/.test(roomJs) && /kind: 'room'/.test(roomJs), 'src/room.js shows the lesson and reports as kind room');
   for (const what of LESSON_EVENTS) if (what !== 'open') ok(new RegExp(`tell\\('${what}'`).test(roomJs), `src/room.js reports '${what}', so a lesson can wait on it`);
