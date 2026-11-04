@@ -186,7 +186,12 @@ function matchOf(s, k) {
     const tk = s[j];
     if (tk.t === 'punct' && opens(tk.v)) d++;
     else if (tk.t === 'punct' && closes(tk.v)) { d--; if (d === 0) return j; }
-    else if (tplCloses(tk)) { d--; if (d === 0) return j; if (tplOpens(tk)) d++; }
+    // `}...${`: one interpolation ends and the next begins, the literal goes on:
+    // net zero mid-walk (counting its `}` first once ended the match of a
+    // `${a}${b}${c}` at the first piece, and the walk that then started on the
+    // second never balanced), a plain opener when the walk starts on it
+    else if (tplCloses(tk) && tplOpens(tk)) { if (j === k) d++; }
+    else if (tplCloses(tk)) { d--; if (d === 0) return j; }
     else if (tplOpens(tk)) d++;
   }
   throw new Error('unbalanced brackets');
@@ -320,6 +325,7 @@ function isShorthand(s, k) {
       if (isKw(b, 'class')) return false;
       return true;
     }
+    else if (tplCloses(tk) && tplOpens(tk)) { /* `}...${` is net zero, see matchOf */ }
     else if (tplCloses(tk)) d++;
     else if (tplOpens(tk)) { if (d > 0) d--; else return false; }
   }
@@ -492,6 +498,7 @@ function matchOfBack(s, k) {
     const tk = s[j];
     if (tk.t === 'punct' && closes(tk.v)) d++;
     else if (tk.t === 'punct' && opens(tk.v)) { d--; if (d === 0) return j; }
+    else if (tplCloses(tk) && tplOpens(tk)) { if (j === k) d++; }   // `}...${` is net zero, see matchOf
     else if (tplCloses(tk)) d++;
     else if (tplOpens(tk)) { d--; if (d === 0) return j; }
   }

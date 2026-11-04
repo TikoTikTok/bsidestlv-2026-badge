@@ -20,21 +20,25 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { MAKER_TUTORIALS } from '../../src/tutor.js';   // pure data, no DOM: the guided builds' ids for maker_tutorial
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const base = () => (process.env.MAKER_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 const NAME = process.env.MAKER_AGENT ?? 'an assistant';
 
 const LEVEL_SCHEMA = {
-  type: 'object', description: 'A stage: the same object a stages/*.js module exports.',
+  type: 'object', description: 'A stage: the same object a stages/*.js module exports. A room has rows; a glitch range level has range and that range\'s fields instead (src/rangecheck.js RANGE_FIELDS).',
   properties: {
     name: { type: 'string' },
     theme: { type: 'string', enum: ['garden', 'hall', 'court'] },
-    rows: { type: 'array', items: { type: 'string' }, description: "The ASCII map, one string per row: # wall, . floor, A Alice, O rock, b button, L lever, G gate, D door. Walled all round, 4x4 to 24x24." },
-    tickMs: { type: 'number', description: 'Timed rooms only: the clock, 100..2000 ms (320 is the shipped one).' },
+    rows: { type: 'array', items: { type: 'string' }, description: "A room's ASCII map, one string per row: # wall, . floor, A Alice, O rock, b button, L lever, G gate, D door. Walled all round, 4x4 to 24x24." },
+    tickMs: { type: 'number', description: 'Timed rooms only: the clock, 100..2000 ms (320 is the shipped one). A lock level: one comparison, in ms.' },
     hazards: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, character: { type: 'string', enum: ['queen', 'cheshire', 'rabbit', 'hatter'] }, route: { type: 'array', items: { type: 'array', items: { type: 'number' } } }, sight: { type: 'number' } }, required: ['id', 'route'] } },
+    range: { type: 'string', enum: ['watch', 'glass', 'lock', 'dog', 'wall'], description: 'A level for one of the glitch range\'s games on glitch.html instead of a room. Its fields: watch { pool, length, windowMs, hand }; glass { lineMs, pulseMaxLines, listing (lines: one "!" target, "*" crash lines, goto label, delay(n), ret; the good ending calls alice_jump, the honest one alice_bounce), hidden }; lock { pool, length, tickMs, jitterTicks, order prefix|secret, hand }; dog { button, kicks, openMs, timeoutMs, hand }; wall { pool, size, canary, address [2], gapMs, hidden, listing, hand }. Pools, buttons and addresses are badge buttons (UP DOWN LEFT RIGHT A B X Y); hand is the design intent the checker measures. short (a word for the tab) and blurb are optional.' },
+    blurb: { type: 'string' },
+    short: { type: 'string' },
   },
-  required: ['name', 'rows'],
+  required: ['name'],
 };
 
 const TOOLS = [
@@ -42,20 +46,23 @@ const TOOLS = [
   { name: 'maker_open', description: 'Start `npm run maker` (the server and the bridge) and open maker.html in the browser, if nothing is listening yet. Returns the status.', inputSchema: { type: 'object', properties: { port: { type: 'number' } } } },
   { name: 'maker_get', description: 'The room on the page right now: the level, what lint says, the last Check, the game if one is running, the tool and brush in hand.', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_set_level', description: 'Replace the room on the page with this level. Returns what lint says about it. The person sees it drawn at once.', inputSchema: { type: 'object', properties: { level: LEVEL_SCHEMA }, required: ['level'] } },
-  { name: 'maker_paint', description: 'Paint cells of the room on the page: a list of [x, y, ch] (x from the left, y from the top, ch one of # . A O b L G D). One undo step.', inputSchema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'array', items: {} } } }, required: ['cells'] } },
-  { name: 'maker_check', description: 'Run the real solver on the room (what CI runs): solvable or not, par in moves or ticks, states searched, whether the gate is load-bearing, the difficulty, the moves.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'maker_play', description: 'Start Run & debug on the page: the room is played with the rules the site uses. Returns the game state.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'maker_moves', description: "Play moves in the running game as the badge would press them: a list of N S W E (and 'wait' in a timed room). Returns the game state after them, and the log lines.", inputSchema: { type: 'object', properties: { moves: { type: 'array', items: { type: 'string' } }, stepMs: { type: 'number' } }, required: ['moves'] } },
+  { name: 'maker_paint', description: 'Paint cells of the room on the page: a list of [x, y, ch] (x from the left, y from the top, ch one of # . A O b L G D). One undo step. Rooms only: a glitch level is set whole with maker_set_level.', inputSchema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'array', items: {} } } }, required: ['cells'] } },
+  { name: 'maker_check', description: 'Run what CI runs on the level on the page. A room: the real solver - solvable or not, par in moves or ticks, states searched, whether the gate is load-bearing, the difficulty, the moves. A glitch level: the budgets, a replay, a hand simulated on it, the attacker on a lock or a wall - hand or badge-only, the notes, the problems.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'maker_play', description: 'Start Run & debug on the page: the room is played with the rules the site uses. Returns the game state. Rooms only: a glitch level plays on glitch.html (the studio\'s "Try it on the range").', inputSchema: { type: 'object', properties: {} } },
+  { name: 'maker_moves', description: "Play moves in the running game as the badge would press them: a list of N S W E (and 'wait' in a timed room). Returns the game state after them, and the log lines. Rooms only.", inputSchema: { type: 'object', properties: { moves: { type: 'array', items: { type: 'string' } }, stepMs: { type: 'number' } }, required: ['moves'] } },
   { name: 'maker_press', description: 'Press one badge button on the page (UP DOWN LEFT RIGHT A B X Y SL SR START SELECT), held for holdMs.', inputSchema: { type: 'object', properties: { button: { type: 'string' }, holdMs: { type: 'number' } }, required: ['button'] } },
   { name: 'maker_reset', description: 'Reset the running game (START).', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_stop', description: 'Leave Run & debug and go back to the editor.', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_say', description: 'Say something to the person in the page\'s chat panel. Keep it short; they see it at once.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
   { name: 'maker_read_chat', description: 'What the person typed in the page\'s chat after message number `since` (0 = everything). With waitMs, waits up to that long for a new line.', inputSchema: { type: 'object', properties: { since: { type: 'number' }, waitMs: { type: 'number' } } } },
   { name: 'maker_snapshot', description: 'A picture of the board (the editor) or the run (the game), as the person sees it.', inputSchema: { type: 'object', properties: { what: { type: 'string', enum: ['board', 'run'] } } } },
-  { name: 'maker_load', description: 'Load a shipped stage (tea-party, queens-gauntlet), a starter (blank, wide, corridor, gate, two-rooms, hall) or a community room by its id into the page.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
-  { name: 'maker_generate', description: 'Draw a random room from a seed and put it on the page, keeping only one the solver clears. Options: width, height, rocks, walls (0..0.3 density), gate, timed, cast, seed, minPar.', inputSchema: { type: 'object', properties: { seed: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' }, rocks: { type: 'number' }, walls: { type: 'number' }, gate: { type: 'boolean' }, timed: { type: 'boolean' }, cast: { type: 'number' }, minPar: { type: 'number' } } } },
+  { name: 'maker_load', description: 'Load into the page: a shipped stage (tea-party, queens-gauntlet), a starter (blank, wide, corridor, gate, two-rooms, hall), a community level by its id, or a shipped glitch range level as a copy to edit by <range>:<id> - watch: tea-time, late, very-late, no-hello; glass: sleepy, quick, blind; lock: who, temper, explain; dog: forty-winks, twinkle, treacle-well; wall: pleased, great-fall, kings-horses (the id alone works when one range has it).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+  { name: 'maker_generate', description: 'Draw a random room from a seed and put it on the page, keeping only one the solver clears. Options: width, height, rocks, walls (0..0.3 density), gate, timed, cast, seed, minPar. Rooms only: refused while a glitch level is on the page.', inputSchema: { type: 'object', properties: { seed: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' }, rocks: { type: 'number' }, walls: { type: 'number' }, gate: { type: 'boolean' }, timed: { type: 'boolean' }, cast: { type: 'number' }, minPar: { type: 'number' } } } },
   { name: 'maker_module', description: 'The stage module for the room as the page would export it: the file that goes to stages/community/<id>.js, with its id and the index.json line.', inputSchema: { type: 'object', properties: { author: { type: 'string' } } } },
+  { name: 'maker_pr_brief', description: 'Everything needed to open the pull request for the room on the page: the module, the index line, the branch and the steps, as a brief to follow in a checkout (also id, file, source, indexLine and branch as data). Read it, then do what it says and nothing else.', inputSchema: { type: 'object', properties: { author: { type: 'string' } } } },
   { name: 'maker_tool', description: 'Set the studio\'s tool (pencil, line, rect, fill, pick), brush (# . A O b L G D), symmetry (none, h, v, both) or an overlay (grid, coords, stuck, reach, path, sight: true/false).', inputSchema: { type: 'object', properties: { tool: { type: 'string' }, brush: { type: 'string' }, symmetry: { type: 'string' }, overlay: { type: 'string' }, on: { type: 'boolean' } } } },
+  { name: 'maker_share', description: 'A link that carries the room on the page (?level=): nothing is uploaded, the whole room is in the address. Pasted anywhere it opens the same room - in the studio of a checkout (where: "studio", the default; the published landing shows it in its hero), or as a playable card on the stages page (where: "stages"). format "b64" is compact base64url (the default), "json" the room\'s JSON, readable but longer; play: true adds play=1 so the studio opens it in Run & debug; parts: { lesson, blurb, theme } set to false to leave one out. Returns { url, token, chars, format, where, warnings } - a warning says when the link is long enough to be cut by a chat or a QR code.', inputSchema: { type: 'object', properties: { format: { type: 'string', enum: ['b64', 'json'] }, where: { type: 'string', enum: ['studio', 'stages'] }, play: { type: 'boolean' }, parts: { type: 'object', properties: { lesson: { type: 'boolean' }, blurb: { type: 'boolean' }, theme: { type: 'boolean' } } } } } },
+  { name: 'maker_tutorial', description: `The studio's guided builds (the Learn panel on the page): which one the person is on, its current step (or 'done'), at / of. With no arguments it only reads. id opens one - ${MAKER_TUTORIALS.map(t => `${t.id} ("${t.title}", ${t.steps.length} steps)`).join(', ')}; skip skips that many steps (1 for the current one); restart starts it over. The coach line on the page follows, so say what you are doing.`, inputSchema: { type: 'object', properties: { id: { type: 'string', enum: MAKER_TUTORIALS.map(t => t.id) }, skip: { type: 'number' }, restart: { type: 'boolean' } } } },
 ];
 
 async function api(method, path, body) {
@@ -106,7 +113,10 @@ async function call(name, a = {}) {
     case 'maker_load': return rpc('load', { id: a.id });
     case 'maker_generate': return rpc('generate', a, 120_000);
     case 'maker_module': return rpc('module', { author: a.author });
+    case 'maker_pr_brief': return rpc('pr', { author: a.author });
     case 'maker_tool': return rpc('tool', a);
+    case 'maker_share': return rpc('share', { format: a.format, where: a.where, play: a.play, parts: a.parts });
+    case 'maker_tutorial': return rpc('tutorial', { id: a.id, skip: a.skip, restart: a.restart });
     default: throw new Error(`no such tool: ${name}`);
   }
 }
