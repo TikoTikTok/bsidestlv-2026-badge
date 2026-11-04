@@ -297,8 +297,9 @@ console.log('the bridge carries commands to a page and its answers back');
         const cmd = JSON.parse(line.slice(6));
         seen.push(cmd);
         if (cmd.id === undefined) continue;
-        if (cmd.op === 'get') await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, lint: [] } });
+        if (cmd.op === 'get') await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, lint: [], tutorial: { id: 'roses', title: 'Painting the Roses', step: 'brush', at: 0, of: 16 } } });
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
+        else if (cmd.op === 'tutorial') await api('POST', '/reply', { id: cmd.id, result: { id: cmd.args?.id ?? 'roses', title: cmd.args?.id ?? 'Painting the Roses', step: 'blank', at: 0, of: 13 } });
         else if (cmd.op === 'check') await api('POST', '/reply', { id: cmd.id, error: 'the room is malformed' });
         // 'play' is never answered: the timeout path
       }
@@ -359,6 +360,10 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(c.result.isError && /malformed/.test(c.result.content[0].text), 'mcp: an error is an error result, not a crash');
   c = await call('tools/call', { name: 'maker_read_chat', arguments: { since: 0 } });
   ok(!c.result.isError && JSON.parse(c.result.content[0].text).messages[0].text === 'make it timed', 'mcp: maker_read_chat reads the inbox');
+  const tut = tools.find(t => t.name === 'maker_tutorial');
+  ok(tut && MAKER_TUTORIALS.every(t => tut.inputSchema.properties.id.enum.includes(t.id) && tut.description.includes(t.id)) && 'skip' in tut.inputSchema.properties && 'restart' in tut.inputSchema.properties, 'mcp: maker_tutorial names every guided build, skip and restart');
+  c = await call('tools/call', { name: 'maker_tutorial', arguments: { id: 'gate' } });
+  ok(!c.result.isError && JSON.parse(c.result.content[0].text).id === 'gate' && seen.at(-1).op === 'tutorial' && seen.at(-1).args.id === 'gate', 'mcp: maker_tutorial picks a guided build through the bridge');
   const unknown = await call('no/such');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
@@ -419,10 +424,14 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/<h2><span id="learnTitle">Painting the Roses<\/span> <span id="learnProgress"/.test(html), 'the Learn panel\'s heading is the chosen build\'s title, the first one before the page runs');
   ok(/MAKER_TUTORIALS/.test(mod) && /className = `learn-pick/.test(mod) && /setAttribute\('data-id', t\.id\)/.test(mod) && /' on'/.test(mod), 'src/maker.js draws a card per guided build (button.learn-pick[data-id], the chosen one .on)');
   ok(/'alice\.maker\.tutorial'/.test(mod) && /get\('tutorial'\)/.test(mod) && /'alice\.tutor\.maker'/.test(mod) && /`alice\.tutor\.maker\.\$\{id\}`/.test(mod), 'the choice is remembered (alice.maker.tutorial), ?tutorial= picks one, progress is per build and the first keeps its old key');
+  ok(/tutorial: tutorialSummary\(\)/.test(mod) && /step: tutor\.step\?\.id \?\? 'done', at: tutor\.at, of: tutor\.steps\.length/.test(mod), 'get reports the tutorial as { id, title, step, at, of }');
+  ok(OPS.includes('tutorial') && /\| "tutorial"/.test(mod), 'the bridge has the tutorial op and the prompt names it');
   const coachJs = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
   ok(/function use\(next/.test(coachJs) && /return \{ feed, render, skip, restart, use, get tutor\(\)/.test(coachJs) && /onRender\(\)/.test(coachJs), 'src/coach.js can put another tutorial under the same coach, and says when it redraws');
   ok(/mountCoach\(first, \{ looks, title = ''/.test(coachJs) && /\$\('#learnTitle'\)/.test(coachJs), 'src/coach.js keeps its API for the stages and the range, and fills #learnTitle where there is one');
   ok(/\.learn-picks \{/.test(makerCss) && /\.learn-pick\.on \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.learn-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
+  const mcpJs = readFileSync(resolve(root, 'software/tools/maker-mcp.mjs'), 'utf8');
+  ok(/name: 'maker_tutorial'/.test(mcpJs) && /case 'maker_tutorial': return rpc\('tutorial'/.test(mcpJs), 'the MCP server has maker_tutorial over the tutorial op');
 }
 
 // ------------------------------------------------------------- the community ----

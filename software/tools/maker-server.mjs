@@ -39,7 +39,7 @@ const TYPES = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2',
 };
 
-export const OPS = ['get', 'set', 'paint', 'check', 'play', 'stop', 'reset', 'press', 'moves', 'say', 'snapshot', 'module', 'load', 'generate', 'tool'];
+export const OPS = ['get', 'set', 'paint', 'check', 'play', 'stop', 'reset', 'press', 'moves', 'say', 'snapshot', 'module', 'load', 'generate', 'tool', 'tutorial'];
 
 const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
