@@ -37,13 +37,19 @@ import { tilt } from './tilt.js';
 import { TILE, THEMES, HAZARD_CAST, loadScene, drawCell, drawRoom } from './scene.js';
 import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } from './chase.js';
-import { CHARS, BRUSHES, kindOf, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
-         idOf, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
+import { CHARS, BRUSHES, kindOf, isGlitch, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
+         idOf, encodeShare, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
          flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
 import { MAKER_TUTORIALS, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
 import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
+import { RANGE_KINDS, RANGE_NAMES, RANGE_FILES, RANGE_MAPS, RANGE_GLYPHS, POOL_BUTTONS, BUDGET, rangeBlank, wallListing, takeFor } from './rangecheck.js';
+import { loadStage, stageOf } from './seal.js';
+import { comboSequence, buildLevel, idealOffsetMs } from './range.js';
+import { secretFor, orderFor } from './lock.js';
+import { windowOf } from './watchdog.js';
+import { frameOf, canaryFor } from './wall.js';
 
 const $ = (sel) => document.querySelector(sel);
 const mode = gateMode();
@@ -308,6 +314,7 @@ const cssVar = (name, or) => getComputedStyle(document.documentElement).getPrope
 let ghost = null;   // the cells a line or rectangle stroke would paint, while the pointer is down
 
 function drawEdit() {
+  if (!level.rows) return;    // a glitch level: the board is hidden, the range's map is drawn by renderRange
   const { w, h } = dims();
   board.width = w * cell; board.height = h * cell;
   const theme = THEMES[level.theme] ?? THEMES.garden;
@@ -436,6 +443,9 @@ function uniqueId(base, except) {
 }
 
 function render() {
+  $('#editPanel').dataset.category = isGlitch(level) ? 'glitch' : 'room';
+  if (isGlitch(level)) { renderRange(); return; }
+  $('#category').value = 'room';
   const kind = kindOf(level);
   $('#name').value = level.name;
   const { w, h } = dims();
@@ -474,6 +484,7 @@ function showReport() {
   verdict.hidden = true;
   if (!report) { el.textContent = ''; el.className = 'status'; return; }
   if (report.pending) { el.textContent = 'asking the solver…'; el.className = 'status busy'; return; }
+  if (isGlitch(level)) { showRangeReport(); return; }
   if (!report.ok) { el.textContent = report.problems.join(' · '); el.className = 'status hot'; return; }
   const unit = report.kind === 'chase' ? 'ticks' : 'moves';
   el.textContent = `solvable: par ${report.par} ${unit} (${report.explored} states, ${report.ms} ms)`;
@@ -642,7 +653,7 @@ addEventListener('keydown', (e) => {
   if (k === 'm') { setSymmetry(SYMS[(SYMS.indexOf(symmetry) + 1) % SYMS.length]); return; }
   if (k === 'g') { setOverlay('grid', !overlays.grid); }
 });
-$('#newBtn').addEventListener('click', () => { hazardPick = -1; setLevel(blank(9, 7), { why: 'new' }); });
+$('#newBtn').addEventListener('click', () => { hazardPick = -1; setLevel(freshLevel(), { why: 'new' }); });
 
 // ------------------------------------------------------------------ loading ----
 // The shipped stages and the community's, as starting points. ?level= in the
@@ -654,9 +665,13 @@ async function loadById(id) {
   const starter = STARTERS.find(s => s.id === id);
   if (starter) { hazardPick = -1; setLevel(starter.level(), { why: 'starter' }); tell('load', { id, from: 'starter' }); return level; }
   const path = SHIPPED.some(([s]) => s === id) ? `stages/${id}.js` : community.some(s => s.id === id) ? `stages/community/${id}.js` : null;
-  if (!path) throw new Error(`no stage, starter or community room called '${id}'`);
+  if (!path) {
+    const ranged = await rangeLevelById(id);
+    if (!ranged) throw new Error(`no stage, starter, community level or shipped range level (<range>:<id>) called '${id}'`);
+    hazardPick = -1; setLevel(ranged, { why: 'load' }); return level;
+  }
   const mod = await import(`../${path}`);
-  const stage = Object.values(mod).find(v => v && Array.isArray(v.rows));
+  const stage = stageOf(mod);
   hazardPick = -1;
   setLevel(stage, { why: 'load' });
   tell('load', { id, from: path.startsWith('stages/community/') ? 'community' : 'stage' });
@@ -672,7 +687,7 @@ async function loadById(id) {
       // a community room is a starter too: the demos carry a lesson to learn the format from
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'starter community';
-      b.append(Object.assign(document.createElement('b'), { textContent: s.name }), Object.assign(document.createElement('small'), { textContent: `the community's · ${s.kind === 'chase' ? 'timed' : 'untimed'} · by ${s.author}` }));
+      b.append(Object.assign(document.createElement('b'), { textContent: s.name }), Object.assign(document.createElement('small'), { textContent: `the community's · ${s.kind === 'chase' ? 'timed' : RANGE_KINDS.includes(s.kind) ? `a ${s.kind} level` : 'untimed'} · by ${s.author}` }));
       b.addEventListener('click', () => loadById(s.id).catch((e) => { report = { ok: false, problems: [`could not load ${s.id}: ${e.message}`] }; showReport(); }));
       $('#starters').append(b);
     }
@@ -692,6 +707,236 @@ async function loadById(id) {
     starters.append(b);
   }
 }
+
+// ------------------------------------------------------------ a glitch level ----
+// The second category: a level for one of the glitch range's five games
+// (glitch.html), held as data ({ name, range, ...the range's fields },
+// src/rangecheck.js) and judged by the same check() CI runs on the shipped
+// ranges. There is no player here - the players are src/glitch.js's - so
+// "Try it on the range" opens the level there as a tab. While this category
+// is on (data-category on the panel) the board, the palette and the tools
+// are hidden by class, never removed; the forms below take their place.
+
+const GLYPH = { UP: '▲', DOWN: '▼', LEFT: '◀', RIGHT: '▶', A: 'A', B: 'B', X: 'X', Y: 'Y' };
+const glyphs = (list) => (list ?? []).map(b => GLYPH[b] ?? b).join(' ');
+const rangeMap = $('#rangeMap'), rmctx = rangeMap.getContext('2d');
+const forms = [...document.querySelectorAll('#rangeForms .range-form')];
+const stash = { room: null, glitch: {} };    // the level of whichever category is off screen, so a switch loses nothing
+const shippedRanges = {};                    // kind -> the shipped module's export, once loaded
+const shippedLoad = Promise.all(RANGE_KINDS.map(kind => loadStage(RANGE_FILES[kind], null).then(r => { shippedRanges[kind] = r; }).catch(() => {})));
+const shippedIds = (kind) => new Set((shippedRanges[kind]?.levels ?? []).map(l => l.id));
+const handOf = (lv) => lv.hand ?? (lv.range === 'glass' ? lv.lineMs >= 2 * BUDGET.HAND_JITTER_MS : true);
+
+/** What New makes: a room, or a blank level of the range on screen. */
+function freshLevel() { return isGlitch(level) ? rangeBlank(level.range) : blank(9, 7); }
+/** A line for the shelf: a room's size and clock, a glitch level's range and hand. */
+function describeShelf(lv) {
+  return isGlitch(lv) ? `${RANGE_NAMES[lv.range] ?? lv.range} · ${handOf(lv) ? 'a hand level' : 'badge-only'}`
+                      : `${lv.rows[0].length}×${lv.rows.length} · ${kindOf(lv) === 'chase' ? 'timed' : 'untimed'}`;
+}
+
+/** A shipped range level as a copy to edit: '<range>:<id>', or the id alone when one range has it. null when none. */
+async function rangeLevelById(id) {
+  await shippedLoad;
+  const m = /^(watch|glass|lock|dog|wall):(.+)$/.exec(id);
+  const hits = [];
+  for (const kind of m ? [m[1]] : RANGE_KINDS) {
+    const lv = shippedRanges[kind]?.levels.find(l => l.id === (m ? m[2] : id));
+    if (lv) hits.push({ kind, lv });
+  }
+  if (hits.length > 1) throw new Error(`'${id}' is a level of ${hits.map(h => h.kind).join(' and ')}: say which, as <range>:${id}`);
+  if (!hits.length) return null;
+  const { kind, lv } = hits[0];
+  return { ...lv, range: kind, ...(kind === 'watch' ? { pool: lv.pool ?? shippedRanges.watch.pool } : {}) };
+}
+
+// the category and the range: a switch keeps what it leaves
+function setCategory(cat) {
+  if (cat === (isGlitch(level) ? 'glitch' : 'room')) return;
+  if (isGlitch(level)) stash.glitch[level.range] = level; else stash.room = level;
+  hazardPick = -1;
+  const kind = $('#rangeKind').value;
+  setLevel(cat === 'glitch' ? (stash.glitch[kind] ?? rangeBlank(kind)) : (stash.room ?? blank(9, 7)), { why: 'category' });
+}
+function setRangeKind(kind) {
+  if (!RANGE_KINDS.includes(kind)) throw new Error(`no range '${kind}'; they are ${RANGE_KINDS.join(' ')}`);
+  if (isGlitch(level)) { if (level.range === kind) return; stash.glitch[level.range] = level; }
+  hazardPick = -1;
+  setLevel(stash.glitch[kind] ?? rangeBlank(kind), { why: 'range' });
+}
+$('#category').addEventListener('change', (e) => setCategory(e.target.value));
+$('#rangeKind').addEventListener('change', (e) => setRangeKind(e.target.value));
+$('#rangeShort').addEventListener('input', (e) => setLevel({ ...level, short: e.target.value }, { remember: false }));
+
+// the forms: one per range, the one on screen filled from the level and read back on every edit
+function fillForm(form) {
+  for (const el of form.querySelectorAll('[data-field]')) {
+    const field = el.dataset.field, v = level[field];
+    if (el.tagName === 'FIELDSET') { for (const c of el.querySelectorAll('input')) c.checked = Array.isArray(v) && v.includes(c.value); continue; }
+    if (document.activeElement === el) continue;
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (field === 'address') el.value = Array.isArray(v) ? (v[+el.dataset.slot] ?? '') : '';
+    else if (el.tagName === 'TEXTAREA') el.value = Array.isArray(v) ? v.join('\n') : (v ?? '');
+    else el.value = v ?? '';
+  }
+}
+/** What one control says its field is now, as a patch on the level. */
+function readField(form, el) {
+  const fs = el.closest('fieldset[data-field]');
+  if (fs) { const on = new Set([...fs.querySelectorAll('input:checked')].map(c => c.value)); return { [fs.dataset.field]: POOL_BUTTONS.filter(b => on.has(b)) }; }
+  const field = el.dataset.field;
+  if (el.type === 'checkbox') return { [field]: el.checked };
+  if (field === 'address') return { address: [...form.querySelectorAll('[data-field=address]')].map(s => s.value) };
+  if (el.tagName === 'TEXTAREA') return { [field]: el.value.replace(/\r/g, '').split('\n') };
+  if (el.type === 'number') return { [field]: el.value === '' ? undefined : +el.value };
+  return { [field]: el.value };
+}
+function editField(form, el, { remember }) {
+  if (!isGlitch(level) || level.range !== form.dataset.range) return;
+  const patch = readField(form, el);
+  // Humpty's listing follows the frame while it is still the one written from the fields
+  if (level.range === 'wall' && !('listing' in patch) && (level.listing ?? []).join('\n') === wallListing(level).join('\n')) patch.listing = wallListing({ ...level, ...patch });
+  setLevel({ ...level, ...patch }, { remember });
+}
+for (const form of forms) {
+  form.addEventListener('input', (e) => { const el = e.target; if (el.type === 'checkbox' || el.tagName === 'SELECT') return; editField(form, el, { remember: false }); });
+  form.addEventListener('change', (e) => { const el = e.target; if (el.type === 'checkbox' || el.tagName === 'SELECT') editField(form, el, { remember: true }); else render(); });
+}
+$('#wallListingBtn').addEventListener('click', () => { if (isGlitch(level) && level.range === 'wall') setLevel({ ...level, listing: wallListing(level) }); });
+
+// the preview: the range's map (or the level's own), and what the rules make of the numbers
+function drawRangeMap(kind) {
+  const rows = level.rows ?? RANGE_MAPS[kind];
+  const wrap = $('#rangeMapWrap'), note = $('#rangeMapNote');
+  if (!rows) { wrap.hidden = true; note.textContent = `${RANGE_NAMES[kind] ?? kind} has no map: the badge is the board, the page draws the clock.`; return; }
+  wrap.hidden = false;
+  note.textContent = level.rows ? 'a map of its own (the range page draws the range\'s)'
+    : `the range's map, the same for every level of it: ${Object.entries(RANGE_GLYPHS[kind] ?? {}).map(([g, w]) => `${g} ${w}`).join(', ')}`;
+  const w = Math.max(...rows.map(r => r.length)), h = rows.length, size = TILE;
+  rangeMap.width = w * size; rangeMap.height = h * size;
+  rmctx.imageSmoothingEnabled = false;
+  const accent = cssVar('--accent', '#6fb0f0'), ink = cssVar('--ink', '#05080f');
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const ch = rows[y][x] ?? '.';
+    drawCell(rmctx, scene, THEMES.garden, ch === '#' ? '#' : '.', x, y, size);
+    if (ch === 'A') rmctx.drawImage(scene.byId.alice2.images.S[0], x * size, y * size, size, size);
+    else if (ch !== '#' && ch !== '.') {
+      rmctx.fillStyle = accent; rmctx.beginPath(); rmctx.arc(x * size + size / 2, y * size + size / 2, size / 3, 0, Math.PI * 2); rmctx.fill();
+      rmctx.fillStyle = ink; rmctx.font = `bold ${Math.round(size / 2.4)}px monospace`; rmctx.textAlign = 'center'; rmctx.textBaseline = 'middle';
+      rmctx.fillText(ch, x * size + size / 2, y * size + size / 2 + 1);
+    }
+  }
+}
+function rangeFacts(kind) {
+  const lv = normalize(level);
+  const out = [];
+  try {
+    if (kind === 'watch') {
+      const rate = (lv.length - 1) / (lv.windowMs / 1000);
+      out.push(['tempo', `${rate.toFixed(1)} presses/s, ${(lv.windowMs / (lv.length - 1)).toFixed(0)} ms a press`], ['the tune', glyphs(comboSequence(lv))],
+               ['a hand', rate <= BUDGET.HAND_RATE ? `can do this (${BUDGET.HAND_RATE}/s is the budget)` : `cannot (${BUDGET.HAND_RATE}/s is the budget): a take, replayed faster`]);
+    } else if (kind === 'glass') {
+      const b = buildLevel(lv);
+      out.push(['the run', `${b.honest.length} steps × ${lv.lineMs} ms = ${b.totalMs} ms`], ['the check', `step ${b.targetStep} (line ${b.program.target + 1}), ${b.targetStartMs}–${b.targetEndMs} ms`],
+               ['ideal offset', `${idealOffsetMs(b)} ms`], ['a hand', lv.lineMs >= 2 * BUDGET.HAND_JITTER_MS ? `lands a tick this long (±${BUDGET.HAND_JITTER_MS} ms)` : `cannot (±${BUDGET.HAND_JITTER_MS} ms on a tick under ${2 * BUDGET.HAND_JITTER_MS}): the badge`]);
+    } else if (kind === 'lock') {
+      out.push(['passwords', `${lv.pool.length}^${lv.length} = ${Math.pow(lv.pool.length, lv.length).toLocaleString('en')}`], ['the right answer', `${(lv.length + 1) * lv.tickMs} ms (${lv.length + 1} ticks)`],
+               ['password, seed 0', glyphs(secretFor(lv))], ['order', lv.order === 'secret' ? `${orderFor(lv).join('')} (his own)` : 'first to last'],
+               ['a hand', `${BUDGET.HAND_PRESSES} presses is the budget; Check runs the attacker`]);
+    } else if (kind === 'dog') {
+      const w = windowOf(lv), t = takeFor(lv), rate = 1000 / t.gapMs;
+      out.push(['the window', `${w.widthMs} ms wide, ideal gap ${t.gapMs} ms`], ['tempo', `${rate.toFixed(1)} nudges/s`], ['the take', `record a tap every ${t.recordMs} ms, play it at ${t.speed}×`],
+               ['a hand', w.widthMs >= 2 * BUDGET.HAND_JITTER_MS && rate <= BUDGET.HAND_RATE ? 'can do this' : `cannot: ±${BUDGET.HAND_JITTER_MS} ms a press, ${BUDGET.HAND_RATE}/s`]);
+    } else if (kind === 'wall') {
+      const f = frameOf(lv);
+      out.push(['the frame', `name[${f.size}]${lv.canary ? ' [canary]' : ''} lr[2] = ${f.total} slots`], ['canary, seed 0', lv.canary ? glyphs([canaryFor(lv)]) : 'none'],
+               ['tempo', `${(1000 / lv.gapMs).toFixed(1)} symbols/s`], ['open_wall', glyphs(lv.address)],
+               ['a hand', 1000 / lv.gapMs <= BUDGET.HAND_RATE ? 'can type this' : `cannot: ${BUDGET.HAND_RATE} symbols a second is the budget`]);
+    }
+  } catch (e) { out.push(['—', e.message]); }
+  return out;
+}
+let startersKey = null;
+function renderRangeStarters(kind) {
+  const key = `${kind}:${shippedRanges[kind] ? 1 : 0}:${community.length}`;
+  if (startersKey === key) return;
+  const box = $('#rangeStarters');
+  box.textContent = '';
+  if (!shippedRanges[kind]) { shippedLoad.then(() => { if (isGlitch(level) && level.range === kind) renderRangeStarters(kind); }); return; }
+  startersKey = key;
+  const add = (name, small, id) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'starter';
+    b.append(Object.assign(document.createElement('b'), { textContent: name }), Object.assign(document.createElement('small'), { textContent: small }));
+    b.addEventListener('click', () => loadById(id).catch((e) => { report = { ok: false, problems: [`could not load ${id}: ${e.message}`] }; showReport(); }));
+    box.append(b);
+  };
+  for (const lv of shippedRanges[kind].levels) add(lv.name, `${RANGE_NAMES[kind]} · ${handOf({ ...lv, range: kind }) ? 'a hand level' : 'badge-only'} · a copy to edit`, `${kind}:${lv.id}`);
+  for (const s of community.filter(s => s.kind === kind)) add(s.name, `the community's · by ${s.author}`, s.id);
+}
+function renderRange() {
+  const kind = level.range;
+  $('#category').value = 'glitch';
+  if (RANGE_KINDS.includes(kind)) $('#rangeKind').value = kind;
+  $('#name').value = level.name;
+  if (document.activeElement !== blurbEl) blurbEl.value = level.blurb ?? '';
+  const shortEl = $('#rangeShort');
+  if (document.activeElement !== shortEl) shortEl.value = level.short ?? '';
+  for (const f of forms) { f.hidden = f.dataset.range !== kind; if (!f.hidden) fillForm(f); }
+  $('#undoEdit').disabled = !past.length; $('#redoEdit').disabled = !future.length;
+  const problems = lint(level);
+  const warnings = shippedIds(kind).has(level.id) ? [`'${level.id}' is a shipped level's id in this range: give it a name of its own before sending it in`] : [];
+  $('#editName').textContent = `${RANGE_NAMES[kind] ?? `range '${kind}'`} · ${handOf(level) ? 'a hand level' : 'badge-only'}`;
+  drawRangeMap(kind);
+  const dl = $('#rangeFacts');
+  dl.textContent = '';
+  for (const [k, v] of problems.length ? [] : rangeFacts(kind)) dl.append(Object.assign(document.createElement('dt'), { textContent: k }), Object.assign(document.createElement('dd'), { textContent: v }));
+  const ul = $('#rangeLint');
+  ul.textContent = '';
+  for (const p of [...problems, ...warnings]) ul.append(Object.assign(document.createElement('li'), { textContent: p }));
+  if (!problems.length) ul.append(Object.assign(document.createElement('li'), { className: 'ok', textContent: '✓ the level is well formed - Check runs what CI runs' }));
+  $('#checkBtn').disabled = !!problems.length;
+  $('#playBtn').disabled = true;
+  $('#tryRange').disabled = !!problems.length;
+  const id = idOf(level);
+  $('#fileName').textContent = `${id}.js`; $('#fileName2').textContent = id;
+  $('#moduleOut').textContent = toModule(level, { author: $('#author').value.trim() || undefined });
+  renderRangeStarters(kind);
+  showReport();
+  bridge?.state(snapshotState());
+}
+/** The verdict on a glitch level: hand or badge-only, the attacker's cost, every note the checker made - problems first. */
+function showRangeReport() {
+  const el = $('#report'), verdict = $('#verdict');
+  verdict.hidden = true;
+  if (!report.ok) { el.textContent = report.problems.join(' · '); el.className = 'status hot'; }
+  else { el.textContent = `checked: ${report.hand ? 'a hand level' : 'badge-only'}${report.par ? `, the attacker needs ${report.par} takes` : ''} (${report.ms} ms)`; el.className = 'status win'; }
+  if (!report.notes?.length) return;
+  verdict.hidden = false;
+  verdict.textContent = '';
+  const d = difficulty(report);
+  if (d) {
+    const meter = document.createElement('div'); meter.className = 'meter';
+    for (let i = 1; i <= 5; i++) { const s = document.createElement('i'); if (i <= d.level) s.className = 'on'; meter.append(s); }
+    verdict.append(meter, Object.assign(document.createElement('b'), { textContent: d.label }));
+  }
+  verdict.append(Object.assign(document.createElement('span'), { textContent: report.notes.join(' · ') }));
+}
+/** The address glitch.html opens the level on: a tab of its range, named "· yours". */
+const tryUrl = () => `glitch.html?level=${encodeShare(level)}`;
+$('#tryRange').addEventListener('click', () => { if (!isGlitch(level) || lint(level).length) return; window.open(tryUrl(), '_blank', 'noopener'); });
+// the shipped levels in the Load menu, a group per range, once the modules are in
+shippedLoad.then(() => {
+  const sel = $('#load');
+  for (const kind of RANGE_KINDS) {
+    if (!shippedRanges[kind]) continue;
+    const group = document.createElement('optgroup');
+    group.label = RANGE_NAMES[kind];
+    for (const lv of shippedRanges[kind].levels) group.append(new Option(lv.name, `${kind}:${lv.id}`));
+    sel.append(group);
+  }
+});
+const rangeStudio = { setCategory, setRangeKind, rangeLevelById, tryUrl, shipped: shippedRanges, shippedLoad, categoryOf: () => (isGlitch(level) ? 'glitch' : 'room') };
 
 {
   // a link's room first (malformed or not: the lint says what is wrong with it), then the room left here last time, then a blank one
@@ -763,7 +1008,7 @@ function renderShelf() {
     const li = document.createElement('li');
     const open = document.createElement('button'); open.type = 'button'; open.className = 'shelf-open';
     open.append(Object.assign(document.createElement('b'), { textContent: item.level.name }),
-                Object.assign(document.createElement('small'), { textContent: `${item.level.rows[0].length}×${item.level.rows.length} · ${kindOf(item.level) === 'chase' ? 'timed' : 'untimed'}${item.par ? ` · par ${item.par}` : ''} · ${new Date(item.at).toLocaleDateString()}` }));
+                Object.assign(document.createElement('small'), { textContent: `${describeShelf(item.level)}${item.par ? ` · par ${item.par}` : ''} · ${new Date(item.at).toLocaleDateString()}` }));
     open.addEventListener('click', () => { hazardPick = -1; setLevel(item.level, { why: 'shelf' }); if (item.par) { report = item.report; render(); } tell('shelf', { did: 'open' }); });
     const del = document.createElement('button'); del.type = 'button'; del.className = 'btn ghost'; del.textContent = '✕'; del.title = 'take it off the shelf';
     del.addEventListener('click', () => { shelf.splice(i, 1); save(SHELF, JSON.stringify(shelf)); renderShelf(); tell('shelf', { did: 'drop' }); });
@@ -811,6 +1056,7 @@ function log(text, kind = '') {
 
 function startPlay() {
   if (lint(level).length) return;
+  if (isGlitch(level)) { say('a glitch level plays on the range page: Try it on the range', 'hot'); return; }
   const kind = kindOf(level);
   const map = kind === 'tea' ? parseTea(level.rows) : parseChase(level);
   game = { kind, map, state: map.start, history: [], facing: 'S', ticks: 0, dead: false, waiting: true, plan: null, planAt: 0,
@@ -1158,18 +1404,19 @@ const gameSummary = () => {
            buttonsHeld: state.rocks.filter(r => map.buttons.has(r)).length, buttons: map.buttons.size, dead: game.dead, waiting: game.waiting,
            won: kind === 'tea' ? teaGoal(map, state) : chaseGoal(map, state), phase: state.phase ?? 0, planned: !!game.plan };
 };
-const snapshotState = () => ({ level, kind: kindOf(level), lint: lint(level), report: report?.pending ? null : report, game: gameSummary(), tool, brush, symmetry });
+const snapshotState = () => ({ level, kind: kindOf(level), category: isGlitch(level) ? 'glitch' : 'room', lint: lint(level), report: report?.pending ? null : report, game: gameSummary(), tool, brush, symmetry });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const ops = {
   get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutorialSummary() }),
   set: ({ level: next }) => {
-    if (!next || !Array.isArray(next.rows)) throw new Error('set wants { level: { name, rows, ... } }');
+    if (!next || (!Array.isArray(next.rows) && !isGlitch(next))) throw new Error('set wants { level: { name, rows, ... } } for a room, or { level: { name, range, ... } } for a glitch level');
     hazardPick = -1; setLevel(normalize(next), { why: 'assistant' });
-    chat(`set the room to "${level.name}" (${dims().w}×${dims().h})`, 'act');
+    chat(isGlitch(level) ? `set the level to "${level.name}" (${RANGE_NAMES[level.range] ?? level.range})` : `set the room to "${level.name}" (${dims().w}×${dims().h})`, 'act');
     return { lint: lint(level), kind: kindOf(level) };
   },
   paint: ({ cells }) => {
+    if (isGlitch(level)) throw new Error('paint is for rooms: this is a glitch level, set its fields with set');
     if (!Array.isArray(cells)) throw new Error('paint wants { cells: [[x, y, ch], ...] }');
     let next = level;
     for (const [x, y, ch] of cells) { if (!(ch in CHARS)) throw new Error(`no brush '${ch}'`); next = setCell(next, +x, +y, ch); }
@@ -1181,10 +1428,10 @@ const ops = {
     const problems = lint(level);
     if (problems.length) return { ok: false, problems };
     const r = await runCheck();
-    chat(r.ok ? `checked: par ${r.par} ${unitOf(r)}, ${difficulty(r, analysis?.pushes ?? 0)?.label}` : `checked: ${r.problems.join('; ')}`, 'act');
+    chat(r.ok ? (isGlitch(level) ? `checked: ${difficulty(r)?.label}${r.par ? `, the attacker needs ${r.par} takes` : ''}` : `checked: par ${r.par} ${unitOf(r)}, ${difficulty(r, analysis?.pushes ?? 0)?.label}`) : `checked: ${r.problems.join('; ')}`, 'act');
     return r.ok ? { ...r, pushes: analysis?.pushes ?? 0, difficulty: difficulty(r, analysis?.pushes ?? 0) } : r;
   },
-  play: () => { if (lint(level).length) throw new Error('the room is malformed: ' + lint(level).join('; ')); startPlay(); chat('started Run & debug', 'act'); return gameSummary(); },
+  play: () => { if (isGlitch(level)) throw new Error('a glitch level plays on glitch.html (the studio\'s "Try it on the range", or ?level= with its share token), not in Run & debug'); if (lint(level).length) throw new Error('the room is malformed: ' + lint(level).join('; ')); startPlay(); chat('started Run & debug', 'act'); return gameSummary(); },
   stop: () => { stopPlay(); chat('left Run & debug', 'act'); return { playing }; },
   reset: () => { if (!game) throw new Error('nothing is running'); resetPlay(); return gameSummary(); },
   press: async ({ button, holdMs = 60 }) => {
@@ -1193,6 +1440,7 @@ const ops = {
     return gameSummary();
   },
   moves: async ({ moves, stepMs }) => {
+    if (isGlitch(level)) throw new Error('moves are for rooms: a glitch level plays on glitch.html, not in Run & debug');
     if (!game || !playing) startPlay();
     const toButton = { N: 'UP', S: 'DOWN', W: 'LEFT', E: 'RIGHT', wait: 'Y' };
     const lines = [];
@@ -1210,9 +1458,10 @@ const ops = {
   },
   say: ({ text, from }) => { chat(String(text ?? ''), from || bridge?.agents.at(-1) || 'the assistant'); return { ok: true }; },
   snapshot: ({ what = 'board' } = {}) => {
-    const c = what === 'run' ? run : board;
+    const c = what === 'run' ? run : isGlitch(level) ? rangeMap : board;
     if (what === 'run' && !game) throw new Error('nothing is running: play first, or take the board');
-    return { png: c.toDataURL('image/png'), note: what === 'run' ? `${level.name}, ${runStatus.textContent}` : `${level.name}, ${dims().w}×${dims().h}; shaded cells lose a rock, the green line is the last solution` };
+    if (what !== 'run' && isGlitch(level) && !level.rows && !RANGE_MAPS[level.range]) throw new Error(`${RANGE_NAMES[level.range] ?? level.range} has no map to picture; get has the level`);
+    return { png: c.toDataURL('image/png'), note: what === 'run' ? `${level.name}, ${runStatus.textContent}` : isGlitch(level) ? `${level.name}, the ${level.range} range's map` : `${level.name}, ${dims().w}×${dims().h}; shaded cells lose a rock, the green line is the last solution` };
   },
   module: ({ author } = {}) => ({ id: idOf(level), file: `stages/community/${idOf(level)}.js`, source: toModule(level, { author: author || $('#author').value.trim() || undefined }),
                                 indexLine: { id: idOf(level), name: level.name, author: author || $('#author').value.trim() || '', kind: kindOf(level) } }),
@@ -1224,6 +1473,7 @@ const ops = {
   },
   load: async ({ id }) => { await loadById(id); chat(`loaded ${level.name}`, 'act'); return { level, lint: lint(level) }; },
   generate: async (a = {}) => {
+    if (isGlitch(level)) throw new Error('generate draws rooms: this is a glitch level - set a room first (a level with rows), then generate');
     const opts = { width: a.width ?? 11, height: a.height ?? 8, rocks: a.rocks ?? 2, walls: a.walls ?? 0.12, gate: !!a.gate, timed: !!a.timed, cast: a.cast ?? 2, seed: a.seed };
     const found = await surprise(opts, { minPar: a.minPar ?? 12 });
     chat(found ? `drew "${found.level.name}" from seed ${found.seed}, par ${found.report.par}` : 'drew nothing solvable', 'act');
@@ -1333,6 +1583,7 @@ window.__maker = {
   undo: undoEdit, redo: redoEdit, get past() { return past.length; }, get future() { return future.length; },
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
+  ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
 };
 
 // ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once

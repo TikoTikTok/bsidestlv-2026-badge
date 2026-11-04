@@ -321,7 +321,8 @@ assistant all of this.
    hyphens; the export's name is the same in capitals. Keep the header the
    maker writes, it is the file's documentation.
 2. Add a line to `stages/community/index.json`:
-   `{ "id": "<id>", "name": "<name>", "author": "<you>", "kind": "tea" | "chase" }`.
+   `{ "id": "<id>", "name": "<name>", "author": "<you>", "kind": "tea" | "chase" }`
+   (a glitch level, below: `"kind"` is its range, `"watch" | "glass" | "lock" | "dog" | "wall"`).
 3. `npm run stage -- stages/community/<id>.js` prints the verdict CI will
    reach. `npm run verify` runs everything the deploy runs, including
    `verify-maker.mjs`, which checks every listed room and that nothing in
@@ -377,6 +378,126 @@ Suggested handling of pull requests:
   request; ask for it to be split.
 - Keep the index sorted by id, so two pull requests seldom conflict on it.
 
+## Glitch levels
+
+The studio's second category. The glitch range (`glitch.html`) is five
+games - the Rabbit's Pocket Watch, the Looking-Glass Glitch, the
+Caterpillar's Lock, the Dormouse's Watchdog and Humpty Dumpty's Wall - and
+each is a list of levels, a level being a handful of numbers (the shipped
+ones are `stages/rabbit-watch.js`, `looking-glass.js`, `caterpillar-lock.js`,
+`dormouse-watchdog.js`, `humpty-wall.js`; the rules are `src/range.js`,
+`src/lock.js`, `src/watchdog.js`, `src/wall.js`). A community level for one
+of them is a module like a room's, exporting one object that names its
+range instead of carrying a map:
+
+```js
+// Range level: "Which side?" - for The Caterpillar's Lock (range 'lock')
+export const WHICH_SIDE = {
+  name: 'Which side?',
+  range: 'lock',            // watch | glass | lock | dog | wall
+  id: 'which-side',         // the slug of the name: the file's, the index line's, the seed of the password
+  short: 'Side',            // a word for the tab
+  blurb: 'Three of the four directions: 64 passwords …',
+  pool: ['UP', 'DOWN', 'LEFT', 'RIGHT'],
+  length: 3, tickMs: 250, jitterTicks: 0, order: 'prefix',
+  hand: true,               // the design intent, which the checker measures
+};
+```
+
+The fields per range (`RANGE_FIELDS` in `src/rangecheck.js` holds each
+one's type, range and default; the shipped modules' comments say more):
+
+| range | fields |
+|---|---|
+| `watch` | `pool` (the buttons the tune is made of), `length` (presses in the tune), `windowMs` (from the first press to the last), `hand` |
+| `glass` | `lineMs` (one tick, one line), `pulseMaxLines` (a wider pulse browns the guard out), `listing` (the guard's routine: exactly one `!` target line, `*` crash lines, `goto label`, `delay(n)`, `ret`; the good ending calls `alice_jump`, the honest one `alice_bounce`), `hidden` (fade the listing) |
+| `lock` | `pool`, `length`, `tickMs` (one comparison), `jitterTicks` (noise on the answer, sigma in ticks), `order` (`prefix` first to last, `secret` an order of his own), `hand` |
+| `dog` | `button` (the nudge), `kicks` (good nudges in a row to win), `openMs`, `timeoutMs` (the window, measured from the last nudge), `hand` |
+| `wall` | `pool`, `size` (the buffer), `canary`, `address` (two symbols, `open_wall`'s), `gapMs` (the per-symbol timeout), `hidden` (`name[?]`), `listing` (must show `name[size]` or `name[?]` and `open_wall: @ …`), `hand` |
+
+Pools, buttons and addresses are the badge's eight face and direction
+buttons (`UP DOWN LEFT RIGHT A B X Y`). `hand` says whether the level is
+meant for a hand or for a take recorded on the badge and replayed faster
+(the glass has no `hand`: a tick of 80 ms or more is a hand level). `short`
+and `blurb` are optional. `rows` is accepted - a map of its own, in the
+range's legend (`# . A` plus `G T` for the glass, `m D` for the lock, `H`
+for the wall) - but the range page draws the range's own map either way.
+
+**How they are checked.** `rangeCheck()` in `src/rangecheck.js` is what
+`verify-range.mjs` runs on every shipped level and what the studio's Check,
+`npm run stage` and `verify-maker.mjs` run on yours, so the verdict is the
+same everywhere: the budgets (a hand sustains 4-6 accurate presses a second
+and lands a timed press within about ±40 ms; the browser samples the badge
+every ~16 ms, so a press needs 34 ms to be seen at all), a perfect replay
+that must win and a slow one that must lose, a hand simulated on the level
+(the glass over ±40 ms of landing, the dog over 400 attempts with ±40 ms a
+press), the reference attacker on a lock (40 passwords; with the badge's
+repeat and the median when there is jitter) and on a wall (8 frames) with
+what it cost in takes and in presses, and the rules exercised on the level
+(START resets, a wrong press is named, the door answers when it should and
+not before, too soon stirs and too late bites, the overflow lands where the
+frame says). A level that lies about its `hand` is refused - a hand level
+with a badge-only window, a badge level a hand could do, a hand lock the
+attacker needs more than 150 presses for - and so is one the attacker
+cannot clear, or whose jitter does nothing. The verdict is hand or
+badge-only, the attacker's cost in takes (the par of a lock or a wall) and
+every note the checker made; `rangeLint()` first says what is malformed
+(types and ranges, a listing with no check or a goto to nowhere, a window
+that never opens, an address outside the pool).
+
+**The studio.** *What are you making* at the top of the panel: a room, or a
+glitch level - then the range, and a form with that range's fields (pools
+as checkboxes, the glass listing in a box under its syntax legend, Humpty's
+listing written from the frame and following it while untouched). Beside
+the form the range's map is drawn (glyphs on tiles; the watch and the dog
+have none) with what the rules make of the numbers: the tune and its tempo,
+the glass's check and ideal offset, the lock's password space and the
+seed's password, the dog's window and the take to record, the wall's frame
+and canary. The lint sits under it and warns when the name's id is a
+shipped level's. *Start from…* lists the shipped levels of the range as
+copies to edit (the Load menu has them too, as `<range>:<id>`, or the id
+alone when one range has it); the shelf and the room kept between visits
+take glitch levels beside rooms, and a switch of category keeps what it
+leaves. There is no Run & debug for a glitch level - the five players are
+`glitch.html`'s - so **Try it on the range** opens
+`glitch.html?level=<the level as the share link carries it>`, where it is
+the last tab of its range, "· yours", selected and armed. The export
+writes the module with `range:` and the index line with `kind: <range>`.
+An assistant on the bridge uses `set`, `get`, `check`, `module` and `load`
+for a glitch level as for a room (`maker_set_level` takes the fields above;
+`maker_load` names the range ids); `paint`, `play`, `moves` and `generate`
+are rooms' and say so.
+
+**How they reach the site.** Listed in `stages/community/index.json` with
+`"kind": "<range>"`, a level is loaded by `glitch.html` through
+`src/seal.js` as the shipped ranges are - after the gate, like them - and
+added as the last tab of its range, "· community". `verify-maker.mjs` gates
+the deploy on it as on a room: it lints and checks it, it must agree with
+its kind, and it may not take a shipped level's id, since the range page
+and its tutorial find a level by it. `stages/community/which-side.js` is
+the demo: a lock of three symbols from the four directions at 250 ms a
+comparison and no jitter, 64 passwords, a hand level the attacker opens in
+seven takes.
+
+**Left out on purpose.**
+
+- A player in the studio. The five players are `src/glitch.js`'s, built
+  around that page's pad, timing traces, scenes and the badge's fire; a
+  second copy would drift from the first. The range page is one click
+  away and plays the level exactly as the badge will.
+- Hidden levels beyond the flag. `hidden` fades the glass listing or hides
+  the wall's size on the range page; the studio shows its author
+  everything, and CI prints the password and the canary.
+- Sealing a community glitch level. `stages/community/sealed.json` could
+  list one and `loadStage` would open it with the badge's key, but event
+  levels do not live in the community folder: seal a shipped range, not
+  these.
+- A map of its own on the range page. Accepted in the data and drawn in
+  the studio; the range page keeps drawing the range's map, which its
+  scenes are built around.
+- Recording the take. The studio says what to record and at what speed;
+  recording is the badge's.
+
 ## Files
 
 ```
@@ -384,16 +505,18 @@ maker.html                      the page: the landing (site) and the studio (che
 src/maker.js                    the page's module: hero, invitation, the studio, checker, bench, export, the assistant panel and the bridge's ops, the coach
 src/invite.js                   the two prompts, pure: aiPrompt (the invitation) and prPrompt (the brief that ships one room as a pull request), prParts, prShort
 src/maker.css                   its styles, on top of styles.css
-src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable
+src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable; a level with a range goes to rangecheck.js
+src/rangecheck.js               a glitch range level as data: the fields per range (RANGE_FIELDS), rangeLint, rangeCheck (what verify-range runs on the shipped levels), the maps, the budgets, rangeBlank
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
 src/check-worker.js             check() and generateSolvable() off the page's thread
 src/bridge.js                   the page's end of the bridge: the event stream, the replies, the mirror, the chat
 src/tutor.js                    MAKER_TUTORIALS, the studio's guided builds - Painting the Roses, A Room with a Gate, The Clock and the Cast, A Room that Teaches (with the other two pages' tutorials); src/coach.js draws the chosen one; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
 src/room.js                     the stages page's player for a community room: either rules, the badge, the lesson under it
-stages/community/               the community's rooms and index.json; the-first-lesson.js and tick-tock.js are the demos, one lesson each
+stages/community/               the community's levels and index.json; the-first-lesson.js and tick-tock.js are the demo rooms, one lesson each, which-side.js the demo lock level
+src/glitch.js                   the range page: plays the listed glitch levels as tabs of their range, and ?level= as yours
 software/tools/maker.mjs        npm run maker: serves the checkout, opens the page
 software/tools/maker-server.mjs the server: static files + the bridge under /__maker/ (loopback only)
 software/tools/maker-mcp.mjs    the bridge as MCP tools over stdio; .mcp.json at the root registers it
-software/tools/check-stage.mjs  npm run stage -- <file>: the verdict on a module
-software/tools/verify-maker.mjs part of npm run verify: level.js and the studio's logic, the tutorial, the bridge and the MCP server, the page's two faces, the community index
+software/tools/check-stage.mjs  npm run stage -- <file>: the verdict on a module, a room's or a glitch level's
+software/tools/verify-maker.mjs part of npm run verify: level.js and the studio's logic (the shipped ranges' levels through it too), the tutorial, the bridge and the MCP server, the page's two faces, the community index
 ```

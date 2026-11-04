@@ -1,7 +1,8 @@
 {
-  "_": "Rooms the community made with the level maker (maker.html; software/docs/LEVEL_MAKER.md). One entry per stage module in this folder: id is the file's name without .js, name what the room is called, author who made it, kind 'tea' (untimed) or 'chase' (timed). Add a room = the module + a line here, kept sorted by id; software/tools/verify-maker.mjs proves every listed room is well formed and solvable before a deploy, and that nothing in this folder goes unlisted. The stages page (index.html) plays every room listed here, in order, behind its Rooms mode.",
+  "_": "Levels the community made with the level maker (maker.html; software/docs/LEVEL_MAKER.md). One entry per stage module in this folder: id is the file's name without .js, name what the level is called, author who made it, kind what it is for - a room for the stages page, 'tea' (untimed) or 'chase' (timed), or a level for one of the glitch range's games on glitch.html, 'watch' | 'glass' | 'lock' | 'dog' | 'wall'. Add a level = the module + a line here, kept sorted by id; software/tools/verify-maker.mjs proves every listed level is well formed and solvable (a room) or what it claims to be (a range level, through src/rangecheck.js as the shipped ranges are) before a deploy, and that nothing in this folder goes unlisted. The stages page (index.html) plays every room listed here, in order, behind its Rooms mode; the range page (glitch.html) adds every range level as the last tab of its range.",
   "stages": [
     { "id": "the-first-lesson", "name": "The First Lesson", "author": "the maker", "kind": "tea" },
-    { "id": "tick-tock", "name": "Tick Tock", "author": "the maker", "kind": "chase" }
+    { "id": "tick-tock", "name": "Tick Tock", "author": "the maker", "kind": "chase" },
+    { "id": "which-side", "name": "Which side?", "author": "the maker", "kind": "lock" }
   ]
 }
