@@ -61,6 +61,8 @@
       <p class="note dev-only">You are on a local checkout: the studio is below. <b>WASD</b> or the arrows move, <b>Z X C V</b> are
         A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.
         New here? The line at the top walks you through your first room; <b>?</b> lists every key.</p>
+      <!-- a room that came in a link (?level=): the landing paints it in the hero and says where it plays; src/maker.js fills this in -->
+      <p id="sharedNote" class="note site-only shared-note" hidden></p>
     </div>
   </section>
 
@@ -343,6 +345,49 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
     <div><h3>Play</h3><p><kbd>W A S D</kbd> or the arrows move, <kbd>Z X C V</kbd> are A B X Y, <kbd>Enter</kbd> START, <kbd>Space</kbd> waits a tick, <kbd>R</kbd> resets, <kbd>Backspace</kbd> undoes, <kbd>Esc</kbd> back to the editor</p></div>
   </div>
   <div class="stage-bar"><button type="button" id="keysClose" class="btn ghost">Close</button></div>
+</dialog>
+
+<!-- The Share dialog (a checkout only; #shareBtn in Send it in opens it): the room as one link.
+     Nothing is uploaded - the whole room travels in the address (?level=, src/level.js shareUrl),
+     so the same link opens it in the studio of any checkout, as a playable card on the stages
+     page, or as the hero of the published landing. The person picks what goes in and how the
+     link reads; the room's JSON is shown and can be edited, and the link follows the edit. -->
+<dialog id="shareDialog" class="ai share dev-only" aria-label="share this room as a link">
+  <h2>Share this room</h2>
+  <p class="note">One link carries the whole room: the map, its clock and cast, and whatever you tick below. Nothing is
+    uploaded; the room is in the address itself, so the link works in a chat, a bookmark, or for an assistant that can
+    only open a URL. Pasted into a checkout's studio it loads there; on the stages page it is a card of its own, played
+    with the badge; on the published landing it is the room in the hero.</p>
+  <div class="share-grid">
+    <fieldset class="share-parts">
+      <legend>what goes in</legend>
+      <label title="the room's own tutorial, shown under it on the stages page"><input type="checkbox" data-part="lesson" checked> the lesson</label>
+      <label title="the one line beside the room's card"><input type="checkbox" data-part="blurb" checked> the blurb</label>
+      <label title="garden, hall or court; left out, the room is dressed as the garden"><input type="checkbox" data-part="theme" checked> the dressing</label>
+      <label title="adds play=1: the studio opens the room in Run &amp; debug"><input type="checkbox" id="sharePlay"> opens in Run &amp; debug</label>
+    </fieldset>
+    <fieldset class="share-format">
+      <legend>the link reads as</legend>
+      <label title="base64url of the room: short, safe in any chat"><input type="radio" name="shareFormat" value="b64" checked> compact</label>
+      <label title="the room's JSON, URL-encoded: readable once decoded, longer"><input type="radio" name="shareFormat" value="json"> readable JSON</label>
+    </fieldset>
+    <fieldset class="share-where">
+      <legend>opens on</legend>
+      <label title="maker.html: the studio of a checkout loads it; the published landing shows it"><input type="radio" name="shareWhere" value="studio" checked> the studio</label>
+      <label title="index.html: a card in Rooms, played with the badge"><input type="radio" name="shareWhere" value="stages"> the stages page</label>
+    </fieldset>
+  </div>
+  <label class="field share-link">The link
+    <span class="share-row">
+      <input id="shareUrl" type="text" readonly spellcheck="false" aria-label="the share link">
+      <button type="button" id="shareCopy" class="btn">Copy</button>
+      <a id="shareOpen" class="btn ghost" target="_blank" rel="noopener" title="open the link in a new tab">open ↗</a>
+    </span>
+  </label>
+  <p id="shareStatus" class="status" aria-live="polite"></p>
+  <label class="field">The room, as the link carries it <small>(edit it: the link follows, until the parts above change)</small>
+    <textarea id="shareJson" rows="8" spellcheck="false" aria-label="the room's JSON"></textarea></label>
+  <div class="stage-bar"><button type="button" id="shareClose" class="btn ghost">Close</button></div>
 </dialog>
 
 <script type="module" src="src/maker.js"></script>

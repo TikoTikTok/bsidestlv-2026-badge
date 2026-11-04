@@ -26,7 +26,8 @@
 // on a dev host (src/pad.js sourcesFor), on the site it is not built at all.
 // A room is kept in localStorage (alice.maker.level) between visits, the
 // shelf under alice.maker.shelf, and a room can travel in a link (?level=,
-// src/level.js encodeShare).
+// src/level.js shareUrl: the Share dialog, below; the same link opens the
+// room on the stages page and in the landing's hero).
 
 import { Pad, sourcesFor, KEYS, BUTTONS } from './pad.js';
 import { gateMode } from './gate.js';
@@ -36,7 +37,7 @@ import { TILE, THEMES, HAZARD_CAST, loadScene, drawCell, drawRoom } from './scen
 import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } from './chase.js';
 import { CHARS, BRUSHES, kindOf, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
-         idOf, encodeShare, decodeShare, lineCells, rectCells, regionCells, paintCells, mirrorCells,
+         idOf, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
          flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
 import { MAKER_TUTORIAL, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
@@ -111,13 +112,42 @@ const HERO = {
 };
 const scene = await loadScene();
 
+// A room that came in a link (?level=, src/level.js decodeShare; the studio's
+// Share dialog writes one). On the site it is the room in the hero, and the
+// line under it says where it plays - the stages page, where the badge plays
+// it; on a checkout the studio below loads it instead, as any room.
+const sharedToken = new URLSearchParams(location.search).get('level');
+let sharedRoom = null, sharedError = null;
+if (sharedToken !== null) {
+  try { sharedRoom = decodeShare(sharedToken); sharedError = lint(sharedRoom)[0] ?? null; }
+  catch (e) { sharedError = e.message; }
+}
+const sharedOk = !!sharedRoom && !sharedError;
+{
+  const note = $('#sharedNote');
+  if (sharedOk) {
+    note.append('Someone shared a room with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
+                Object.assign(document.createElement('a'), { href: `index.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the stages page' }),
+                ', or open this same link in the studio of a checkout.');
+    note.hidden = false;
+  } else if (sharedToken !== null) {
+    note.textContent = `The link carries a room this page could not ${sharedRoom ? 'show' : 'read'}: ${sharedError}.`;
+    note.hidden = false;
+  }
+}
+
 {
   const canvas = $('#heroCanvas');
   const ctx = canvas.getContext('2d');
-  const map = parseTea(HERO.rows);
+  const hero = (!dev && sharedOk) ? sharedRoom : HERO;     // the landing shows what was shared; the studio has its own board for it
+  const timed = kindOf(hero) === 'chase';
+  const map = timed ? parseChase(hero) : parseTea(hero.rows);
+  const step = timed ? chaseStep : teaStep;
   canvas.width = map.w * TILE; canvas.height = map.h * TILE;
-  const moves = check(HERO).moves ?? [];
-  const dressings = ['garden', 'hall', 'court'];
+  // Alice walks the solution when the solver finds one within reason; a shared room it cannot clear in time is painted still
+  const moves = check(hero, { limit: 50_000 }).moves ?? [];
+  const dressings = hero === HERO ? ['garden', 'hall', 'court'] : [THEMES[hero.theme] ? hero.theme : 'garden'];
+  const beat = timed ? Math.max(120, Math.min(400, hero.tickMs ?? 320)) : 170;
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let dressing = 0, phase = 'paint', t0 = performance.now(), state = map.start, at = 0, facing = 'S', alpha = 1;
 
@@ -131,8 +161,8 @@ const scene = await loadScene();
       drawRoom(ctx, scene, map, state, theme, { now, facing, onlyRows: rows });
       if (rows >= map.h && dt > map.h * 110 + 500) { phase = still ? 'hold' : 'walk'; t0 = now; }
     } else if (phase === 'walk') {
-      while (at < moves.length && dt > (at + 1) * 170) { const n = teaStep(map, state, moves[at]); facing = moves[at]; if (n) state = n; at++; }
-      drawRoom(ctx, scene, map, state, theme, { now, facing, walking: at < moves.length, beatMs: 170 });
+      while (at < moves.length && dt > (at + 1) * beat) { const n = step(map, state, moves[at]); if (moves[at] !== 'wait') facing = moves[at]; if (n) state = n; at++; }
+      drawRoom(ctx, scene, map, state, theme, { now, facing, walking: at < moves.length, beatMs: beat });
       if (at >= moves.length) { phase = 'hold'; t0 = now; }
     } else if (phase === 'hold') {
       drawRoom(ctx, scene, map, state, theme, { now, facing });
@@ -625,12 +655,11 @@ async function loadById(id) {
 }
 
 {
-  const token = new URLSearchParams(location.search).get('level');
-  let first = null;
-  if (token) { try { first = decodeShare(token); } catch { first = null; } }
-  if (!first) first = loadJson(STORE, null);
+  // a link's room first (malformed or not: the lint says what is wrong with it), then the room left here last time, then a blank one
+  const first = sharedRoom ?? loadJson(STORE, null);
   $('#author').value = load(AUTHOR) ?? '';
   setLevel(first ?? blank(9, 7), { reset: true, why: 'open' });
+  if (sharedToken !== null && !sharedRoom) $('#importStatus').textContent = `the link's room could not be read: ${sharedError}`;
 }
 
 // ------------------------------------------------------------------ checking ----
@@ -951,12 +980,6 @@ void KEYS;
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     tell('export', { how: 'download' });
   });
-  $('#shareBtn').addEventListener('click', async () => {
-    const url = `${location.origin}${location.pathname}?level=${encodeShare(level)}`;
-    try { await navigator.clipboard.writeText(url); flash($('#exportStatus'), 'link copied'); }
-    catch { prompt('the link', url); }
-    tell('export', { how: 'link' });
-  });
   $('#importBtn').addEventListener('click', async () => {
     try {
       const lvl = await fromModule($('#importText').value);
@@ -965,6 +988,82 @@ void KEYS;
       flash($('#importStatus'), `imported ${lvl.name}`);
     } catch (e) { $('#importStatus').textContent = e.message; }
   });
+}
+
+// ----------------------------------------------------------------- the share ----
+// The room as one link (src/level.js shareUrl): nothing is uploaded, the whole
+// room travels in the address, so the same link opens it in the studio of any
+// checkout, as a playable card on the stages page (index.html?level=) and as
+// the hero of the published landing. The dialog (#shareDialog) lets the person
+// pick what goes in (the lesson, the blurb, the dressing), how the link reads
+// (compact base64url, or the JSON itself) and where it opens, shows the
+// room's JSON and follows an edit of it until the parts change, and says how
+// long the link is and when that is a problem. shareLink is the one answer:
+// the dialog, window.__maker.share and the bridge's op all go through it.
+
+const shareDialog = $('#shareDialog');
+const shareUrlEl = $('#shareUrl'), shareJsonEl = $('#shareJson'), shareStatus = $('#shareStatus'), shareOpen = $('#shareOpen');
+let shareEdited = false, shareLast = null;      // the JSON box was edited by hand: the link follows it until the parts change
+const shareBase = (where) => new URL(where === 'stages' ? 'index.html' : 'maker.html', location.href).href;
+/** The link for `room` (the one on the board unless given) under { format, play, where, parts }: { url, token, chars, format, where, warnings }. */
+function shareLink({ format = 'b64', where = 'studio', play = false, parts = {} } = {}, room = level) {
+  if (where !== 'studio' && where !== 'stages') throw new Error(`no such place '${where}' (studio or stages)`);
+  const url = shareUrl(shareBase(where), room, { format, play: !!play, parts: parts ?? {} });
+  const info = shareInfo(url);
+  return { url, token: new URL(url).searchParams.get('level'), chars: info.chars, format: info.format, where, warnings: info.warnings };
+}
+{
+  const opts = () => ({
+    format: shareDialog.querySelector('input[name="shareFormat"]:checked')?.value ?? 'b64',
+    where: shareDialog.querySelector('input[name="shareWhere"]:checked')?.value ?? 'studio',
+    play: $('#sharePlay').checked,
+    parts: Object.fromEntries([...shareDialog.querySelectorAll('[data-part]')].map(i => [i.dataset.part, i.checked])),
+  });
+  function refresh() {
+    const o = opts();
+    try {
+      let room;
+      if (shareEdited) room = decodeShare(shareJsonEl.value);
+      else {
+        room = normalize(level);
+        for (const p of SHARE_PARTS) if (!o.parts[p]) delete room[p];
+        shareJsonEl.value = JSON.stringify(room, null, 2);
+      }
+      shareLast = shareLink({ ...o, parts: {} }, room);        // the parts are already out of `room`; an edit decides for itself
+      shareUrlEl.value = shareLast.url;
+      shareOpen.href = shareLast.url;
+      const bits = [`${shareLast.chars} characters`, o.format === 'json' ? 'readable JSON' : 'compact',
+                    o.where === 'stages' ? 'opens on the stages page' : o.play ? 'opens in Run & debug' : 'opens in the studio'];
+      if (room.hazards?.length) bits.push(`${room.hazards.length} in the cast`);
+      if (room.blurb) bits.push('the blurb');
+      if (room.lesson?.length) bits.push(`a lesson of ${room.lesson.length}`);
+      const problems = lint(room);
+      const warn = [...(problems.length ? [`the room is malformed: ${problems[0]}`] : []), ...shareLast.warnings];
+      shareStatus.textContent = [...bits, ...warn].join(' · ');
+      shareStatus.className = `status${warn.length ? ' hot' : ''}`;
+    } catch (e) {
+      shareLast = null; shareUrlEl.value = ''; shareOpen.removeAttribute('href');
+      shareStatus.textContent = `the room: ${e.message}`; shareStatus.className = 'status hot';
+    }
+  }
+  const told = () => tell('export', { how: 'link', format: shareLast?.format ?? 'b64', chars: shareLast?.chars ?? 0, where: shareLast?.where ?? 'studio' });
+  $('#shareBtn').addEventListener('click', () => { shareEdited = false; refresh(); shareDialog.showModal(); shareUrlEl.focus(); told(); });
+  for (const i of shareDialog.querySelectorAll('[data-part], input[name="shareFormat"], input[name="shareWhere"], #sharePlay'))
+    i.addEventListener('change', () => { if (i.dataset.part) shareEdited = false; refresh(); });
+  shareJsonEl.addEventListener('input', () => { shareEdited = true; refresh(); });
+  $('#shareCopy').addEventListener('click', async () => {
+    if (!shareLast) return;
+    const btn = $('#shareCopy');
+    try { await navigator.clipboard.writeText(shareLast.url); btn.textContent = 'Copied ✓'; }
+    catch { shareUrlEl.focus(); shareUrlEl.select(); btn.textContent = 'Select all, then copy'; }
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+    told();
+  });
+  shareOpen.addEventListener('click', () => { if (shareLast) told(); });
+  shareUrlEl.addEventListener('focus', () => shareUrlEl.select());
+  $('#shareClose').addEventListener('click', () => shareDialog.close());
+  shareDialog.addEventListener('click', (e) => { if (e.target === shareDialog) shareDialog.close(); });
+  shareDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys (brushes, tools) stay out of the dialog
 }
 
 // ------------------------------------------------------------- the assistant ----
@@ -1076,6 +1175,11 @@ const ops = {
     if (a.overlay) { if (!(a.overlay in overlays)) throw new Error(`no overlay '${a.overlay}'`); setOverlay(a.overlay, a.on ?? !overlays[a.overlay]); }
     return { tool, brush, symmetry, overlays };
   },
+  share: (a = {}) => {
+    const r = shareLink(a);
+    chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'stages' ? 'on the stages page' : 'in the studio'}`, 'act');
+    return r;
+  },
 };
 
 const bridgeChip = $('#bridgeChip'), bridgeState = $('#bridgeState');
@@ -1130,10 +1234,13 @@ window.__maker = {
   dev: true, repo, prompt: aiPrompt(repo),
   get level() { return level; }, setLevel, lint: () => lint(level), check: runCheck, get report() { return report; }, get analysis() { return analysis; },
   play: startPlay, stop: stopPlay, get game() { return game; }, get playing() { return playing; }, solution: playSolution,
-  module: () => toModule(level), share: () => encodeShare(level),
+  module: () => toModule(level), share: (opts) => shareLink(opts).url, shareLink,
   get tool() { return tool; }, setTool, get brush() { return brush; }, setBrush, get symmetry() { return symmetry; }, setSymmetry, overlays, setOverlay,
   undo: undoEdit, redo: redoEdit, get past() { return past.length; }, get future() { return future.length; },
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
 };
+
+// ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once
+if (sharedOk && new URLSearchParams(location.search).get('play') === '1') startPlay();
 
 }

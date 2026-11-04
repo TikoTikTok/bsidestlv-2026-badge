@@ -253,16 +253,99 @@ export function lessonFromText(text) {
 }
 
 // -------------------------------------------------------------- the share ----
-// ?level=<token> carries a level in a link: JSON, base64url. No server, so a
-// link is the whole level - fine for a room, which is a few hundred bytes.
+// ?level=<token> carries a level in a link. No server, so the link is the
+// whole level - fine for a room, which is a few hundred bytes. Two spellings
+// of the same thing, both read back by decodeShare:
+//
+//   b64    base64url of the JSON: compact, safe in any chat (the default, and
+//          what every link made before there was a choice is)
+//   json   the JSON itself, percent-encoded by the URL: readable, longer
+//
+// The same link opens the room wherever it is pasted: maker.html?level= is
+// the studio on a checkout and the hero on the published landing,
+// index.html?level= a card on the stages page, played with the badge.
+// shareUrl builds one; shareInfo says how long it is and when that is a
+// problem; decodeShare takes either spelling, or a whole link pasted in, and
+// refuses what is not a level with a message that says why.
 
 const b64 = (s) => (typeof btoa === 'function' ? btoa(s) : Buffer.from(s, 'binary').toString('base64'));
 const unb64 = (s) => (typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('binary'));
 const utf8 = (s) => unescape(encodeURIComponent(s));
 const unutf8 = (s) => decodeURIComponent(escape(s));
 
-export const encodeShare = (level) => b64(utf8(JSON.stringify(normalize(level)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-export const decodeShare = (token) => normalize(JSON.parse(unutf8(unb64(token.replace(/-/g, '+').replace(/_/g, '/')))));
+/** The optional fields a link may leave out (shareUrl's `parts`). */
+export const SHARE_PARTS = ['lesson', 'blurb', 'theme'];
+/** Over this many characters some chats and QR codes cut a link; over SHARE_TOO_LONG it may not paste at all. */
+export const SHARE_LONG = 2000, SHARE_TOO_LONG = 8000;
+
+/** The level as a `level=` value: base64url of its JSON (`b64`, the default) or the JSON itself (`json`). Not percent-encoded yet. */
+export function encodeShare(level, { format = 'b64' } = {}) {
+  const json = JSON.stringify(normalize(level));
+  if (format === 'json') return json;
+  if (format !== 'b64') throw new Error(`no such link format '${format}' (b64 or json)`);
+  return b64(utf8(json)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/**
+ * Whatever carries a level as text: a token in either spelling (already
+ * URL-decoded, as URLSearchParams hands it over), or a whole link, its query
+ * (`?level=…`) or the bare parameter (`level=…`) pasted in. Returns the
+ * normalized level; throws with a plain message when it is not one.
+ */
+export function decodeShare(text) {
+  let s = String(text ?? '').trim();
+  if (!s) throw new Error('the link is empty');
+  const isJson = (t) => /^[{["]/.test(t);
+  if (!isJson(s) && (/^https?:\/\//i.test(s) || s.startsWith('?') || s.startsWith('/') || /^level=/.test(s) || /[?&]level=/.test(s))) {
+    let q;
+    try { q = new URL(s.startsWith('level=') ? `?${s}` : s, 'http://x/').searchParams; } catch { throw new Error('not a link'); }
+    s = q.get('level');
+    if (s === null) throw new Error('the link carries no level= parameter');
+    s = s.trim();
+    if (!s) throw new Error('the link is empty');
+  }
+  let json = s;
+  if (!isJson(s)) {
+    if (!/^[A-Za-z0-9_-]+$/.test(s)) throw new Error('not JSON and not a base64url token');
+    try { json = unutf8(unb64(s.replace(/-/g, '+').replace(/_/g, '/'))); } catch { throw new Error('the token did not decode'); }
+  }
+  let obj;
+  try { obj = JSON.parse(json); } catch (e) { throw new Error(`not valid JSON (${e.message})`); }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('a level is an object { name, rows, ... }');
+  if (obj.name !== undefined && typeof obj.name !== 'string') throw new Error('the name must be a string');
+  // a room is its rows; a range level (`range`, the glitch range's) is read by its own normalize
+  if (obj.range === undefined && (!Array.isArray(obj.rows) || !obj.rows.length || obj.rows.some(r => typeof r !== 'string'))) throw new Error('a room needs rows: a list of strings');
+  if (obj.hazards !== undefined && (!Array.isArray(obj.hazards) || obj.hazards.some(h => !h || typeof h !== 'object' || !Array.isArray(h.route) || h.route.some(p => !Array.isArray(p)))))
+    throw new Error('every hazard needs a route: a list of [x, y]');
+  if (obj.lesson !== undefined && (!Array.isArray(obj.lesson) || obj.lesson.some(st => !st || typeof st !== 'object'))) throw new Error('the lesson must be a list of { on, say }');
+  try { return normalize(obj); } catch (e) { throw new Error(`malformed level: ${e.message}`); }
+}
+
+/**
+ * The link: `base?level=…`, its own query and hash dropped. `format` picks
+ * the spelling; `play: true` adds `play=1` (the studio opens the room in Run
+ * & debug); `parts` says which optional fields travel - `{ lesson: false }`
+ * leaves the lesson out - and every part travels unless told otherwise.
+ */
+export function shareUrl(base, level, { format = 'b64', play = false, parts = {} } = {}) {
+  const lvl = normalize(level);
+  for (const p of SHARE_PARTS) if (parts[p] === false) delete lvl[p];
+  const q = [`level=${encodeURIComponent(encodeShare(lvl, { format }))}`];
+  if (play) q.push('play=1');
+  return `${String(base).replace(/[?#].*$/, '')}?${q.join('&')}`;
+}
+
+/** How long a link (or a bare token) is, which spelling it is, and what to warn about. */
+export function shareInfo(text) {
+  const s = String(text ?? '').trim();
+  const m = /[?&]level=([^&#]*)/.exec(s);
+  let value = m ? m[1] : s;
+  if (m) { try { value = decodeURIComponent(value); } catch { /* a link with a broken escape: judged as it is */ } }
+  const warnings = [];
+  if (s.length > SHARE_TOO_LONG) warnings.push(`${s.length} characters: a link this long may not paste at all; the compact form, or fewer parts, makes it shorter`);
+  else if (s.length > SHARE_LONG) warnings.push(`${s.length} characters: some chats and QR codes cut a link this long`);
+  return { chars: s.length, format: value.trim().startsWith('{') ? 'json' : 'b64', warnings };
+}
 
 // -------------------------------------------------------------- the tools ----
 // What the studio's tools paint, as lists of cells, so a stroke is one edit
