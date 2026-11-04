@@ -215,8 +215,8 @@ is what the page is painted in: `bsides`, the conference's own lime on black
 `queen`, heart red and gold; `cheshire`, magenta and a teal grin; `phosphor`,
 green on black with scanlines. The look is how it sits on the screen: the
 classic look is the whole page; the three phone looks — `bench`, `handheld`,
-`scope` — show one panel at a time behind a mode bar (on the stages: Tea,
-Gauntlet; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
+`scope` — show one panel at a time behind a mode bar (on the stages: Learn, Tea,
+Gauntlet, Rooms; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
 behind *how it works*, and on the range reshape the on-screen pad — a bottom
 sheet, a handheld's body with the screen in a bezel, or a dock of soft keys
 under big numerals — and draw the guard's routine and the door's clock as
