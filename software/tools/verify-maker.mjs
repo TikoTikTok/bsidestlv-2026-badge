@@ -642,6 +642,9 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/maker\.html/.test(readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml publishes maker.html');
   const makerCss = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
   ok(!/data-theme=|data-flip/.test(makerCss), 'src/maker.css paints from the variables and never names a theme or the turn');
+  ok(/\.steps\.three li > b:first-child \{ display: block;/.test(makerCss) && !/\.steps\.three li b \{[^}]*display: block/.test(makerCss),
+     'on the landing only a step\'s title is a line of its own: a bold word in its prose stays in the sentence');
+  ok((/<ol class="steps three">[\s\S]*?<\/ol>/.exec(html)?.[0].match(/<li><b>/g) ?? []).length === 3, 'each of the three steps opens with its title in bold');
   // the guided builds: the cards in the Learn panel, the choice kept, the bridge steering them
   for (const id of ['learnTitle', 'learnPick']) ok(new RegExp(`id="${id}"`).test(html), `the Learn panel has #${id} (the chosen build's title, the cards)`);
   ok(/<h2><span id="learnTitle">Painting the Roses<\/span> <span id="learnProgress"/.test(html), 'the Learn panel\'s heading is the chosen build\'s title, the first one before the page runs');
