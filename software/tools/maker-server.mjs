@@ -24,7 +24,8 @@
 //     PUT  /__maker/level         a room -> rpc 'set'
 //
 // The ops are the page's (src/maker.js, `ops`): get, set, paint, check, play,
-// stop, reset, press, moves, say, snapshot, module, load, generate, tool.
+// stop, reset, press, moves, say, snapshot, module, load, generate, tool,
+// share (a link that carries the room: { format, play, where, parts }).
 // A request is refused unless its Host is the loopback and, when it carries
 // an Origin, that Origin is this server: no page on the web can reach it.
 
@@ -39,7 +40,7 @@ const TYPES = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2',
 };
 
-export const OPS = ['get', 'set', 'paint', 'check', 'play', 'stop', 'reset', 'press', 'moves', 'say', 'snapshot', 'module', 'load', 'generate', 'tool'];
+export const OPS = ['get', 'set', 'paint', 'check', 'play', 'stop', 'reset', 'press', 'moves', 'say', 'snapshot', 'module', 'load', 'generate', 'tool', 'share', 'pr', 'tutorial'];
 
 const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 
