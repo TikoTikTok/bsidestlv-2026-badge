@@ -148,12 +148,18 @@ if (sharedToken !== null) {
   try { sharedRoom = decodeShare(sharedToken); sharedError = lint(sharedRoom)[0] ?? null; }
   catch (e) { sharedError = e.message; }
 }
-const sharedOk = !!sharedRoom && !sharedError;
+const sharedGlitch = !!sharedRoom && !sharedError && isGlitch(sharedRoom);   // a glitch range level: the range page plays it, the hero cannot draw it
+const sharedOk = !!sharedRoom && !sharedError && !sharedGlitch;
 {
   const note = $('#sharedNote');
   if (sharedOk) {
     note.append('Someone shared a room with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
                 Object.assign(document.createElement('a'), { href: `index.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the stages page' }),
+                ', or open this same link in the studio of a checkout.');
+    note.hidden = false;
+  } else if (sharedGlitch) {
+    note.append('Someone shared a glitch level with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
+                Object.assign(document.createElement('a'), { href: `glitch.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the range page' }),
                 ', or open this same link in the studio of a checkout.');
     note.hidden = false;
   } else if (sharedToken !== null) {

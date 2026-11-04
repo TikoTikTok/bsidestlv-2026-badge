@@ -250,6 +250,12 @@ or the bridge's `share` op) writes one and lets you choose:
   cut it (the dialog warns), and past 8,000 it may not paste at all. The
   compact spelling, or fewer parts, makes it shorter.
 
+A link can carry a glitch level too (see *Glitch levels*): that one opens on
+`glitch.html?level=`, as a tab of its range. The stages page refuses it with a
+line that says where it does open, the landing points at the range page, and
+**Rooms** lists only the index's rooms - an entry whose `kind` is a range is
+the range page's.
+
 Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":false,"parts":{"lesson":false}}}`
 answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
 `maker_share`.

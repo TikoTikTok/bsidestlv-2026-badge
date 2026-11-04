@@ -621,9 +621,18 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const gallery = readFileSync(resolve(root, 'src/gallery.js'), 'utf8');
   ok(/from '\.\/room\.js'/.test(gallery) && /stages\/community\/index\.json/.test(gallery) && /base: 'stages\/community\/'/.test(gallery), 'src/gallery.js plays the listed rooms through src/room.js and src/seal.js');
   // and a room that came in a link, as a card of its own
-  ok(/import \{ decodeShare, lint, kindOf \} from '\.\/level\.js'/.test(gallery) && /function openShared\(token\)/.test(gallery) && /openRoom, openShared \}/.test(gallery), 'src/gallery.js reads a ?level= link through src/level.js and exposes openShared');
+  ok(/import \{ decodeShare, lint, kindOf, isGlitch \} from '\.\/level\.js'/.test(gallery) && /function openShared\(token\)/.test(gallery) && /openRoom, openShared \}/.test(gallery), 'src/gallery.js reads a ?level= link through src/level.js and exposes openShared');
   ok(/id: 'shared', name: level\.name, author: 'a link', kind: kindOf\(level\), shared: true/.test(gallery) && /`Shared · \$\{r\.name\}`/.test(gallery) && /room-card\$\{r\.shared \? ' shared' : ''\}/.test(gallery), 'the shared room is a card "Shared · <name>", class room-card shared, in rooms as id shared');
   ok(/q\.get\('level'\) !== null\) openShared\(q\.get\('level'\)\);\s*else if \(rooms\.some/.test(gallery), '?level= wins over ?room=');
+  // a range level is not a room: Rooms lists only the index's rooms, and a link that carries a glitch level is sent to the range page
+  ok(/\.filter\(s => !s\.kind \|\| s\.kind === 'tea' \|\| s\.kind === 'chase'\)/.test(gallery), 'the stages page lists the index\'s rooms only: a range level (kind = its range) is glitch.html\'s');
+  ok(/if \(isGlitch\(level\)\) throw new Error\('it is a glitch range level/.test(gallery), 'a link that carries a glitch level is refused on the stages page, with where it does open');
+  ok(/const sharedGlitch = /.test(js) && /&& !sharedGlitch;/.test(js) && /glitch\.html\?level=\$\{encodeURIComponent\(sharedToken\)\}/.test(js), 'the landing sends a shared glitch level to the range page and keeps it out of the hero');
+  {
+    const index = JSON.parse(readFileSync(resolve(root, 'stages/community/index.json'), 'utf8'));
+    const kept = (index.stages ?? []).filter(s => !s.kind || s.kind === 'tea' || s.kind === 'chase');
+    ok(kept.length > 0 && kept.every(s => !RANGE_KINDS.includes(s.kind)) && (index.stages ?? []).some(s => RANGE_KINDS.includes(s.kind)), `the index holds ${kept.length} room(s) for the stages page and at least one range level it leaves to glitch.html`);
+  }
   ok(/the shared room could not be opened: \$\{e\.message\}`; \$\('#roomStatus'\)\.className = 'status hot'; return null;/.test(gallery), 'a link that is not a room is said so in #roomStatus (status hot) and nothing crashes');
   ok(/\.room-card\.shared \{/.test(css) && css.indexOf('.room-card.shared {') > css.indexOf('.room-card {'), 'styles.css styles the shared card next to .room-card');
   ok(/data-part="lesson"/.test(html) && !/shareDialog/.test(readFileSync(resolve(root, 'src/tutor.js'), 'utf8')), 'the dialog is the page\'s; the tutorial only hears the export event');
