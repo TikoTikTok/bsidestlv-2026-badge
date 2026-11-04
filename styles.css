@@ -454,6 +454,9 @@ html:not([data-look=classic]) .coach-actions { margin-left: 0; }
 .room-card small { font-size: 10px; }
 .room-card:hover { border-color: var(--accent); color: var(--text); }
 .room-card.on { border-color: var(--accent-2); color: var(--text); }
+/* a room that came in a link (?level=, src/gallery.js openShared): a card of its own at the front, not the index's */
+.room-card.shared { border-style: dashed; border-color: var(--accent); }
+.room-card.shared.on { border-style: solid; border-color: var(--accent-2); }
 .lesson { margin: .4rem 0 .6rem; padding: .6rem .8rem; border-left: 3px solid var(--accent); background: var(--well); font-size: 12px; color: var(--text); }
 .lesson b { color: var(--accent); margin-right: .3em; }
 .lesson.done { border-color: var(--accent-2); }

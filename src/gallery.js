@@ -20,6 +20,7 @@ import { initLooks } from './looks.js';
 import { Tutor, STAGES_TUTORIAL } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { mountRoom } from './room.js';
+import { decodeShare, lint, kindOf } from './level.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -618,34 +619,59 @@ const room = mountRoom({
   keys: { undo: $('#roomKeyUndo'), wait: $('#roomKeyWait'), reset: $('#roomKeyReset') },
   feed: tutorFeed, keyboard: () => pad.allows('key'),
 });
-const rooms = [];   // the index: { id, name, author, kind }
+const rooms = [];   // the index: { id, name, author, kind }; a room that came in a link sits at the front as { id: 'shared', ..., shared: true, level }
+const roomList = $('#roomList');
+const roomCard = (r) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = `room-card${r.shared ? ' shared' : ''}`; b.dataset.id = r.id;
+  b.append(Object.assign(document.createElement('b'), { textContent: r.shared ? `Shared · ${r.name}` : r.name }),
+           Object.assign(document.createElement('small'), { textContent: `${r.kind === 'chase' ? 'timed' : 'untimed'} · ${r.author}` }));
+  b.addEventListener('click', () => { armStage('rooms'); openRoom(r.id).catch((e) => { $('#roomStatus').textContent = `could not open ${r.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; }); });
+  return b;
+};
 async function openRoom(id, { tell = true } = {}) {
   const entry = rooms.find(r => r.id === id);
   if (!entry) throw new Error(`no community room '${id}'`);
-  const level = await loadStage(id, badge?.key, { base: 'stages/community/' });
+  const level = entry.shared ? entry.level : await loadStage(id, badge?.key, { base: 'stages/community/' });
   room.load(level, { id, tell });
   $('#roomName').textContent = level.name;
-  $('#roomBlurb').textContent = `${level.blurb ? `${level.blurb} ` : ''}By ${entry.author}.`;
+  $('#roomBlurb').textContent = `${level.blurb ? `${level.blurb} ` : ''}${entry.shared ? 'Shared in a link.' : `By ${entry.author}.`}`;
   $('#roomUndo').hidden = room.kind !== 'tea';
   $('#roomReset').textContent = room.kind === 'tea' ? 'Reset' : 'Restart';
-  for (const b of $('#roomList').children) b.classList.toggle('on', b.dataset.id === id);
+  for (const b of roomList.children) b.classList.toggle('on', b.dataset.id === id);
+  return level;
+}
+/**
+ * A room that came in a link - ?level=<token>, src/level.js decodeShare; the
+ * maker's Share dialog writes one - as a card of its own at the front,
+ * "Shared · <name>", opened and armed like any room, its blurb and lesson
+ * with it; the badge plays it through the same player. A link that is not a
+ * room is said so in the status and nothing else changes. Solve stays the
+ * bench's. Returns the room, or null.
+ */
+function openShared(token) {
+  let level;
+  try { level = decodeShare(token); const problems = lint(level); if (problems.length) throw new Error(problems.join('; ')); }
+  catch (e) { $('#roomStatus').textContent = `the shared room could not be opened: ${e.message}`; $('#roomStatus').className = 'status hot'; return null; }
+  const entry = { id: 'shared', name: level.name, author: 'a link', kind: kindOf(level), shared: true, level };
+  const old = rooms.findIndex(r => r.id === 'shared');
+  if (old >= 0) rooms.splice(old, 1);
+  rooms.unshift(entry);
+  roomList.querySelector('.room-card.shared')?.remove();
+  roomList.prepend(roomCard(entry));
+  openRoom('shared', { tell: false }).catch((e) => { $('#roomStatus').textContent = `the shared room could not be opened: ${e.message}`; $('#roomStatus').className = 'status hot'; });
+  armStage('rooms');
+  if (looks.look.id !== 'classic') looks.setMode('rooms');
   return level;
 }
 {
-  const list = $('#roomList');
+  const list = roomList;
   try {
     const m = await (await fetch('stages/community/index.json', { cache: 'no-cache' })).json();
     rooms.push(...(m.stages ?? []));
   } catch { /* no index: the panel says so below */ }
   if (!rooms.length) list.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'No rooms yet. The level maker is where the first one is made.' }));
-  for (const r of rooms) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'room-card'; b.dataset.id = r.id;
-    b.append(Object.assign(document.createElement('b'), { textContent: r.name }),
-             Object.assign(document.createElement('small'), { textContent: `${r.kind === 'chase' ? 'timed' : 'untimed'} · ${r.author}` }));
-    b.addEventListener('click', () => { armStage('rooms'); openRoom(r.id).catch((e) => { $('#roomStatus').textContent = `could not open ${r.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; }); });
-    list.append(b);
-  }
+  for (const r of rooms) list.append(roomCard(r));
   const wanted = new URLSearchParams(location.search).get('room');
   const first = rooms.find(r => r.id === wanted) ?? rooms[0];
   if (first) await openRoom(first.id, { tell: false }).catch((e) => { $('#roomStatus').textContent = `could not open ${first.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; });
@@ -694,13 +720,19 @@ coach = mountCoach(tutor, {
   },
 });
 
-// ?room=<id> in the address: that room is the one armed, whatever the tutorial's step says, and on a phone the one on screen
-if (rooms.some(r => r.id === new URLSearchParams(location.search).get('room'))) { armStage('rooms'); if (looks.look.id !== 'classic') looks.setMode('rooms'); }
+// ?level=<token> in the address is a room that came in a link: a card of its own, the one armed, and on a phone the one on
+// screen, whatever the tutorial's step says (play=1, the studio's, changes nothing here: the badge plays whatever is open).
+// Else ?room=<id> is the one armed.
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('level') !== null) openShared(q.get('level'));
+  else if (rooms.some(r => r.id === q.get('room'))) { armStage('rooms'); if (looks.look.id !== 'classic') looks.setMode('rooms'); }
+}
 
 // scripted tests read the stages through this (dev hosts; nothing here plays)
 window.__stages = { get tutor() { return tutor; }, get board() { return board; }, get history() { return history; },
                     get chase() { return { state: chaseState, ticks: chaseTicks, dead: chaseDead, waiting: chaseWaiting }; },
-                    get armed() { return armedStage; }, armStage, room, rooms, openRoom };
+                    get armed() { return armedStage; }, armStage, room, rooms, openRoom, openShared };
 
 // The render loop starts last: everything it draws has to exist first.
 requestAnimationFrame(tick);
