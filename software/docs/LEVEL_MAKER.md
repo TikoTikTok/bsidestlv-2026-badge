@@ -181,8 +181,10 @@ over from the panel; progress is in `localStorage alice.tutor.maker`.
   the log is every edge with its time and what the room made of it. *Play
   the solution* replays the checker's answer.
 - **Send it in** writes the module (copy or download), names the file,
-  and makes a link that carries the whole room (`?level=`), for a friend
-  with a checkout. *Import* reads a pasted module back.
+  and opens the **Share** dialog, which makes a link that carries the
+  whole room (`?level=`; the next section): what goes in, how the link
+  reads, where it opens, the room's JSON to edit, the length and a warning
+  when a chat would cut it. *Import* reads a pasted module back.
 - **The assistant** is the chat the bridge carries (next section): what you
   type goes to whoever is connected, what they say comes back here, and
   everything they do to the room is listed as it happens. The header's chip
@@ -192,10 +194,50 @@ The room is kept in the browser (`localStorage` `alice.maker.level`, the
 shelf under `alice.maker.shelf`, the overlays and zoom under
 `alice.maker.prefs`), so a reload keeps it. Headless, the page is driven
 through `window.__maker` (`level`, `setLevel`, `lint`, `check`, `play`,
-`solution`, `game`, `module`, `share`, `tool` / `setTool`, `brush` /
-`setBrush`, `symmetry` / `setSymmetry`, `overlays` / `setOverlay`, `undo` /
-`redo`, `surprise`, `shelf` / `shelfSave`, `loadById`, `ops`, `bridge`,
-`tutor`, `chat`) and `window.__pad.inject`.
+`solution`, `game`, `module`, `share({ format, play, where, parts })` (the
+link), `tool` / `setTool`, `brush` / `setBrush`, `symmetry` / `setSymmetry`,
+`overlays` / `setOverlay`, `undo` / `redo`, `surprise`, `shelf` /
+`shelfSave`, `loadById`, `ops`, `bridge`, `tutor`, `chat`) and
+`window.__pad.inject`.
+
+## A room in a link
+
+There is no server, so the only way to hand a room to someone is to put
+the whole room in the address: `?level=<token>` is that link, and nothing
+is uploaded. The **Share** dialog (*Send it in*, or `window.__maker.share`,
+or the bridge's `share` op) writes one and lets you choose:
+
+- **How the link reads.** *Compact* is base64url of the room's JSON: short,
+  safe in any chat, and the spelling every link made so far is, so old
+  links keep working. *Readable JSON* is the JSON itself, percent-encoded
+  by the URL: longer, but a person or an assistant can read it in the
+  address bar and write one by hand. `decodeShare` (`src/level.js`) takes
+  either, or a whole link pasted in (`https://…?level=…`, `?level=…`,
+  `level=…`), and refuses what is not a room with a message that says why.
+- **What goes in.** The map, the clock and the cast always travel; the
+  **lesson**, the **blurb** and the **dressing** can be left out (`parts` in
+  `shareUrl`). The JSON box shows exactly what the link carries; edit it and
+  the link follows the edit until one of the parts is toggled again.
+- **Where it opens.** The same room, three doors: `maker.html?level=` on a
+  checkout is the studio, which loads it (with `&play=1`, "opens in Run &
+  debug", it starts playing it at once); `maker.html?level=` on the
+  published site is the landing, which paints that room in its hero (Alice
+  walks its solution when the solver finds one within 50,000 states, else
+  the room is painted still) and says under it where to play it;
+  `index.html?level=` is the stages page, where the room appears as a card
+  of its own, *Shared · name*, at the front of **Rooms**, opened and armed,
+  blurb and lesson with it, and played with the badge like any room
+  (`?level=` wins over `?room=`; a malformed link is reported in the
+  room's status and the page goes on). `shareUrl(base, level, { format,
+  play, parts })` builds the link, `shareInfo(url)` says how long it is.
+- **How long it is.** A room is a few hundred characters; a lesson of
+  twelve long steps gets a link past 2,000, where some chats and QR codes
+  cut it (the dialog warns), and past 8,000 it may not paste at all. The
+  compact spelling, or fewer parts, makes it shorter.
+
+Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":false,"parts":{"lesson":false}}}`
+answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
+`maker_share`.
 
 ## The bridge: an assistant in the studio
 
@@ -218,8 +260,9 @@ Two ways in:
   `maker_paint`, `maker_check`, `maker_play`, `maker_moves`, `maker_press`,
   `maker_reset`, `maker_stop`, `maker_say`, `maker_read_chat`,
   `maker_snapshot` (a picture of the board or the run, as an image),
-  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`. No
-  dependencies: JSON-RPC over stdio.
+  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`,
+  `maker_share` (a link that carries the room). No dependencies: JSON-RPC
+  over stdio.
 - **HTTP.** Anything that can `curl`:
 
   ```
@@ -236,7 +279,7 @@ Two ways in:
 
   The ops are `get`, `set`, `paint`, `check`, `play`, `stop`, `reset`,
   `press`, `moves`, `say`, `snapshot`, `module`, `load`, `generate`,
-  `tool` - the same table (`ops` in `src/maker.js`) the MCP tools call. An
+  `tool`, `share` - the same table (`ops` in `src/maker.js`) the MCP tools call. An
   rpc waits for the page's answer (30 s by default, `timeoutMs`); with no
   page open it is 503, an error the page raised is 422, an op the page
   does not know is 400.
