@@ -19,6 +19,9 @@ import { secretFor, orderFor, comparisons, runAlong, buildLock, Lock, attack, lc
 import { Watchdog, windowOf, idealGapMs, replay } from '../../src/watchdog.js';
 import { Wall, judge, frameOf, canaryFor, withDefaults, attack as smash } from '../../src/wall.js';
 import { TUTORIAL, STAGES_TUTORIAL, Tutor } from '../../src/tutor.js';
+import { stageOf } from '../../src/seal.js';
+import { TEA_PARTY } from '../../stages/tea-party.js';
+import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
 
 const HAND_RATE = 6;          // presses / s
 const HAND_JITTER_MS = 40;    // +/- on a timed press
@@ -475,6 +478,25 @@ console.log('\nthe stages\' tutorial');
   t2.feed({ kind: 'edge', button: 'A', down: true });
   ok(t2.feed({ kind: 'tea', what: 'push' }) === null && t2.feed({ kind: 'tea', what: 'move' })?.id === 'walk', 'stages tutorial: a push is also a move, fed as move first');
   console.log(`  ${STAGES_TUTORIAL.length} steps, ${STAGES_TUTORIAL.filter(s => s.stage === 'tea').length} in the tea party, ${STAGES_TUTORIAL.filter(s => s.stage === 'chase').length} in the gauntlet, ${STAGES_TUTORIAL.filter(s => s.stage === 'rooms').length} in the community's rooms`);
+}
+
+// ------------------------------------------------------------ the loader ----
+// glitch.html opens every range through src/seal.js's loadStage, which finds
+// the export in the module by its shape. The watch and the dog carry no map,
+// so a finder that wants `rows` (as the one that came with the community
+// rooms did, 2026-10-31 to 2026-11-04) refuses the whole page: pin the shape
+// of every shipped module here.
+
+console.log('the loader');
+{
+  const shipped = { 'rabbit-watch': RABBIT_WATCH, 'looking-glass': LOOKING_GLASS, 'caterpillar-lock': CATERPILLAR_LOCK,
+                    'dormouse-watchdog': DORMOUSE_WATCHDOG, 'humpty-wall': HUMPTY_WALL, 'tea-party': TEA_PARTY, 'queens-gauntlet': QUEENS_GAUNTLET };
+  for (const [id, stage] of Object.entries(shipped)) {
+    const mod = await import(`../../stages/${id}.js`);
+    ok(stageOf(mod) === stage, `stages/${id}.js: loadStage finds its export (${stage.name})`);
+  }
+  ok(stageOf({ a: 1, b: null, c: { name: 'no map, no levels' } }) === undefined, 'a module with neither rows nor levels exports no stage');
+  console.log(`  ${Object.keys(shipped).length} shipped modules found by shape`);
 }
 
 if (failed) { console.error(`\n${failed} check(s) failed`); process.exit(1); }
