@@ -118,15 +118,29 @@ bench, the export, the assistant panel and the tutorial are class
 the site's pad with the badge as its only source; the studio builds a pad
 with every source on a dev host and none at all on the site).
 
-The first visit is guided: **Painting the Roses** (`MAKER_TUTORIAL` in
+The first visit is guided, and there is a choice of guides: the Learn panel
+at the bottom offers the **guided builds** (`MAKER_TUTORIALS` in
 `src/tutor.js`, drawn by `src/coach.js` as the line at the top of the page
-and the Learn panel at the bottom) is sixteen steps that watch what you do
-and tick themselves off - chapter one draws (a brush, a wall, a rock, its
-button, the lint green, a bigger tool, an overlay, Surprise me), chapter
-two proves and plays (Check, Run & debug, a step, the solution), chapter
-three ships (the shelf, a lesson, the export, an assistant). Skip any step; start
-over from the panel; progress is in `localStorage alice.tutor.maker`.
-`?` lists every key.
+and the panel's checklist) as cards; pick one and its steps watch what you
+do and tick themselves off. **Painting the Roses** (16 steps) is the tour of
+the studio - chapter one draws (a brush, a wall, a rock, its button, the
+lint green, a bigger tool, an overlay, Surprise me), chapter two proves and
+plays (Check, Run & debug, a step, the solution), chapter three ships (the
+shelf, a lesson, the export, an assistant). The others each lead to one
+finished room: **A Room with a Gate** (13 steps: from a blank room, Alice, a
+wall across with the line tool, a gate in it, the lever on her side, a rock
+and its button and the door behind, Check saying the gate is load-bearing,
+played to the door, sent in), **The Clock and the Cast** (11: the corridor
+turned timed, the tick, a hazard and a two-point route, Check, Run & debug,
+a wait, getting caught, START, out, sent in) and **A Room that Teaches** (9:
+a name, a blurb, a lesson of at least three steps, Check, the door, the
+shelf, sent in). Skip any step; start over from the panel; progress is kept
+per build (`localStorage alice.tutor.maker` for the tour,
+`alice.tutor.maker.<id>` for the rest), the choice under
+`alice.maker.tutorial`, and `?tutorial=gate` (or `roses`, `clock`, `teach`)
+in the address opens on that one. An assistant can read and steer the
+build over the bridge (the `tutorial` op, `maker_tutorial`). `?` lists
+every key.
 
 - **The room.** A palette of brushes (also keys `1`–`8`) and a bar of
   tools: the **pencil** (`P`, one cell or a drag), the **line** (`I`, drag
@@ -195,7 +209,8 @@ through `window.__maker` (`level`, `setLevel`, `lint`, `check`, `play`,
 `solution`, `game`, `module`, `share`, `tool` / `setTool`, `brush` /
 `setBrush`, `symmetry` / `setSymmetry`, `overlays` / `setOverlay`, `undo` /
 `redo`, `surprise`, `shelf` / `shelfSave`, `loadById`, `ops`, `bridge`,
-`tutor`, `chat`) and `window.__pad.inject`.
+`tutor` / `tutorials` / `pickTutorial` / `tutorial`, `chat`) and
+`window.__pad.inject`.
 
 ## The bridge: an assistant in the studio
 
@@ -218,8 +233,9 @@ Two ways in:
   `maker_paint`, `maker_check`, `maker_play`, `maker_moves`, `maker_press`,
   `maker_reset`, `maker_stop`, `maker_say`, `maker_read_chat`,
   `maker_snapshot` (a picture of the board or the run, as an image),
-  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`. No
-  dependencies: JSON-RPC over stdio.
+  `maker_load`, `maker_generate`, `maker_module`, `maker_tool`,
+  `maker_tutorial` (which guided build the person is on and its step; pick
+  one, skip a step, start over). No dependencies: JSON-RPC over stdio.
 - **HTTP.** Anything that can `curl`:
 
   ```
@@ -236,7 +252,12 @@ Two ways in:
 
   The ops are `get`, `set`, `paint`, `check`, `play`, `stop`, `reset`,
   `press`, `moves`, `say`, `snapshot`, `module`, `load`, `generate`,
-  `tool` - the same table (`ops` in `src/maker.js`) the MCP tools call. An
+  `tool`, `tutorial` - the same table (`ops` in `src/maker.js`) the MCP
+  tools call. `get` reports the guided build the person is on as
+  `tutorial: { id, title, step, at, of }`; `tutorial` with
+  `{ id?, skip?, restart? }` picks one, skips that many steps or starts it
+  over, and answers the same summary, so an assistant can walk a person
+  through a build or follow one itself. An
   rpc waits for the page's answer (30 s by default, `timeoutMs`); with no
   page open it is 503, an error the page raised is 422, an op the page
   does not know is 400.
@@ -304,7 +325,7 @@ src/level.js                    a level as data: lint, check, toModule / fromMod
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
 src/check-worker.js             check() and generateSolvable() off the page's thread
 src/bridge.js                   the page's end of the bridge: the event stream, the replies, the mirror, the chat
-src/tutor.js                    MAKER_TUTORIAL, "Painting the Roses" (with the other two tutorials); src/coach.js draws it; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
+src/tutor.js                    MAKER_TUTORIALS, the studio's guided builds - Painting the Roses, A Room with a Gate, The Clock and the Cast, A Room that Teaches (with the other two pages' tutorials); src/coach.js draws the chosen one; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
 src/room.js                     the stages page's player for a community room: either rules, the badge, the lesson under it
 stages/community/               the community's rooms and index.json; the-first-lesson.js and tick-tock.js are the demos, one lesson each
 software/tools/maker.mjs        npm run maker: serves the checkout, opens the page
