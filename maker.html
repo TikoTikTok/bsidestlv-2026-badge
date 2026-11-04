@@ -30,7 +30,7 @@
   </div>
 </header>
 
-<!-- the tutorial's coach line (a checkout only): the current step of "Painting the Roses"; src/tutor.js + src/coach.js drive it -->
+<!-- the tutorial's coach line (a checkout only): the current step of the guided build chosen in the Learn panel; src/tutor.js + src/coach.js drive it -->
 <div id="coach" class="coach dev-only" hidden>
   <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
   <span id="coachSay" class="coach-say"></span>
@@ -299,10 +299,12 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
   </section>
 
   <section class="panel dev-only" id="learnPanel">
-    <h2>Painting the Roses <span id="learnProgress" class="armed-mark"></span></h2>
-    <p class="note">A first room in the studio, one step at a time. Each step watches what you do and ticks itself off;
-      the line at the top of the page says what comes next wherever you are. Chapter one draws, chapter two proves and
-      plays, chapter three ships. Skip what you like, it costs nothing.</p>
+    <h2><span id="learnTitle">Painting the Roses</span> <span id="learnProgress" class="armed-mark"></span></h2>
+    <p class="note">Guided builds, one step at a time: pick one below. Each leads to a finished room, and each step watches
+      what you do and ticks itself off; the line at the top of the page says what comes next wherever you are. Progress
+      is kept per build, so switch whenever you like. Skip what you like, it costs nothing.</p>
+    <!-- one card per entry of MAKER_TUTORIALS (src/tutor.js), drawn by src/maker.js: button.learn-pick[data-id], the chosen one .on -->
+    <div id="learnPick" class="learn-picks"></div>
     <div id="learnCoach" class="learn-now"></div>
     <ol id="learnSteps" class="learn-steps"></ol>
     <div class="stage-bar">

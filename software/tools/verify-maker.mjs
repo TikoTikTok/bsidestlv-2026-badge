@@ -3,7 +3,8 @@
 // stages and a few rooms built by hand (lint catches what it should, the
 // module it writes reads back as the same room, a link carries it); the
 // studio's tools, transforms, analysis, starters and generator; the
-// tutorial "Painting the Roses" walked on the events src/maker.js emits;
+// studio's guided builds (MAKER_TUTORIALS) each walked on the events
+// src/maker.js emits, every event a step waits on one it tells;
 // that maker.html keeps the studio to a checkout (class dev-only) and the
 // landing to the site (class site-only); the assistant's bridge (a server on
 // a free port, a fake page on its event stream, the round trips, the
@@ -21,7 +22,7 @@ import { request } from 'node:http';
 import { blank, setCell, resize, lint, check, kindOf, toModule, fromModule, encodeShare, decodeShare, idOf, normalize,
          lineCells, rectCells, regionCells, paintCells, mirrorCells, flipH, flipV, rotate, shift, analyse, difficulty,
          STARTERS, rng, generate, generateSolvable, lessonToText, lessonFromText } from '../../src/level.js';
-import { MAKER_TUTORIAL, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
+import { MAKER_TUTORIAL, MAKER_TUTORIALS, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
 import { startMaker, OPS } from './maker-server.mjs';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
@@ -174,39 +175,97 @@ console.log('every starter solves, and the generator draws the same room from th
   ok(generateSolvable({ seed: 1, rocks: 6, width: 5, height: 5 }, { tries: 3 }) === null, 'and says so when it cannot');
 }
 
-// ---------------------------------------------------------------- the tutorial ----
-console.log('the tutorial "Painting the Roses" ticks on the studio\'s events');
+// --------------------------------------------------------------- the tutorials ----
+// Every guided build in the catalogue: well formed (ids, chapters in order,
+// panels, what the coach says at the end), every event a step waits on one
+// src/maker.js tells and the list above the catalogue names, and a walk on
+// synthetic events in order, each step shown to ignore what is not it.
+console.log('the studio\'s guided builds tick on its events');
 {
-  const ids = new Set();
-  for (const s of MAKER_TUTORIAL) {
-    ok(!ids.has(s.id), `tutorial: duplicate step ${s.id}`); ids.add(s.id);
-    ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `tutorial ${s.id}: say and why`);
-    ok([1, 2, 3].includes(s.chapter) && ['edit', 'play', 'export', 'assistant'].includes(s.panel), `tutorial ${s.id}: a chapter and a panel`);
+  const makerJs = readFileSync(resolve(root, 'src/maker.js'), 'utf8');
+  const tutorJs = readFileSync(resolve(root, 'src/tutor.js'), 'utf8').replace(/\r\n/g, '\n');
+  const told = new Set([...makerJs.matchAll(/tell\('([a-z]+)'/g)].map(m => m[1]));
+  const listed = tutorJs.match(/Events from src\/maker\.js:\n((?:\/\/.*\n)+)/)?.[1] ?? '';
+  ok(MAKER_TUTORIAL === MAKER_TUTORIALS[0].steps && MAKER_TUTORIALS[0].id === 'roses' && MAKER_TUTORIALS[0].title === 'Painting the Roses', 'MAKER_TUTORIAL is still "Painting the Roses", the first of the catalogue');
+  ok(MAKER_TUTORIALS.length >= 4, `${MAKER_TUTORIALS.length} guided builds in the catalogue`);
+  const tids = new Set();
+  for (const t of MAKER_TUTORIALS) {
+    ok(/^[a-z]+$/.test(t.id) && !tids.has(t.id), `tutorial ${t.id}: an id of its own`); tids.add(t.id);
+    ok(typeof t.title === 'string' && t.title && typeof t.blurb === 'string' && t.blurb, `tutorial ${t.id}: a title and a blurb`);
+    ok(t.finish && typeof t.finish.title === 'string' && typeof t.finish.say === 'string' && typeof t.finish.note === 'function' && typeof t.finish.note(0) === 'string' && /1 step skipped/.test(t.finish.note(1)) && /2 steps skipped/.test(t.finish.note(2)), `tutorial ${t.id}: what the coach says at the end`);
+    ok(Array.isArray(t.steps) && t.steps.length >= 8, `tutorial ${t.id}: ${t.steps.length} steps`);
+    const ids = new Set();
+    for (const s of t.steps) {
+      ok(!ids.has(s.id), `tutorial ${t.id}: duplicate step ${s.id}`); ids.add(s.id);
+      ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `tutorial ${t.id}/${s.id}: say and why`);
+      ok(!!t.chapters[s.chapter] && ['edit', 'play', 'export', 'assistant'].includes(s.panel), `tutorial ${t.id}/${s.id}: a titled chapter and a panel`);
+      const waits = [].concat(s.done.what ?? []);
+      ok(waits.length > 0, `tutorial ${t.id}/${s.id}: done declares the event it waits on`);
+      for (const w of waits) ok(told.has(w), `tutorial ${t.id}/${s.id}: src/maker.js tells '${w}'`);
+      for (const w of waits) ok(listed.includes(`'${w}'`), `tutorial ${t.id}/${s.id}: '${w}' is in the events list above the catalogue`);
+    }
+    const chapters = t.steps.map(s => s.chapter);
+    ok(chapters[0] === 1 && chapters.every((c, i) => !i || c >= chapters[i - 1]), `tutorial ${t.id}: the chapters come in order from one`);
+    ok(t.steps.at(-1).id === 'export' || t.id === 'roses', `tutorial ${t.id}: ends by sending the room in`);
   }
-  const chapters = MAKER_TUTORIAL.map(s => s.chapter);
-  ok(chapters.every((c, i) => !i || c >= chapters[i - 1]), 'tutorial: the chapters come in order');
-  let at = 0;
-  const store = { load: () => 0, save: (n) => { at = n; } };
-  const tutor = new Tutor(MAKER_TUTORIAL, store);
   const ev = (what, extra = {}) => ({ ...extra, kind: 'maker', what });
-  const walk = [
-    ['brush', ev('brush', { ch: '#' })], ['paint', ev('paint', { ch: '#', cells: 1, tool: 'pencil' })],
-    ['rock', ev('paint', { ch: 'O', cells: 1, tool: 'pencil' })], ['button', ev('paint', { ch: 'b', cells: 1, tool: 'pencil' })],
-    ['formed', ev('lint', { ok: true, problems: [] })], ['tool', ev('tool', { tool: 'rect', used: true })],
-    ['overlay', ev('overlay', { overlay: 'reach', on: true })], ['surprise', ev('generate', { seed: 7, par: 23 })],
-    ['check', ev('check', { ok: true, par: 23, rules: 'tea' })], ['play', ev('play', { rules: 'tea' })],
-    ['move', ev('move', { dir: 'E' })], ['solution', ev('solution', { par: 23 })],
-    ['shelf', ev('shelf', { did: 'save' })], ['lesson', ev('lesson', { steps: 2, malformed: 0 })], ['export', ev('export', { how: 'copy' })], ['assistant', ev('chat', { text: 'hi' })],
-  ];
-  const wrong = [ev('brush', { ch: 'O' }), ev('paint', { ch: '.', cells: 1 }), ev('lint', { ok: false }), ev('tool', { tool: 'rect', used: false }), ev('check', { ok: false }), ev('shelf', { did: 'open' }), ev('lesson', { steps: 0, malformed: 1 }), { kind: 'edge', button: 'A', down: true }];
-  for (const [id, e] of walk) {
-    ok(tutor.step?.id === id, `tutorial: at ${id}`);
-    for (const w of wrong) tutor.feed(w);
-    ok(tutor.step?.id === id, `tutorial: ${id} ignores what is not it`);
-    ok(tutor.feed(e)?.id === id, `tutorial: ${id} completes`);
+  const edge = { kind: 'edge', button: 'A', down: true };
+  const WALKS = {
+    roses: [
+      ['brush', ev('brush', { ch: '#' })], ['paint', ev('paint', { ch: '#', cells: 1, tool: 'pencil' })],
+      ['rock', ev('paint', { ch: 'O', cells: 1, tool: 'pencil' })], ['button', ev('paint', { ch: 'b', cells: 1, tool: 'pencil' })],
+      ['formed', ev('lint', { ok: true, problems: [] })], ['tool', ev('tool', { tool: 'rect', used: true })],
+      ['overlay', ev('overlay', { overlay: 'reach', on: true })], ['surprise', ev('generate', { seed: 7, par: 23 })],
+      ['check', ev('check', { ok: true, par: 23, rules: 'tea', gate: null })], ['play', ev('play', { rules: 'tea' })],
+      ['move', ev('move', { dir: 'E' })], ['solution', ev('solution', { par: 23 })],
+      ['shelf', ev('shelf', { did: 'save' })], ['lesson', ev('lesson', { steps: 2, malformed: 0 })], ['export', ev('export', { how: 'copy' })], ['assistant', ev('chat', { text: 'hi' })],
+    ],
+    gate: [
+      ['blank', ev('load', { id: 'blank', from: 'starter' })], ['alice', ev('paint', { ch: 'A', cells: 1, tool: 'pencil' })],
+      ['wall', ev('paint', { ch: '#', cells: 7, tool: 'line' })], ['gate', ev('paint', { ch: 'G', cells: 1, tool: 'pencil' })],
+      ['lever', ev('paint', { ch: 'L', cells: 1, tool: 'pencil' })], ['rock', ev('paint', { ch: 'O', cells: 1, tool: 'pencil' })],
+      ['button', ev('paint', { ch: 'b', cells: 1, tool: 'pencil' })], ['door', ev('paint', { ch: 'D', cells: 1, tool: 'pencil' })],
+      ['formed', ev('lint', { ok: true, problems: [] })], ['check', ev('check', { ok: true, par: 21, rules: 'tea', gate: 'load-bearing' })],
+      ['play', ev('play', { rules: 'tea' })], ['win', ev('win', { moves: 21 })], ['export', ev('export', { how: 'pr' })],
+    ],
+    clock: [
+      ['corridor', ev('load', { id: 'corridor', from: 'starter' })], ['tick', ev('tick', { ms: 320, timed: true })],
+      ['hazard', ev('hazard', { did: 'add', n: 0, route: [], sight: 3, character: 'queen' })],
+      ['route', ev('hazard', { did: 'route', n: 0, route: [[1, 5], [7, 5]], sight: 3, character: 'queen' })],
+      ['check', ev('check', { ok: true, par: 17, rules: 'chase', gate: null })], ['play', ev('play', { rules: 'chase' })],
+      ['wait', ev('move', { dir: 'wait' })], ['caught', ev('caught', { ticks: 6 })], ['restart', ev('restart', { rules: 'chase' })],
+      ['win', ev('win', { ticks: 17 })], ['export', ev('export', { how: 'download' })],
+    ],
+    teach: [
+      ['room', ev('load', { id: 'gate', from: 'starter' })], ['name', ev('name', { name: 'The Lever Lesson' })],
+      ['blurb', ev('blurb', { chars: 42 })], ['lesson', ev('lesson', { steps: 3, malformed: 0 })],
+      ['check', ev('check', { ok: true, par: 26, rules: 'tea', gate: 'load-bearing' })], ['play', ev('play', { rules: 'tea' })],
+      ['win', ev('win', { moves: 26 })], ['shelf', ev('shelf', { did: 'save' })], ['export', ev('export', { how: 'link' })],
+    ],
+  };
+  // what no step of that build accepts: fed before every step, none may move
+  const WRONG = {
+    roses: [ev('brush', { ch: 'O' }), ev('paint', { ch: '.', cells: 1 }), ev('lint', { ok: false }), ev('tool', { tool: 'rect', used: false }), ev('check', { ok: false }), ev('move', { dir: 'wait' }), ev('shelf', { did: 'open' }), ev('lesson', { steps: 0, malformed: 1 }), edge],
+    gate: [ev('load', { id: 'hall', from: 'starter' }), ev('paint', { ch: '.', cells: 1, tool: 'pencil' }), ev('paint', { ch: '#', cells: 2, tool: 'pencil' }), ev('lint', { ok: false, problems: ['x'] }), ev('check', { ok: true, par: 9, rules: 'tea', gate: 'decoration' }), ev('check', { ok: false, gate: null }), ev('export', { how: 'png' }), ev('move', { dir: 'E' }), ev('tick', { ms: 320, timed: true }), ev('hazard', { did: 'add', n: 0, route: [] }), edge],
+    clock: [ev('load', { id: 'blank', from: 'starter' }), ev('tick', { ms: null, timed: false }), ev('hazard', { did: 'route', n: 0, route: [[1, 5]], sight: 3 }), ev('hazard', { did: 'edit', n: 0, route: [], sight: 2 }), ev('check', { ok: true, par: 9, rules: 'tea', gate: null }), ev('check', { ok: false, gate: null }), ev('play', { rules: 'tea' }), ev('move', { dir: 'E' }), ev('export', { how: 'png' }), ev('lint', { ok: false }), { kind: 'edge', button: 'Y', down: true }],
+    teach: [ev('name', { name: 'An Untitled Room' }), ev('name', { name: 'Ab' }), ev('blurb', { chars: 4 }), ev('lesson', { steps: 2, malformed: 0 }), ev('lesson', { steps: 3, malformed: 1 }), ev('check', { ok: false, gate: null }), ev('shelf', { did: 'open' }), ev('export', { how: 'png' }), ev('paint', { ch: '#', cells: 1, tool: 'pencil' }), ev('move', { dir: 'E' }), edge],
+  };
+  for (const t of MAKER_TUTORIALS) {
+    const walk = WALKS[t.id], wrong = WRONG[t.id];
+    ok(walk && wrong, `tutorial ${t.id}: the verifier knows a walk for it`);
+    if (!walk || !wrong) continue;
+    ok(walk.length === t.steps.length, `tutorial ${t.id}: the walk is ${walk.length} events for ${t.steps.length} steps`);
+    let at = 0;
+    const tutor = new Tutor(t.steps, { load: () => 0, save: (n) => { at = n; } });
+    for (const [id, e] of walk) {
+      ok(tutor.step?.id === id, `tutorial ${t.id}: at ${id}`);
+      for (const w of wrong) tutor.feed(w);
+      ok(tutor.step?.id === id, `tutorial ${t.id}: ${id} ignores what is not it`);
+      ok(tutor.feed(e)?.id === id, `tutorial ${t.id}: ${id} completes`);
+    }
+    ok(tutor.done && at === t.steps.length, `tutorial ${t.id}: done, progress saved`);
+    tutor.restart(); ok(tutor.at === 0 && at === 0, `tutorial ${t.id}: start over`);
   }
-  ok(tutor.done && at === MAKER_TUTORIAL.length, 'tutorial: done, progress saved');
-  tutor.restart(); ok(tutor.at === 0 && at === 0, 'tutorial: start over');
 }
 
 // ------------------------------------------------------------------ the bridge ----
@@ -355,6 +414,15 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/maker\.html/.test(readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml publishes maker.html');
   const makerCss = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
   ok(!/data-theme=|data-flip/.test(makerCss), 'src/maker.css paints from the variables and never names a theme or the turn');
+  // the guided builds: the cards in the Learn panel, the choice kept, the bridge steering them
+  for (const id of ['learnTitle', 'learnPick']) ok(new RegExp(`id="${id}"`).test(html), `the Learn panel has #${id} (the chosen build's title, the cards)`);
+  ok(/<h2><span id="learnTitle">Painting the Roses<\/span> <span id="learnProgress"/.test(html), 'the Learn panel\'s heading is the chosen build\'s title, the first one before the page runs');
+  ok(/MAKER_TUTORIALS/.test(mod) && /className = `learn-pick/.test(mod) && /setAttribute\('data-id', t\.id\)/.test(mod) && /' on'/.test(mod), 'src/maker.js draws a card per guided build (button.learn-pick[data-id], the chosen one .on)');
+  ok(/'alice\.maker\.tutorial'/.test(mod) && /get\('tutorial'\)/.test(mod) && /'alice\.tutor\.maker'/.test(mod) && /`alice\.tutor\.maker\.\$\{id\}`/.test(mod), 'the choice is remembered (alice.maker.tutorial), ?tutorial= picks one, progress is per build and the first keeps its old key');
+  const coachJs = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
+  ok(/function use\(next/.test(coachJs) && /return \{ feed, render, skip, restart, use, get tutor\(\)/.test(coachJs) && /onRender\(\)/.test(coachJs), 'src/coach.js can put another tutorial under the same coach, and says when it redraws');
+  ok(/mountCoach\(first, \{ looks, title = ''/.test(coachJs) && /\$\('#learnTitle'\)/.test(coachJs), 'src/coach.js keeps its API for the stages and the range, and fills #learnTitle where there is one');
+  ok(/\.learn-picks \{/.test(makerCss) && /\.learn-pick\.on \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.learn-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
 }
 
 // ------------------------------------------------------------- the community ----
