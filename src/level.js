@@ -313,7 +313,7 @@ function rangeModule(level, { author } = {}) {
   if (author) head.push(`// By ${author}, made with the level maker (maker.html)`);
   head.push('//', ...(RANGE_NOTES[kind] ?? []).map(l => `//   ${l}`), '//',
             `// glitch.html lists it as a tab of its range once stages/community/index.json carries`,
-            `// { "id": "${lv.id}", "name": ${JSON.stringify(lv.name)}, "author": "…", "kind": "${kind}" }.`);
+            `// { "id": "${lv.id}", "name": ${JSON.stringify(lv.name)}, "author": ${JSON.stringify(author ?? '…')}, "kind": "${kind}" }.`);
   const body = [`export const ${name} = {`];
   const put = (k, v) => body.push(`  ${k}: ${v},`);
   put('name', JSON.stringify(lv.name)); put('range', JSON.stringify(kind)); put('id', JSON.stringify(lv.id));
