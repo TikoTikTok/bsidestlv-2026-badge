@@ -26,7 +26,9 @@
   position: relative; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2);
   padding: .9rem .9rem .9rem 2.8rem; font-size: 12px; color: var(--dim);
 }
-.steps.three li b { color: var(--text); display: block; margin-bottom: .25rem; }
+.steps.three li b { color: var(--text); }
+/* a step's title is its first bold, on a line of its own; a bold word in the prose stays in its sentence */
+.steps.three li > b:first-child { display: block; margin-bottom: .25rem; }
 .steps.three li::before {
   counter-increment: step; content: counter(step);
   position: absolute; left: .9rem; top: .9rem; width: 1.4rem; height: 1.4rem; border-radius: 50%;
