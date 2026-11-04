@@ -225,6 +225,20 @@
 .share textarea { font: 11px/1.45 var(--font); letter-spacing: 0; white-space: pre; overflow: auto; }
 @media (max-width: 640px) { .share-grid { grid-template-columns: 1fr; } .share-row { flex-wrap: wrap; } }
 
+/* ------------------------------------------------- the guided builds -- */
+/* The Learn panel's cards, one per entry of MAKER_TUTORIALS: the title, the
+   blurb, where the player is in it; the chosen one is .on, a finished one .done. */
+
+.learn-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .5rem; margin: 0 0 1rem; }
+.learn-pick { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; padding: .55rem .7rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); min-width: 0; }
+.learn-pick b { color: var(--text); font-size: 12px; }
+.learn-pick small { font-size: 10px; line-height: 1.4; }
+.learn-pick i { font-style: normal; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; margin-top: .2rem; }
+.learn-pick:hover { border-color: var(--accent); color: var(--text); }
+.learn-pick.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; color: var(--text); }
+.learn-pick.on b { color: var(--accent-2); }
+.learn-pick.done i { color: var(--accent-2); }
+
 /* ------------------------------------------------ in the phone looks -- */
 
 html:not([data-look=classic]) .hero { gap: .75rem; }
@@ -232,3 +246,4 @@ html:not([data-look=classic]) .hero h1 { font-size: 20px; }
 html:not([data-look=classic]) .maker, html:not([data-look=classic]) .run, html:not([data-look=classic]) .export, html:not([data-look=classic]) .format { grid-template-columns: 1fr; }
 html:not([data-look=classic]) .steps.three, html:not([data-look=classic]) .keys-grid, html:not([data-look=classic]) .starters, html:not([data-look=classic]) .knobs, html:not([data-look=classic]) .share-grid { grid-template-columns: 1fr; }
 html:not([data-look=classic]) .zoom { margin-left: 0; }
+html:not([data-look=classic]) .learn-picks { grid-template-columns: 1fr; }

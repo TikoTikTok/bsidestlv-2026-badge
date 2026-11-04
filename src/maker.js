@@ -19,8 +19,9 @@
 //               that writes the stage module a pull request carries, with the
 //               room's blurb and lesson (what the stages page shows under it); the
 //               assistant panel, where whoever is on the bridge (src/bridge.js)
-//               talks and is seen working; and the tutorial "Painting the
-//               Roses" (src/tutor.js MAKER_TUTORIAL, src/coach.js).
+//               talks and is seen working; and the tutorials - the guided
+//               builds of src/tutor.js MAKER_TUTORIALS, one chosen in the
+//               Learn panel, drawn by src/coach.js.
 //
 // The keyboard plays here, and only here: the Pad is built with every source
 // on a dev host (src/pad.js sourcesFor), on the site it is not built at all.
@@ -39,7 +40,7 @@ import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } f
 import { CHARS, BRUSHES, kindOf, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
          idOf, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
          flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
-import { MAKER_TUTORIAL, LESSON_EVENTS, Tutor } from './tutor.js';
+import { MAKER_TUTORIALS, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
 import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
@@ -224,10 +225,20 @@ const load = (k) => { try { return localStorage.getItem(k); } catch { return nul
 const save = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage may be off */ } };
 const loadJson = (k, or) => { const s = load(k); if (!s) return or; try { return JSON.parse(s); } catch { return or; } };
 
-// the tutorial: every event the studio produces goes through here
-const tutor = new Tutor(MAKER_TUTORIAL, tutorStore('alice.tutor.maker'));
+// the tutorials: one Tutor per guided build, each with its own progress
+// (alice.tutor.maker for the first, alice.tutor.maker.<id> for the rest), the
+// chosen one remembered under alice.maker.tutorial, ?tutorial=<id> picking one
+// for the visit; every event the studio produces goes through tell() to the
+// coach, which feeds the build in use
+const TUTORIAL = 'alice.maker.tutorial';
+const tutorKey = (id) => (id === MAKER_TUTORIALS[0].id ? 'alice.tutor.maker' : `alice.tutor.maker.${id}`);
+const tutorialById = (id) => MAKER_TUTORIALS.find(t => t.id === id) ?? null;
+const tutors = new Map(MAKER_TUTORIALS.map(t => [t.id, new Tutor(t.steps, tutorStore(tutorKey(t.id)))]));
+let picked = [new URLSearchParams(location.search).get('tutorial'), load(TUTORIAL)].find(id => tutorialById(id)) ?? MAKER_TUTORIALS[0].id;
+let tutor = tutors.get(picked);
 let coach = null;
 const tell = (what, extra = {}) => coach?.feed({ ...extra, kind: 'maker', what });
+const tutorialSummary = () => ({ id: picked, title: tutorialById(picked).title, step: tutor.step?.id ?? 'done', at: tutor.at, of: tutor.steps.length });
 
 // ---------------------------------------------------------------- the level ----
 
@@ -387,6 +398,8 @@ function drawEdit() {
   }
 }
 
+/** A hazard changed - added, a route point laid, its cast or sight edited: which one, and its route so far (the tutorial watches it grow). */
+const tellHazard = (did, n) => { const h = level.hazards?.[n]; if (h) tell('hazard', { did, n, route: h.route.map(([x, y]) => [x, y]), sight: h.sight ?? 0, character: h.character ?? h.id }); };
 function renderHazards() {
   hazardsEl.textContent = '';
   (level.hazards ?? []).forEach((hz, n) => {
@@ -414,7 +427,7 @@ function renderHazards() {
     row.append(who, sight, pick, back, del, route);
     hazardsEl.append(row);
   });
-  function edit(n, fn) { const hazards = level.hazards.map(h => ({ ...h, route: [...h.route] })); fn(hazards[n]); setLevel({ ...level, hazards }); }
+  function edit(n, fn) { const hazards = level.hazards.map(h => ({ ...h, route: [...h.route] })); fn(hazards[n]); setLevel({ ...level, hazards }); tellHazard('edit', n); }
 }
 function uniqueId(base, except) {
   const taken = new Set((level.hazards ?? []).filter((_, i) => i !== except).map(h => h.id));
@@ -503,19 +516,21 @@ board.addEventListener('pointerdown', (e) => {
     const last = route.at(-1);
     if (last && last[0] === c.x && last[1] === c.y) route.pop(); else route.push([c.x, c.y]);
     setLevel({ ...level, hazards });
+    tellHazard('route', hazardPick);
     return;
   }
   if (tool === 'pick' || (e.altKey && e.button === 0)) { const ch = level.rows[c.y][c.x]; if (ch in CHARS) setBrush(ch); return; }
   const ch = e.button === 2 ? '.' : brush;
+  // a stroke is told before the room changes under it, so what lint then says is the news after the paint
   if (tool === 'fill') {
     const cells = withMirror(regionCells(level, c.x, c.y));
-    setLevel(paintCells(level, cells, ch));
     tell('paint', { ch, cells: cells.length, tool }); tell('tool', { tool, used: true });
+    setLevel(paintCells(level, cells, ch));
     return;
   }
   stroke = { tool, ch, from: c, before: level, filled: e.shiftKey };
   board.setPointerCapture(e.pointerId);
-  if (tool === 'pencil') { setLevel(paintCells(level, withMirror([[c.x, c.y]]), ch)); tell('paint', { ch, cells: 1, tool }); }
+  if (tool === 'pencil') { tell('paint', { ch, cells: 1, tool }); setLevel(paintCells(level, withMirror([[c.x, c.y]]), ch)); }
   else { ghost = withMirror([[c.x, c.y]]); drawEdit(); }
 });
 board.addEventListener('pointermove', (e) => {
@@ -540,9 +555,9 @@ function endStroke(e) {
   if (c && s.tool !== 'pencil') ghost = withMirror(s.tool === 'line' ? lineCells(s.from.x, s.from.y, c.x, c.y) : rectCells(s.from.x, s.from.y, c.x, c.y, { filled: e.shiftKey || s.filled }));
   if (s.tool !== 'pencil' && ghost) {
     const cells = ghost; ghost = null;
-    // the stroke is one history step on top of the level before it
-    level = s.before; setLevel(paintCells(level, cells, s.ch));
+    // the stroke is one history step on top of the level before it, told before the room changes
     tell('paint', { ch: s.ch, cells: cells.length, tool: s.tool }); tell('tool', { tool: s.tool, used: true });
+    level = s.before; setLevel(paintCells(level, cells, s.ch));
   } else if (ghost) { ghost = null; drawEdit(); }
   void e;
 }
@@ -570,28 +585,30 @@ function setOverlay(name, on) {
 $('#zoom').value = cell;
 $('#zoom').addEventListener('input', (e) => { cell = +e.target.value; prefs.zoom = cell; savePrefs(); drawEdit(); });
 
-$('#name').addEventListener('input', (e) => setLevel({ ...level, name: e.target.value }, { remember: false }));
+$('#name').addEventListener('input', (e) => { setLevel({ ...level, name: e.target.value }, { remember: false }); tell('name', { name: level.name }); });
 $('#width').addEventListener('change', (e) => setLevel(resize(level, +e.target.value, dims().h)));
 $('#height').addEventListener('change', (e) => setLevel(resize(level, dims().w, +e.target.value)));
 $('#theme').addEventListener('change', (e) => setLevel({ ...level, theme: e.target.value }));
 $('#kind').addEventListener('change', (e) => {
   if (e.target.value === 'chase') setLevel({ ...level, tickMs: level.tickMs ?? 320 });
   else { const { tickMs, hazards, ...rest } = level; hazardPick = -1; setLevel(rest); }
+  tell('tick', { ms: level.tickMs ?? null, timed: kindOf(level) === 'chase' });
 });
-$('#tickMs').addEventListener('change', (e) => setLevel({ ...level, tickMs: +e.target.value }));
+$('#tickMs').addEventListener('change', (e) => { setLevel({ ...level, tickMs: +e.target.value }); tell('tick', { ms: level.tickMs ?? null, timed: kindOf(level) === 'chase' }); });
 $('#addHazard').addEventListener('click', () => {
   const used = new Set((level.hazards ?? []).map(h => h.character ?? h.id));
   const c = HAZARD_CAST.find(c => !used.has(c.id)) ?? HAZARD_CAST[0];
   const hz = { id: uniqueId(c.id, -1), character: c.id, route: [], sight: c.sight };
   hazardPick = (level.hazards ?? []).length;
   setLevel({ ...level, tickMs: level.tickMs ?? 320, hazards: [...(level.hazards ?? []), hz] });
+  tellHazard('add', hazardPick);
 });
 ascii.addEventListener('input', () => {
   const rows = ascii.value.replace(/\r/g, '').split('\n').filter((r, i, a) => r.length || i < a.length - 1);
   if (rows.length) setLevel({ ...level, rows }, { remember: false });
 });
 ascii.addEventListener('change', () => render());
-blurbEl.addEventListener('input', () => setLevel({ ...level, blurb: blurbEl.value }, { remember: false }));
+blurbEl.addEventListener('input', () => { setLevel({ ...level, blurb: blurbEl.value }, { remember: false }); tell('blurb', { chars: blurbEl.value.trim().length }); });
 lessonEl.addEventListener('input', () => {
   const lesson = lessonFromText(lessonEl.value);
   setLevel({ ...level, lesson }, { remember: false });
@@ -635,13 +652,14 @@ const SHIPPED = [['tea-party', 'A Mad Tea Party'], ['queens-gauntlet', "The Quee
 const community = [];
 async function loadById(id) {
   const starter = STARTERS.find(s => s.id === id);
-  if (starter) { hazardPick = -1; setLevel(starter.level(), { why: 'starter' }); return level; }
+  if (starter) { hazardPick = -1; setLevel(starter.level(), { why: 'starter' }); tell('load', { id, from: 'starter' }); return level; }
   const path = SHIPPED.some(([s]) => s === id) ? `stages/${id}.js` : community.some(s => s.id === id) ? `stages/community/${id}.js` : null;
   if (!path) throw new Error(`no stage, starter or community room called '${id}'`);
   const mod = await import(`../${path}`);
   const stage = Object.values(mod).find(v => v && Array.isArray(v.rows));
   hazardPick = -1;
   setLevel(stage, { why: 'load' });
+  tell('load', { id, from: path.startsWith('stages/community/') ? 'community' : 'stage' });
   return level;
 }
 {
@@ -701,7 +719,8 @@ function runCheck() {
   return ask({ level: lvl }, 'report').then((r) => {
     if (level !== lvl) return r;        // the room changed under the solver; its answer is for the old one
     report = r; render();
-    tell('check', { ok: !!r.ok, par: r.par ?? null, rules: r.kind ?? null });
+    const gate = r.notes?.some(n => /load-bearing/.test(n)) ? 'load-bearing' : r.notes?.some(n => /decoration/.test(n)) ? 'decoration' : null;
+    tell('check', { ok: !!r.ok, par: r.par ?? null, rules: r.kind ?? null, gate });
     return r;
   });
 }
@@ -855,11 +874,12 @@ function tick() {
     game.dead = true; game.plan = null;
     log(`tick ${game.ticks + 1}: ${action} - caught`, 'hot');
     status();
+    tell('caught', { ticks: game.ticks + 1 });
     return;
   }
   game.state = next; game.ticks++;
   if (!planned || game.planAt % 8 === 1) log(`tick ${game.ticks}: ${action}${action === 'wait' ? '' : ` → ${cellName(game.map, next.alice)}`}`);
-  if (!planned && action !== 'wait') tell('move', { dir: action });
+  if (!planned) tell('move', { dir: action });
   if (game.plan && game.planAt >= game.plan.length) game.plan = null;
   if (chaseGoal(game.map, next)) { log(`out in ${game.ticks} ticks`, 'win'); tell('win', { ticks: game.ticks }); }
   status();
@@ -870,6 +890,7 @@ function resetPlay() {
   const { kind } = game;
   startPlay();
   log(kind === 'tea' ? 'reset' : 'restart');
+  tell('restart', { rules: kind });
 }
 function undoPlay() {
   if (!game || game.kind !== 'tea' || game.plan || !game.history.length) return;
@@ -1141,7 +1162,7 @@ const snapshotState = () => ({ level, kind: kindOf(level), lint: lint(level), re
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const ops = {
-  get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutor.step?.id ?? 'done' }),
+  get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutorialSummary() }),
   set: ({ level: next }) => {
     if (!next || !Array.isArray(next.rows)) throw new Error('set wants { level: { name, rows, ... } }');
     hazardPick = -1; setLevel(normalize(next), { why: 'assistant' });
@@ -1220,6 +1241,14 @@ const ops = {
     chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'stages' ? 'on the stages page' : 'in the studio'}`, 'act');
     return r;
   },
+  tutorial: ({ id, skip, restart } = {}) => {
+    if (id !== undefined) { pickTutorial(id); chat(`opened the guided build "${tutorialById(picked).title}"`, 'act'); }
+    if (restart) { coach.restart(); chat(`started "${tutorialById(picked).title}" over`, 'act'); }
+    const skips = skip === true ? 1 : Math.max(0, Math.min(tutor.steps.length, +skip || 0));
+    for (let i = 0; i < skips; i++) coach.skip();
+    if (skips) chat(`skipped ${skips} step${skips === 1 ? '' : 's'} of the guided build`, 'act');
+    return tutorialSummary();
+  },
 };
 
 const bridgeChip = $('#bridgeChip'), bridgeState = $('#bridgeState');
@@ -1238,22 +1267,47 @@ bridge = connectBridge(ops, {
 });
 
 // ---------------------------------------------------------------- the coach ----
-// The tutorial, mounted once the studio exists: a step that comes up scrolls
-// to its panel when asked to show it.
+// The tutorials, mounted once the studio exists: a card per guided build in
+// the Learn panel picks one, the coach line and the checklist follow the one
+// in use, and a step that comes up scrolls to its panel when asked to show it.
 
 const PANELS = { edit: '#editPanel', play: '#playPanel', export: '#exportPanel', assistant: '#assistantPanel' };
+const coachOpts = (t) => ({ title: t.title, chapters: t.chapters, finish: t.finish });
+/** The cards: every build with where the player is in it; redrawn whenever the coach redraws. */
+function renderPicks() {
+  const box = $('#learnPick');
+  box.textContent = '';
+  for (const t of MAKER_TUTORIALS) {
+    const tu = tutors.get(t.id);
+    const n = tu.steps.length, at = Math.min(tu.at, n);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `learn-pick${t.id === picked ? ' on' : ''}${tu.done ? ' done' : ''}`;
+    b.setAttribute('data-id', t.id);
+    b.setAttribute('aria-pressed', String(t.id === picked));
+    b.append(Object.assign(document.createElement('b'), { textContent: t.title }),
+             Object.assign(document.createElement('small'), { textContent: t.blurb }),
+             Object.assign(document.createElement('i'), { textContent: tu.done ? `done · ${n} steps` : at ? `${at} / ${n}` : `${n} steps` }));
+    b.addEventListener('click', () => pickTutorial(t.id));
+    box.append(b);
+  }
+}
+/** Put a guided build under the coach. Remembered unless told not to; an unknown id is refused with the list. */
+function pickTutorial(id, { remember = true } = {}) {
+  const t = tutorialById(id);
+  if (!t) throw new Error(`no tutorial '${id}'; they are ${MAKER_TUTORIALS.map(t => t.id).join(', ')}`);
+  picked = t.id; tutor = tutors.get(t.id);
+  if (remember) save(TUTORIAL, t.id);
+  coach.use(tutor, coachOpts(t));
+  return tutorialSummary();
+}
 coach = mountCoach(tutor, {
-  chapters: { 1: 'Chapter one · the brushes', 2: 'Chapter two · the proof', 3: 'Chapter three · ship it' },
-  finish: {
-    title: 'The roses are painted',
-    say: 'You know the studio. Make a room nobody has seen.',
-    note: (skipped) => 'You have been through the whole studio' + (skipped ? ` (${skipped} step${skipped === 1 ? '' : 's'} skipped)` : '') +
-      '. Start over any time; the shelf keeps your rooms, the export sends one in.',
-  },
+  ...coachOpts(tutorialById(picked)),
   prepare(step, { show = false } = {}) {
     if (!show || !step?.panel) return;
     $(PANELS[step.panel])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
+  onRender: renderPicks,
 });
 tell('lint', { ok: !lint(level).length, why: 'open' });
 
@@ -1278,6 +1332,7 @@ window.__maker = {
   get tool() { return tool; }, setTool, get brush() { return brush; }, setBrush, get symmetry() { return symmetry; }, setSymmetry, overlays, setOverlay,
   undo: undoEdit, redo: redoEdit, get past() { return past.length; }, get future() { return future.length; },
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
+  tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
 };
 
 // ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once
