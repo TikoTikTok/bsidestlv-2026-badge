@@ -414,6 +414,13 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/maker_load[^\n]*<range>:<id>[^\n]*tea-time[^\n]*kings-horses/.test(mcp) && /enum: \['watch', 'glass', 'lock', 'dog', 'wall'\]/.test(mcp), 'maker_load names the range ids and the level schema the range');
   const makerCssText = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
   ok(/#editPanel\[data-category=glitch\] \.room-only \{ display: none !important; \}/.test(makerCssText) && /#editPanel:not\(\[data-category=glitch\]\) \.glitch-only \{ display: none !important; \}/.test(makerCssText), 'src/maker.css hides .room-only and .glitch-only by the panel\'s category');
+  // the range page plays them: the community's levels as tabs, ?level= as yours, both after the gate
+  const glitch = readFileSync(resolve(root, 'src/glitch.js'), 'utf8');
+  ok(/from '\.\/rangecheck\.js'/.test(glitch) && /from '\.\/level\.js'/.test(glitch) && /decodeShare\(token\)/.test(glitch) && /get\('level'\)/.test(glitch), 'src/glitch.js decodes ?level= with decodeShare and lints it with rangeLint');
+  ok(/base: 'stages\/community\/'/.test(glitch) && /stages\/community\/index\.json/.test(glitch) && /' · community'/.test(glitch) && /' · yours'/.test(glitch), 'src/glitch.js adds every listed range level as a "· community" tab and the address\'s as "· yours"');
+  ok(glitch.indexOf('await openGate(') < glitch.indexOf("get('level')") && glitch.indexOf('window.__range.ready = ') > glitch.indexOf('requestAnimationFrame(tick);'), 'the token is read after the gate, and nothing on the page waits on it');
+  ok(/community, shared, ready: null/.test(glitch), 'window.__range exposes community, shared and ready for headless checks');
+  for (const k of RANGE_KINDS) ok(new RegExp(`${k}: add${k[0].toUpperCase()}${k.slice(1)}Tab`).test(glitch), `src/glitch.js can add a ${k} tab`);
   // the stages page plays the community's rooms
   const stages = readFileSync(resolve(root, 'index.html'), 'utf8');
   for (const id of ['roomsPanel', 'roomList', 'room', 'roomName', 'roomBlurb', 'roomLesson', 'roomStatus', 'roomUndo', 'roomReset', 'roomSolve'])

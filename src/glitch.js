@@ -17,6 +17,8 @@ import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
 import { tilt } from './tilt.js';
+import { decodeShare } from './level.js';
+import { rangeLint, RANGE_KINDS } from './rangecheck.js';
 
 const $ = (sel) => document.querySelector(sel);
 const span = (cls, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
@@ -221,18 +223,25 @@ let watchAttempt = 0;
 const watchStatus = $('#watchStatus');
 const setWatchStatus = (text, kind = '') => { watchStatus.textContent = text; watchStatus.className = `status ${kind}`; };
 
-const watchTabs = RABBIT_WATCH.levels.map((level, i) => {
+// The tabs: one per shipped level, and then whatever the community sent in
+// or the address carries (the loader at the end of this file), each with a
+// suffix saying so.
+const watchTabs = [];
+function addWatchTab(level, suffix = '') {
+  const i = watchTabs.length;
   const b = document.createElement('button');
   b.className = 'tab';
-  b.append(span('long', `${i + 1} · ${level.name} · ${level.length} in ${level.windowMs} ms`),
-           span('short', `${level.length} in ${fmtSeconds(level.windowMs)}`));
+  b.append(span('long', `${i + 1} · ${level.name} · ${level.length} in ${level.windowMs} ms${suffix}`),
+           span('short', `${level.length} in ${fmtSeconds(level.windowMs)}${suffix}`));
   b.addEventListener('click', () => setWatchLevel(level));
   $('#watchTabs').append(b);
-  return { level, b };
-});
+  watchTabs.push({ level, b });
+  return b;
+}
+RABBIT_WATCH.levels.forEach(lv => addWatchTab(lv));
 
 function setWatchLevel(level, seed = 0) {
-  watchLevel = { ...level, pool: RABBIT_WATCH.pool };
+  watchLevel = { ...level, pool: level.pool ?? RABBIT_WATCH.pool };
   watchSeed = seed;
   watchSeq = comboSequence(watchLevel, seed);
   combo = new Combo(watchLevel, watchSeq);
@@ -349,15 +358,19 @@ const revealedCrash = new Map();          // level id -> Set of crash lines hit
 const glassStatus = $('#glassStatus');
 const setGlassStatus = (text, kind = '') => { glassStatus.textContent = text; glassStatus.className = `status ${kind}`; };
 
-const glassTabs = LOOKING_GLASS.levels.map((lv, i) => {
+const glassTabs = [];
+function addGlassTab(lv, suffix = '') {
+  const i = glassTabs.length;
   const b = document.createElement('button');
   b.className = 'tab';
-  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.lineMs} ms/tick`),
-           span('short', `${i + 1} ${lv.short ?? lv.name} · ${lv.lineMs}ms`));
+  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.lineMs} ms/tick${suffix}`),
+           span('short', `${i + 1} ${lv.short ?? lv.name} · ${lv.lineMs}ms${suffix}`));
   b.addEventListener('click', () => setGlassLevel(lv));
   $('#glassTabs').append(b);
-  return { lv, b };
-});
+  glassTabs.push({ lv, b });
+  return b;
+}
+LOOKING_GLASS.levels.forEach(lv => addGlassTab(lv));
 
 // A hidden listing shows the shape of the routine - how many ticks, which
 // lines take longer - and nothing else. The text is a deterministic hash of
@@ -546,15 +559,19 @@ const lockStatus = $('#lockStatus');
 const setLockStatus = (text, kind = '') => { lockStatus.textContent = text; lockStatus.className = `status ${kind}`; };
 const lockMaxMs = () => (lockLevel.length + 2) * lockLevel.tickMs;
 
-const lockTabs = CATERPILLAR_LOCK.levels.map((lv, i) => {
+const lockTabs = [];
+function addLockTab(lv, suffix = '') {
+  const i = lockTabs.length;
   const b = document.createElement('button');
   b.className = 'tab';
-  b.append(span('long', `${i + 1} \u00b7 ${lv.name} \u00b7 ${lv.length} of ${lv.pool.length} \u00b7 ${lv.tickMs} ms/tick`),
-           span('short', `${i + 1} ${lv.short} \u00b7 ${lv.tickMs}ms`));
+  b.append(span('long', `${i + 1} \u00b7 ${lv.name} \u00b7 ${lv.length} of ${lv.pool.length} \u00b7 ${lv.tickMs} ms/tick${suffix}`),
+           span('short', `${i + 1} ${lv.short ?? lv.name} \u00b7 ${lv.tickMs}ms${suffix}`));
   b.addEventListener('click', () => setLockLevel(lv));
   $('#lockTabs').append(b);
-  return { lv, b };
-});
+  lockTabs.push({ lv, b });
+  return b;
+}
+CATERPILLAR_LOCK.levels.forEach(lv => addLockTab(lv));
 
 function setLockLevel(lv, seed = 0) {
   clearTimeout(lockTimer);
@@ -757,15 +774,19 @@ function dogSpeed(lv) {
   return { speed, recordMs: Math.round(ideal * speed) };
 }
 
-const dogTabs = DORMOUSE_WATCHDOG.levels.map((lv, i) => {
+const dogTabs = [];
+function addDogTab(lv, suffix = '') {
+  const i = dogTabs.length;
   const b = document.createElement('button');
   b.className = 'tab';
-  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.kicks} nudges · ${lv.openMs}–${lv.timeoutMs} ms`),
-           span('short', `${i + 1} ${lv.short} · ${lv.openMs}–${lv.timeoutMs}`));
+  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.kicks} nudges · ${lv.openMs}–${lv.timeoutMs} ms${suffix}`),
+           span('short', `${i + 1} ${lv.short ?? lv.name} · ${lv.openMs}–${lv.timeoutMs}${suffix}`));
   b.addEventListener('click', () => setDogLevel(lv));
   $('#dogTabs').append(b);
-  return { lv, b };
-});
+  dogTabs.push({ lv, b });
+  return b;
+}
+DORMOUSE_WATCHDOG.levels.forEach(lv => addDogTab(lv));
 
 function setDogLevel(lv) {
   clearTimeout(dogTimer);
@@ -942,15 +963,19 @@ let wallTimer = null, wallStray = null;
 const wallStatus = $('#wallStatus');
 const setWallStatus = (text, kind = '') => { wallStatus.textContent = text; wallStatus.className = `status ${kind}`; };
 
-const wallTabs = HUMPTY_WALL.levels.map((lv, i) => {
+const wallTabs = [];
+function addWallTab(lv, suffix = '') {
+  const i = wallTabs.length;
   const b = document.createElement('button');
   b.className = 'tab';
-  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.gapMs} ms a symbol`),
-           span('short', `${i + 1} ${lv.short} · ${lv.gapMs}ms`));
+  b.append(span('long', `${i + 1} · ${lv.name} · ${lv.gapMs} ms a symbol${suffix}`),
+           span('short', `${i + 1} ${lv.short ?? lv.name} · ${lv.gapMs}ms${suffix}`));
   b.addEventListener('click', () => setWallLevel(lv));
   $('#wallTabs').append(b);
-  return { lv, b };
-});
+  wallTabs.push({ lv, b });
+  return b;
+}
+HUMPTY_WALL.levels.forEach(lv => addWallTab(lv));
 
 function setWallLevel(lv, seed = 0) {
   clearTimeout(wallTimer);
@@ -1358,9 +1383,19 @@ coach = mountCoach(tutor, {
   },
   prepare: prepareStep,
 });
+// the community's levels and the one in the address, added by the loader at the end of this file
+const community = [];                          // { kind, id, name } per level listed with a range's kind
+const shared = { level: null, error: null };   // ?level=<token>: the level, or why it would not open
+const ADD = { watch: addWatchTab, glass: addGlassTab, lock: addLockTab, dog: addDogTab, wall: addWallTab };
+const SELECT = { watch: setWatchLevel, glass: setGlassLevel, lock: setLockLevel, dog: setDogLevel, wall: setWallLevel };
+const CURRENT = { watch: () => watchLevel, glass: () => level, lock: () => lockLevel, dog: () => dogLevel, wall: () => wallLevel };
+const TABS = { watch: watchTabs, glass: glassTabs, lock: lockTabs, dog: dogTabs, wall: wallTabs };
+
 // scripted tests read the ranges' state through this (dev hosts; nothing here plays)
 window.__range = { get armed() { return armed; }, get combo() { return combo; }, get run() { return run; }, get lock() { return lock; },
-                   get dog() { return dog; }, get wall() { return wall; }, get tutor() { return tutor; }, arm, setDogLevel, setWallLevel };
+                   get dog() { return dog; }, get wall() { return wall; }, get tutor() { return tutor; }, arm, setDogLevel, setWallLevel,
+                   community, shared, ready: null, tabs: () => Object.fromEntries(RANGE_KINDS.map(k => [k, TABS[k].map(t => (t.level ?? t.lv).id)])),
+                   level: (kind) => CURRENT[kind]?.(), select: (kind, id) => { const t = TABS[kind].find(t => (t.level ?? t.lv).id === id); if (t) SELECT[kind](t.level ?? t.lv); return !!t; } };
 
 // The gate's pause (site only). The ranges are timed per attempt, so there
 // is nothing to freeze: a run that was open ends on its own clock (the pad
@@ -1399,3 +1434,50 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
+
+// ------------------------------------------------- the community's levels, and yours ----
+// A level written in the maker (maker.html, src/rangecheck.js) reaches this
+// page two ways. Listed in stages/community/index.json with a range's kind,
+// it is loaded through src/seal.js as the shipped ranges are and added as
+// the last tab of its range, "· community". Carried in the address as
+// ?level=<the maker's share token>, it is decoded only here - after the
+// gate, as the ranges were loaded after it - linted, added as "· yours",
+// selected and armed (on a phone, its mode shown). Nothing waits on this:
+// the page runs, the tabs appear; a bad token or a broken module is a line
+// in the bench log and the status, never a crash. window.__range.ready is
+// the promise, for scripted tests.
+window.__range.ready = (async () => {
+  const add = (level, suffix) => {
+    const problems = rangeLint(level);
+    if (problems.length) throw new Error(problems.join('; '));
+    ADD[level.range](level, suffix);
+    return level;
+  };
+  try {
+    const index = await fetch('stages/community/index.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : { stages: [] }));
+    for (const s of index.stages ?? []) {
+      if (!RANGE_KINDS.includes(s?.kind)) continue;
+      try {
+        const raw = await loadStage(s.id, badge?.key, { base: 'stages/community/' });
+        const level = add({ ...raw, id: raw.id ?? s.id, range: raw.range ?? s.kind }, ' · community');
+        community.push({ kind: level.range, id: level.id, name: level.name });
+      } catch (e) { logTo('#benchLog', `community level ${s?.id}: ${e.message}`, 'hot'); }
+    }
+  } catch { /* no index: nothing to add */ }
+  const token = new URLSearchParams(location.search).get('level');
+  if (!token) return;
+  try {
+    const level = decodeShare(token);
+    if (!RANGE_KINDS.includes(level.range)) throw new Error(level.rows ? 'that is a room; the stages page (index.html) plays rooms' : `no such range '${level.range}'`);
+    shared.level = add(level, ' · yours');
+    SELECT[level.range](level);
+    arm(level.range);
+    if (looks.look.id !== 'classic') looks.setMode(level.range);
+    else $(`#${level.range}Panel`).scrollIntoView?.({ block: 'start' });
+    logTo('#benchLog', `your level "${level.name}" is the last tab of the ${level.range} range`, 'win');
+  } catch (e) {
+    shared.error = e.message;
+    logTo('#benchLog', `the level in the address would not open: ${e.message}`, 'hot');
+    setWatchStatus(`the level in the address would not open: ${e.message}`, 'hot');
+  }
+})();
