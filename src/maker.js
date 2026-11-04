@@ -70,7 +70,7 @@ export const aiPrompt = (repoUrl) => `Help me build a level for "Alice in AI Lan
 
 1. Clone ${repoUrl} and read software/docs/LEVEL_MAKER.md: the stage format, the rules the checker applies, how a room gets onto the site, and the bridge you drive the studio through.
 2. Run \`npm run maker\` in the clone (Node 20+, no dependencies). It serves the checkout on http://localhost:8080, opens maker.html - the studio - in my browser, and mounts the bridge at http://localhost:8080/__maker/ (loopback only). Open the page yourself if it is not open.
-3. Connect to the studio. If you have MCP, the clone's .mcp.json registers the server \`alice-maker\` (node software/tools/maker-mcp.mjs): maker_status, maker_get, maker_set_level, maker_paint, maker_check, maker_play, maker_moves, maker_snapshot, maker_say, maker_read_chat, maker_generate, maker_module and more. Without MCP, the same over HTTP: POST http://localhost:8080/__maker/rpc with {"op": "get" | "set" | "paint" | "check" | "play" | "moves" | "say" | "snapshot" | "generate" | "module" | "load" | "tool", "args": {...}}; GET /__maker/inbox?since=0&wait=20000 is what I type in the page's chat. Say hello first (POST /__maker/hello {"name": "..."}) so the page shows you are here.
+3. Connect to the studio. If you have MCP, the clone's .mcp.json registers the server \`alice-maker\` (node software/tools/maker-mcp.mjs): maker_status, maker_get, maker_set_level, maker_paint, maker_check, maker_play, maker_moves, maker_snapshot, maker_say, maker_read_chat, maker_generate, maker_module and more. Without MCP, the same over HTTP: POST http://localhost:8080/__maker/rpc with {"op": "get" | "set" | "paint" | "check" | "play" | "moves" | "say" | "snapshot" | "generate" | "module" | "load" | "tool" | "tutorial", "args": {...}}; GET /__maker/inbox?since=0&wait=20000 is what I type in the page's chat. Say hello first (POST /__maker/hello {"name": "..."}) so the page shows you are here.
 4. Design the room with me. Ask in the page's chat what I want: how big, how many rocks, a gate and lever or not, timed with a cast walking loops or not, which dressing (garden, hall, court). Then work on the board where I can watch: set or paint the room, Check it (the real solver: par, whether the gate is load-bearing, how hard), play the solution so I see it, take a snapshot to see what I see, and iterate on what I say. Tell me what you are doing in the chat as you go.
 5. When we are happy, export the module (maker_module, or op "module"), save it as stages/community/<id>.js, add one line to stages/community/index.json, and run \`npm run stage -- stages/community/<id>.js\` to see what CI will say.
 6. Commit on a branch and open a pull request against ${repoUrl} with the stage and the index line. Describe the room in a sentence; the checks prove it solves.`;
@@ -1029,7 +1029,7 @@ const snapshotState = () => ({ level, kind: kindOf(level), lint: lint(level), re
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const ops = {
-  get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutor.step?.id ?? 'done' }),
+  get: () => ({ ...snapshotState(), overlays, cell, shelf: shelf.map(s => ({ name: s.level.name, par: s.par })), tutorial: tutorialSummary() }),
   set: ({ level: next }) => {
     if (!next || !Array.isArray(next.rows)) throw new Error('set wants { level: { name, rows, ... } }');
     hazardPick = -1; setLevel(normalize(next), { why: 'assistant' });
@@ -1096,6 +1096,14 @@ const ops = {
     if (a.symmetry) { if (!SYMS.includes(a.symmetry)) throw new Error(`no symmetry '${a.symmetry}'`); setSymmetry(a.symmetry); }
     if (a.overlay) { if (!(a.overlay in overlays)) throw new Error(`no overlay '${a.overlay}'`); setOverlay(a.overlay, a.on ?? !overlays[a.overlay]); }
     return { tool, brush, symmetry, overlays };
+  },
+  tutorial: ({ id, skip, restart } = {}) => {
+    if (id !== undefined) { pickTutorial(id); chat(`opened the guided build "${tutorialById(picked).title}"`, 'act'); }
+    if (restart) { coach.restart(); chat(`started "${tutorialById(picked).title}" over`, 'act'); }
+    const skips = skip === true ? 1 : Math.max(0, Math.min(tutor.steps.length, +skip || 0));
+    for (let i = 0; i < skips; i++) coach.skip();
+    if (skips) chat(`skipped ${skips} step${skips === 1 ? '' : 's'} of the guided build`, 'act');
+    return tutorialSummary();
   },
 };
 

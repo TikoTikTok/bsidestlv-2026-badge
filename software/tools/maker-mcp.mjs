@@ -20,6 +20,7 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { MAKER_TUTORIALS } from '../../src/tutor.js';   // pure data, no DOM: the guided builds' ids for maker_tutorial
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const base = () => (process.env.MAKER_URL ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -56,6 +57,7 @@ const TOOLS = [
   { name: 'maker_generate', description: 'Draw a random room from a seed and put it on the page, keeping only one the solver clears. Options: width, height, rocks, walls (0..0.3 density), gate, timed, cast, seed, minPar.', inputSchema: { type: 'object', properties: { seed: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' }, rocks: { type: 'number' }, walls: { type: 'number' }, gate: { type: 'boolean' }, timed: { type: 'boolean' }, cast: { type: 'number' }, minPar: { type: 'number' } } } },
   { name: 'maker_module', description: 'The stage module for the room as the page would export it: the file that goes to stages/community/<id>.js, with its id and the index.json line.', inputSchema: { type: 'object', properties: { author: { type: 'string' } } } },
   { name: 'maker_tool', description: 'Set the studio\'s tool (pencil, line, rect, fill, pick), brush (# . A O b L G D), symmetry (none, h, v, both) or an overlay (grid, coords, stuck, reach, path, sight: true/false).', inputSchema: { type: 'object', properties: { tool: { type: 'string' }, brush: { type: 'string' }, symmetry: { type: 'string' }, overlay: { type: 'string' }, on: { type: 'boolean' } } } },
+  { name: 'maker_tutorial', description: `The studio's guided builds (the Learn panel on the page): which one the person is on, its current step (or 'done'), at / of. With no arguments it only reads. id opens one - ${MAKER_TUTORIALS.map(t => `${t.id} ("${t.title}", ${t.steps.length} steps)`).join(', ')}; skip skips that many steps (1 for the current one); restart starts it over. The coach line on the page follows, so say what you are doing.`, inputSchema: { type: 'object', properties: { id: { type: 'string', enum: MAKER_TUTORIALS.map(t => t.id) }, skip: { type: 'number' }, restart: { type: 'boolean' } } } },
 ];
 
 async function api(method, path, body) {
@@ -107,6 +109,7 @@ async function call(name, a = {}) {
     case 'maker_generate': return rpc('generate', a, 120_000);
     case 'maker_module': return rpc('module', { author: a.author });
     case 'maker_tool': return rpc('tool', a);
+    case 'maker_tutorial': return rpc('tutorial', { id: a.id, skip: a.skip, restart: a.restart });
     default: throw new Error(`no such tool: ${name}`);
   }
 }
