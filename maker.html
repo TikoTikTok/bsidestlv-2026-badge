@@ -125,7 +125,28 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
   <section class="panel dev-only" id="editPanel">
     <h2>The room <span id="editName" class="tag"></span></h2>
 
-    <div class="studio-bar" role="toolbar" aria-label="the studio's tools">
+    <!-- The category: a room for the stages page, or a level for one of the glitch range's five games.
+         src/maker.js sets data-category on this panel; .room-only and .glitch-only hide by it (src/maker.css). -->
+    <div class="category" id="categoryBar" role="group" aria-label="what is being made">
+      <label class="field">What are you making
+        <select id="category">
+          <option value="room">A room</option>
+          <option value="glitch">A glitch level</option>
+        </select></label>
+      <label class="field glitch-only">For which range
+        <select id="rangeKind">
+          <option value="watch">The Rabbit's Pocket Watch</option>
+          <option value="glass">The Looking-Glass Glitch</option>
+          <option value="lock">The Caterpillar's Lock</option>
+          <option value="dog">The Dormouse's Watchdog</option>
+          <option value="wall">Humpty Dumpty's Wall</option>
+        </select></label>
+      <p class="note glitch-only">A level for one of the five games on <a href="glitch.html">glitch.html</a>. The fields are the level; the range's own
+        map is drawn beside them with what the rules make of the numbers. <b>Check</b> runs what CI runs on the shipped levels (the budgets, a replay,
+        a hand, the attacker), <b>Try it on the range</b> opens it on the range page as a tab, and the export writes the module with its index line.</p>
+    </div>
+
+    <div class="studio-bar room-only" role="toolbar" aria-label="the studio's tools">
       <div class="tools" id="tools" aria-label="tool">
         <button type="button" class="tool on" data-tool="pencil" title="Pencil: one cell, or drag (P)"><i>✎</i>pencil</button>
         <button type="button" class="tool" data-tool="line" title="Line: drag from one end to the other (I)"><i>╱</i>line</button>
@@ -159,7 +180,7 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
     </div>
 
     <div class="maker">
-      <div class="maker-board">
+      <div class="maker-board room-only">
         <div class="palette" id="palette" aria-label="brush"></div>
         <div class="stage-wrap board-wrap"><canvas id="board"></canvas><div id="boardCursor" class="board-cursor" aria-live="polite"></div></div>
         <div class="overlays" id="overlays" aria-label="what the board shows over the room">
@@ -174,9 +195,123 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
           one moves it. With a hazard selected, clicks lay its route instead, point by point, straight lines only; the loop closes itself.
           Shaded cells are where a rock is lost for good.</p>
       </div>
+
+      <!-- ------------------------------------------------- a glitch level: the range's map, the numbers, one form per range -- -->
+      <div class="maker-range glitch-only" id="rangeStudio">
+        <div class="range-preview">
+          <div class="stage-wrap board-wrap range-map-wrap" id="rangeMapWrap"><canvas id="rangeMap" aria-label="the range's map, the same for every level of it"></canvas></div>
+          <p class="note" id="rangeMapNote"></p>
+          <dl id="rangeFacts" class="range-facts" aria-label="what the rules make of the level"></dl>
+          <ul id="rangeLint" class="lint"></ul>
+        </div>
+        <div class="range-forms" id="rangeForms">
+          <div class="range-form" data-range="watch">
+            <div class="field-row">
+              <label class="field">Presses in the tune <input type="number" data-field="length" min="2" max="32"></label>
+              <label class="field">Window <input type="number" data-field="windowMs" min="50" max="20000" step="10"> <small>ms, first press to last</small></label>
+            </div>
+            <fieldset class="pool" data-field="pool"><legend>The buttons the tune is made of</legend>
+              <label><input type="checkbox" value="UP"> ▲</label><label><input type="checkbox" value="DOWN"> ▼</label>
+              <label><input type="checkbox" value="LEFT"> ◀</label><label><input type="checkbox" value="RIGHT"> ▶</label>
+              <label><input type="checkbox" value="A"> A</label><label><input type="checkbox" value="B"> B</label>
+              <label><input type="checkbox" value="X"> X</label><label><input type="checkbox" value="Y"> Y</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand (4–6 presses a second); off, for a take replayed faster</label>
+            <p class="note">The tune is fixed per level (its id seeds it), so a take recorded once keeps working. The window shrinks a level at a time
+              until only a replayed take is fast enough; the host samples the badge every 16 ms, so a press needs 34 ms to be seen.</p>
+          </div>
+          <div class="range-form" data-range="glass">
+            <div class="field-row">
+              <label class="field">Tick <input type="number" data-field="lineMs" min="5" max="2000" step="5"> <small>ms a line</small></label>
+              <label class="field">Pulse at most <input type="number" data-field="pulseMaxLines" min="1" max="10"> <small>lines, or a brown-out</small></label>
+            </div>
+            <label class="field grow">The guard's routine, one line a line <textarea data-field="listing" rows="14" spellcheck="false" autocomplete="off"></textarea></label>
+            <pre class="legend">label:        a label, one tick        ! line   the target check
+... goto x    a taken branch           * line   crashes the guard if hit
+delay(n)      holds n ticks            ret      end</pre>
+            <p class="note">Exactly one <code>!</code> line, every goto to a label that exists, and every goto taken in the honest run. The good ending calls
+              <code>alice_jump</code>, the honest one <code>alice_bounce</code>; the check's neighbours must be harmless, and at least one line must crash.
+              A tick of 80 ms or more is a hand level: a hand lands within about ±40 ms.</p>
+            <label class="check"><input type="checkbox" data-field="hidden"> hide the listing: the player sees only its shape</label>
+          </div>
+          <div class="range-form" data-range="lock">
+            <div class="field-row">
+              <label class="field">Symbols in the password <input type="number" data-field="length" min="2" max="12"></label>
+              <label class="field">Tick <input type="number" data-field="tickMs" min="10" max="2000" step="10"> <small>ms a comparison</small></label>
+            </div>
+            <div class="field-row">
+              <label class="field">Jitter <input type="number" data-field="jitterTicks" min="0" max="3" step="0.1"> <small>ticks, sigma</small></label>
+              <label class="field">Order
+                <select data-field="order">
+                  <option value="prefix">first to last</option>
+                  <option value="secret">an order of his own</option>
+                </select></label>
+            </div>
+            <fieldset class="pool" data-field="pool"><legend>The symbols of the password</legend>
+              <label><input type="checkbox" value="UP"> ▲</label><label><input type="checkbox" value="DOWN"> ▼</label>
+              <label><input type="checkbox" value="LEFT"> ◀</label><label><input type="checkbox" value="RIGHT"> ▶</label>
+              <label><input type="checkbox" value="A"> A</label><label><input type="checkbox" value="B"> B</label>
+              <label><input type="checkbox" value="X"> X</label><label><input type="checkbox" value="Y"> Y</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand: the attacker types at most 150 presses</label>
+            <p class="note">The door compares one symbol a tick and stops at the first mismatch, so its answer time is the leak. Jitter makes one
+              reading ambiguous (the badge's repeat takes the median); a secret order hides which symbol was wrong, not how many were right.</p>
+          </div>
+          <div class="range-form" data-range="dog">
+            <div class="field-row">
+              <label class="field">The nudge
+                <select data-field="button">
+                  <option value="UP">▲ UP</option><option value="DOWN">▼ DOWN</option><option value="LEFT">◀ LEFT</option><option value="RIGHT">▶ RIGHT</option>
+                  <option value="A">A</option><option value="B">B</option><option value="X">X</option><option value="Y">Y</option>
+                </select></label>
+              <label class="field">Nudges to win <input type="number" data-field="kicks" min="1" max="64"></label>
+            </div>
+            <div class="field-row">
+              <label class="field">Window opens <input type="number" data-field="openMs" min="1" max="20000" step="10"> <small>ms after the last</small></label>
+              <label class="field">Bites at <input type="number" data-field="timeoutMs" min="2" max="20000" step="10"> <small>ms after the last</small></label>
+            </div>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand: a window 80 ms or wider, six a second or fewer</label>
+            <p class="note">Every nudge must land inside the window measured from the last (or from START, for the first). Two presses of a hand are each
+              ±40 ms off, so a hand needs 80 ms of window; the badge plays a take sped up until the gaps fit, and the first gap is the fire's offset.</p>
+          </div>
+          <div class="range-form" data-range="wall">
+            <div class="field-row">
+              <label class="field">Buffer <input type="number" data-field="size" min="1" max="11"> <small>symbols</small></label>
+              <label class="field">Gap <input type="number" data-field="gapMs" min="20" max="10000" step="10"> <small>ms a symbol</small></label>
+            </div>
+            <div class="field-row">
+              <label class="field">open_wall @
+                <select data-field="address" data-slot="0">
+                  <option value="UP">▲ UP</option><option value="DOWN">▼ DOWN</option><option value="LEFT">◀ LEFT</option><option value="RIGHT">▶ RIGHT</option>
+                  <option value="A">A</option><option value="B">B</option><option value="X">X</option><option value="Y">Y</option>
+                </select></label>
+              <label class="field">and
+                <select data-field="address" data-slot="1">
+                  <option value="UP">▲ UP</option><option value="DOWN">▼ DOWN</option><option value="LEFT">◀ LEFT</option><option value="RIGHT">▶ RIGHT</option>
+                  <option value="A">A</option><option value="B">B</option><option value="X">X</option><option value="Y">Y</option>
+                </select></label>
+            </div>
+            <fieldset class="pool" data-field="pool"><legend>The symbols a name is typed in</legend>
+              <label><input type="checkbox" value="UP"> ▲</label><label><input type="checkbox" value="DOWN"> ▼</label>
+              <label><input type="checkbox" value="LEFT"> ◀</label><label><input type="checkbox" value="RIGHT"> ▶</label>
+              <label><input type="checkbox" value="A"> A</label><label><input type="checkbox" value="B"> B</label>
+              <label><input type="checkbox" value="X"> X</label><label><input type="checkbox" value="Y"> Y</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" data-field="canary"> a canary between the name and lr (which symbol is per seed)</label>
+            <label class="check"><input type="checkbox" data-field="hidden"> hide the size: the listing shows name[?]</label>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand: six symbols a second or fewer</label>
+            <label class="field grow">Humpty's listing <textarea data-field="listing" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
+            <div class="stage-bar tight"><button type="button" id="wallListingBtn" class="btn ghost">Write the listing from the fields</button></div>
+            <p class="note">The frame is <code>name[size] [canary] lr[2]</code>, one symbol a slot. The listing must show <code>name[size]</code> (or
+              <code>name[?]</code> when hidden) and a line <code>open_wall: @ …</code> with the address, as a firmware image would.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="maker-side">
         <label class="field">Name <input id="name" type="text" maxlength="48" spellcheck="false"></label>
-        <div class="field-row">
+        <label class="field glitch-only">Short name, for the tab <input id="rangeShort" type="text" maxlength="16" spellcheck="false" placeholder="one word"></label>
+        <div class="field-row room-only">
           <label class="field">Width <input id="width" type="number" min="4" max="24"></label>
           <label class="field">Height <input id="height" type="number" min="4" max="24"></label>
           <label class="field">Dressing
@@ -186,7 +321,7 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
               <option value="court">the court</option>
             </select></label>
         </div>
-        <div class="field-row">
+        <div class="field-row room-only">
           <label class="field">Clock
             <select id="kind">
               <option value="tea">untimed</option>
@@ -194,22 +329,26 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
             </select></label>
           <label class="field" id="tickField">Tick <input id="tickMs" type="number" min="100" max="2000" step="20"> <small>ms</small></label>
         </div>
-        <div id="hazards" class="hazards"></div>
-        <div class="stage-bar tight"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
-        <label class="field grow">The map <textarea id="ascii" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
-        <label class="field">Blurb, one line for the room's card <input id="blurb" type="text" maxlength="160" spellcheck="false" placeholder="what the room is about"></label>
-        <label class="field">The lesson, one step a line: <code>event: what to say</code>
+        <div id="hazards" class="hazards room-only"></div>
+        <div class="stage-bar tight room-only"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
+        <label class="field grow room-only">The map <textarea id="ascii" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
+        <label class="field">Blurb, one line for the room's card <input id="blurb" type="text" maxlength="400" spellcheck="false" placeholder="what the room is about"></label>
+        <label class="field room-only">The lesson, one step a line: <code>event: what to say</code>
           <textarea id="lesson" rows="4" spellcheck="false" autocomplete="off" placeholder="move: Move Alice with the d-pad.&#10;push: Walk into the rock. It slides one cell."></textarea></label>
-        <p class="note">The stages page shows the lesson under the room and ticks it off as the player does what it says.
+        <p class="note room-only">The stages page shows the lesson under the room and ticks it off as the player does what it says.
           Events: <code>move push lever button blocked undo reset</code> for any room, <code>start wait tick caught restart</code>
           for a timed one, <code>win</code> for the door.</p>
-        <ul id="lint" class="lint"></ul>
+        <ul id="lint" class="lint room-only"></ul>
 
-        <details class="drawer" id="startersDrawer">
+        <details class="drawer room-only" id="startersDrawer">
           <summary>Start from…</summary>
           <div class="starters" id="starters"></div>
         </details>
-        <details class="drawer" id="surpriseDrawer">
+        <details class="drawer glitch-only" id="rangeStartersDrawer" open>
+          <summary>Start from… the shipped levels</summary>
+          <div class="starters" id="rangeStarters"></div>
+        </details>
+        <details class="drawer room-only" id="surpriseDrawer">
           <summary>Surprise me</summary>
           <div class="knobs">
             <label>width <input id="genW" type="number" min="5" max="24" value="11"></label>
@@ -232,11 +371,12 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
     </div>
     <div class="stage-bar">
       <button type="button" id="checkBtn" class="btn">Check</button>
-      <button type="button" id="playBtn" class="btn">Run &amp; debug</button>
+      <button type="button" id="playBtn" class="btn room-only">Run &amp; debug</button>
+      <button type="button" id="tryRange" class="btn glitch-only" title="Open glitch.html with this level as a tab of its range">Try it on the range</button>
       <button type="button" id="newBtn" class="btn ghost">New</button>
       <label>Load <select id="load"><option value="">a shipped stage…</option></select></label>
       <label title="Check again on its own after every edit"><input id="autoCheck" type="checkbox"> auto-check</label>
-      <button type="button" id="pngBtn" class="btn ghost" title="Save the board as a picture">Save a picture</button>
+      <button type="button" id="pngBtn" class="btn ghost room-only" title="Save the board as a picture">Save a picture</button>
       <span id="report" class="status"></span>
     </div>
     <div id="verdict" class="verdict" hidden></div>
