@@ -73,7 +73,8 @@
         moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
         <b>Surprise me</b> draws a solvable room from a seed when you want a start.</li>
       <li><b>Send it in.</b> Export writes a stage module, <code>stages/community/&lt;id&gt;.js</code>. Add it to the index, open a pull request;
-        the checks prove it is solvable before anyone has to play it. An assistant can do all of this with you: the studio has a bridge it drives.</li>
+        the checks prove it is solvable before anyone has to play it. Or press <b>Open a pull request with your AI</b> in the studio: it hands
+        your assistant the room and the steps. An assistant can do all of this with you: the studio has a bridge it drives.</li>
     </ol>
   </section>
 
@@ -275,6 +276,7 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
           <button type="button" id="copyModule" class="btn">Copy the module</button>
           <button type="button" id="downloadModule" class="btn ghost">Download</button>
           <button type="button" id="shareBtn" class="btn ghost">Copy a link</button>
+          <button type="button" id="prBtn" class="btn ghost">Open a pull request with your AI</button>
           <span id="exportStatus" class="status"></span>
         </div>
         <label class="field">Import a module (paste its source) <textarea id="importText" rows="4" spellcheck="false" placeholder="export const MY_ROOM = { name: '…', rows: [ … ] };"></textarea></label>
@@ -316,9 +318,9 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
 <!-- The invitation: the prompt a visitor hands to an assistant, with a copy button and two
      front doors that take the text in their address. The prompt sends the assistant to the
      repository, which is readable; nothing on this site is meant to be read by one. -->
-<dialog id="aiDialog" class="ai">
-  <h2>Hand this to your assistant</h2>
-  <p class="note">Copy the prompt into Claude, ChatGPT or whatever you use. It tells the assistant where the repository is,
+<dialog id="aiDialog" class="ai" data-kind="invite">
+  <h2 id="aiTitle">Hand this to your assistant</h2>
+  <p class="note" id="aiNote">Copy the prompt into Claude, ChatGPT or whatever you use. It tells the assistant where the repository is,
     how to start the studio, and how to drive it: an assistant that can run commands on your machine opens the page itself
     and works on the room with you, in the page's own chat.</p>
   <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>

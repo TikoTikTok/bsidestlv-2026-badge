@@ -55,6 +55,7 @@ const TOOLS = [
   { name: 'maker_load', description: 'Load a shipped stage (tea-party, queens-gauntlet), a starter (blank, wide, corridor, gate, two-rooms, hall) or a community room by its id into the page.', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'maker_generate', description: 'Draw a random room from a seed and put it on the page, keeping only one the solver clears. Options: width, height, rocks, walls (0..0.3 density), gate, timed, cast, seed, minPar.', inputSchema: { type: 'object', properties: { seed: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' }, rocks: { type: 'number' }, walls: { type: 'number' }, gate: { type: 'boolean' }, timed: { type: 'boolean' }, cast: { type: 'number' }, minPar: { type: 'number' } } } },
   { name: 'maker_module', description: 'The stage module for the room as the page would export it: the file that goes to stages/community/<id>.js, with its id and the index.json line.', inputSchema: { type: 'object', properties: { author: { type: 'string' } } } },
+  { name: 'maker_pr_brief', description: 'Everything needed to open the pull request for the room on the page: the module, the index line, the branch and the steps, as a brief to follow in a checkout (also id, file, source, indexLine and branch as data). Read it, then do what it says and nothing else.', inputSchema: { type: 'object', properties: { author: { type: 'string' } } } },
   { name: 'maker_tool', description: 'Set the studio\'s tool (pencil, line, rect, fill, pick), brush (# . A O b L G D), symmetry (none, h, v, both) or an overlay (grid, coords, stuck, reach, path, sight: true/false).', inputSchema: { type: 'object', properties: { tool: { type: 'string' }, brush: { type: 'string' }, symmetry: { type: 'string' }, overlay: { type: 'string' }, on: { type: 'boolean' } } } },
 ];
 
@@ -106,6 +107,7 @@ async function call(name, a = {}) {
     case 'maker_load': return rpc('load', { id: a.id });
     case 'maker_generate': return rpc('generate', a, 120_000);
     case 'maker_module': return rpc('module', { author: a.author });
+    case 'maker_pr_brief': return rpc('pr', { author: a.author });
     case 'maker_tool': return rpc('tool', a);
     default: throw new Error(`no such tool: ${name}`);
   }
