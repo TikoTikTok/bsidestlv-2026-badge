@@ -207,15 +207,16 @@ the switch, the listener from load and the permission paths;
 the tip's gating and that every page reaches the module.
 
 Every page has a theme and a look — the ◐ chip in the header opens a sheet of
-cards (the ? panels show the same cards), or `?theme=` and `?look=` in the
-address bar; both are remembered on the device. The theme is what the page is
-painted in: `bsides`, the conference's own lime on black (the default);
+cards, the only place they show (the ? panels point at the chip), or `?theme=`
+and `?look=` in the address bar; both are remembered on the device. The theme
+is what the page is painted in: `bsides`, the conference's own lime on black
+(the default);
 `classic`, the first deep-blue console; `teaparty`, parchment in daylight;
 `queen`, heart red and gold; `cheshire`, magenta and a teal grin; `phosphor`,
 green on black with scanlines. The look is how it sits on the screen: the
 classic look is the whole page; the three phone looks — `bench`, `handheld`,
-`scope` — show one panel at a time behind a mode bar (on the stages: Tea,
-Gauntlet; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
+`scope` — show one panel at a time behind a mode bar (on the stages: Learn, Tea,
+Gauntlet, Rooms; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
 behind *how it works*, and on the range reshape the on-screen pad — a bottom
 sheet, a handheld's body with the screen in a bezel, or a dock of soft keys
 under big numerals — and draw the guard's routine and the door's clock as
