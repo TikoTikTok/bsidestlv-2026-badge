@@ -28,6 +28,7 @@ import { parse as parseTea, step as teaStep, solve as solveTea, isGoal as teaGoa
 import { parse as parseChase, step as chaseStep, solve as solveChase, isGoal as chaseGoal } from './chase.js';
 import { TILE, THEMES, drawRoom } from './scene.js';
 import { Tutor, lessonSteps } from './tutor.js';
+import { keyGlyphs } from './prompt.js';
 
 const PAD_DIRS = { UP: 'N', DOWN: 'S', LEFT: 'W', RIGHT: 'E' };
 const kindOf = (level) => (level.hazards?.length || level.tickMs ? 'chase' : 'tea');
@@ -95,6 +96,7 @@ export function mountRoom({ canvas, scene, pad, armed = () => true, status, less
     lessonEl.classList.remove('done');
     b.textContent = `Lesson · ${lesson.at + 1} of ${n} · ${lesson.step.title}`;
     lessonEl.append(b, ` ${lesson.step.say}`);
+    if (lesson.step.keys) lessonEl.append(' ', keyGlyphs(lesson.step.keys));   // the buttons it is made with (src/prompt.js)
   }
 
   // ------------------------------------------------------------- untimed ----
