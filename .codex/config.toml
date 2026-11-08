@@ -1,0 +1,9 @@
+# Codex: the level studio's bridge as MCP tools (software/tools/maker-mcp.mjs).
+# The same server .mcp.json registers for Claude Code; see software/docs/LEVEL_MAKER.md.
+[mcp_servers.alice-maker]
+command = "node"
+args = ["software/tools/maker-mcp.mjs"]
+
+[mcp_servers.alice-maker.env]
+MAKER_URL = "http://localhost:8080"
+MAKER_AGENT = "Codex"

@@ -7,7 +7,7 @@ assistant or a person at; everything it needs is here.
 ## In one minute
 
 ```
-git clone https://github.com/bsidestlv/bsidestlv-2026-badge.git
+gh repo fork bsidestlv/bsidestlv-2026-badge --clone   # your own fork first: a merged room is live on ITS page
 cd bsidestlv-2026-badge
 npm run maker                                    # serves the checkout, opens http://localhost:8080/maker.html
 # draw, Check, Run & debug, Export -> stages/community/<id>.js, plus one line in stages/community/index.json
@@ -122,7 +122,11 @@ The first visit is guided, and there is a choice of guides: the Learn panel
 at the bottom offers the **guided builds** (`MAKER_TUTORIALS` in
 `src/tutor.js`, drawn by `src/coach.js` as the line at the top of the page
 and the panel's checklist) as cards; pick one and its steps watch what you
-do and tick themselves off. **Painting the Roses** (16 steps) is the tour of
+do and tick themselves off. **Follow the White Rabbit** (12 steps) is the
+first room from nothing - a blank, a name, a wall, a rock and its button,
+the lint green, Check, Run & debug, a step, the door, a blurb, sent in - and
+the build an assistant on the bridge coaches (*Building with an AI, step by
+step*, below). **Painting the Roses** (16 steps) is the tour of
 the studio - chapter one draws (a brush, a wall, a rock, its button, the
 lint green, a bigger tool, an overlay, Surprise me), chapter two proves and
 plays (Check, Run & debug, a step, the solution), chapter three ships (the
@@ -260,6 +264,107 @@ Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":
 answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
 `maker_share`.
 
+## Building with an AI, step by step
+
+The published landing's *Try it now with your favourite AI* hands an
+assistant the invitation (`aiPrompt` in `src/invite.js`). It says, in this
+order: **fork first** (`gh repo fork <owner>/<repo> --clone`, then switch the
+fork's site on - `gh workflow enable pages.yml`, `gh api -X POST
+repos/<login>/<repo>/pages -f build_type=workflow` - so the room the two of
+you build lands on the person's own GitHub Pages site); read `AGENTS.md`,
+the short map; `npm run maker`; connect to the bridge and say hello; then
+follow the **White Rabbit's guide**.
+
+The guide is `src/guide.js`: how an assistant builds a first room *with* a
+person, written down as data so that any assistant, however small, can
+follow it line by line. The moment one says hello on the bridge, the page
+pops the **welcome banner** (`#guideDialog`, the cards are `GUIDE_MODES`)
+and the person picks one of three ways:
+
+- 🐇 **Follow the White Rabbit** - step by step. The person holds the brush,
+  the assistant coaches. It rides on the page's own guided build *Follow the
+  White Rabbit* (`rabbit` in `MAKER_TUTORIALS`, 12 steps: a blank, a name, a
+  wall, a rock, its button, the lint green, Check, Run & debug, a step, the
+  door, a blurb, sent in), so the coach line and the checklist on the page
+  show the same steps the assistant narrates; the assistant reads the
+  page's progress from the bridge, and every step has a *help* plan for
+  "do it for me" (the wall, the rock and the button are worked out from the
+  room on the board). Two closing steps of the bridge's own follow: the
+  person's page, and the finish.
+- 🧪 **Drink Me** - the fast lane. Four questions (a name, a size, a flavour -
+  a quiet garden, a locked gate, a chase, or the dice - a dressing), then the
+  assistant generates, names, Checks and pictures the room, says what came
+  out, and asks: keep it, roll again, harder, easier. Then the solution
+  played, a line for the card, the link, and where the room should live.
+- 🍰 **Eat Me** - the one-bite starter: a name, one of three starters, a
+  dressing, the solution played, the link, the page.
+
+Each step tells the assistant what to **SAY** (in its chat and on the page's,
+`maker_say`), what to **ASK** (one question, two to four options, worded for
+the platform: Claude Code's AskUserQuestion with *Other* for the person's
+own words, a numbered list everywhere else; the person may always answer in
+their own words), what to **DO** on the board (the bridge's ops with
+concrete arguments), what **HELP** is, and when it is **DONE**. The
+assistant passes every answer back and the guide decides: the next step,
+the same step with the knobs turned, help, or the why. The answers are
+matched by number, label, value or a word of the label; "why", "help",
+"skip" and "done"-shaped answers mean what they say whatever the step's
+options; a size may be "11x8". The last steps put the room on the person's
+page: the pull request brief (`maker_pr_brief`), a branch `community/<id>`,
+one commit, a pull request on **their fork** (`gh pr create --repo
+<login>/<repo>`), merged when they say so; the Pages workflow deploys in
+about two minutes and the room is live at
+`https://<login>.github.io/<repo>/index.html?room=<id>`; a second pull
+request offers it to the game's own repository. The bridge reads the fork,
+the upstream and the login from the checkout's remotes (`repoFacts`), so
+the commands come pre-filled.
+
+The doors, for the assistant:
+
+```
+GET  /__maker/guide                   where things stand + the current step as plain instructions
+GET  /__maker/guide?wait=120000       waits for the pick on the banner, then the first step
+POST /__maker/guide {"mode": "fast"}  pick a way for the person (the page follows)
+POST /__maker/guide {"answer": "Harder", "at": 4}      their answer (at: the step it answers)
+POST /__maker/guide {"answer": "...", "run": true}      ...and have the bridge run the step's ops
+POST /__maker/guide {"run": true}                        run the current step's plan (generate, patch, check...)
+POST /__maker/guide {"help": true, "run": true}          "do it for me": the help plan, run
+POST /__maker/guide {"next": true} | {"back": true} | {"restart": true} | {"step": 6} | {"vars": {...}} | {"show": true}
+GET  /__maker/guide?mode=basic&step=1&platform=codex    a preview of any step, nothing changes
+GET  /__maker/platforms               what each assistant platform has
+```
+
+Over MCP it is one tool, `maker_guide`, with the same knobs; the server's
+instructions send a new assistant straight to it. The inbox
+(`maker_read_chat`, `GET /__maker/inbox`) carries, between the person's
+lines, the pick (kind `guide`) and every step of the Rabbit's build the
+person finishes (kind `tutorial`: `✓ A rock (4 of 12)`), so an assistant
+long-polling it is woken by the page. The person can close the banner and
+bring it back by typing `guide` in the page's chat, with `?guide=1`, or
+through the assistant (`maker_guide {"show": true}`).
+
+What each assistant has (`PLATFORMS` in `src/guide.js`; the files are in
+the repository, never published):
+
+| Assistant | Onto the bridge | Asking with options |
+|---|---|---|
+| Claude Code | `.mcp.json` at the root; the `maker_*` tools are there when the clone is opened | AskUserQuestion, 2-4 options, *Other* for their own words |
+| Codex (OpenAI) | `.codex/config.toml` (`[mcp_servers.alice-maker]`), or `codex mcp add` | a numbered list, one question a message |
+| Cursor | `.cursor/mcp.json` (enable once when asked) | a numbered list |
+| GitHub Copilot (VS Code agent mode, Copilot CLI) | `.vscode/mcp.json`; the CLI's `/mcp add` | its question tool when offered, else a numbered list |
+| Gemini CLI, Jules, Antigravity (Google) | `.gemini/settings.json` | a numbered list |
+| Hermes Agent | `mcp_servers` in its `config.yaml`, or curl | a numbered list; the chat can live on the page |
+| Grok (xAI) | the HTTP bridge from a shell tool; else the person relays | a numbered list |
+| ChatGPT and other web chats without a shell | cannot reach the bridge: the person relays, or uses Codex | a numbered list |
+| Anything with a shell | curl: `/hello`, `/guide`, `/rpc`, `/inbox` | a numbered list |
+
+`verify-maker.mjs` checks the guide: every step of the three ways is well
+formed and names ops the page has, every placeholder resolves, the plans
+paint sensible cells on a room, the answers do what they say, the bridge
+serves it (the pick, the wait, the answers, the Rabbit following the
+page's build, the preview), the MCP tool, the banner's markup and wiring,
+the invitation, the five configuration files and `AGENTS.md`.
+
 ## The bridge: an assistant in the studio
 
 `npm run maker` (`software/tools/maker.mjs`, the server in
@@ -285,7 +390,9 @@ Two ways in:
   brief that ships the room as a pull request, see *Sending a room in*),
   `maker_tool`, `maker_share` (a link that carries the room),
   `maker_tutorial` (which guided build the person is on and its step; pick
-  one, skip a step, start over). No dependencies: JSON-RPC over stdio.
+  one, skip a step, start over), `maker_patch` (set some fields of the room:
+  name, dressing, blurb, lesson, the clock), `maker_guide` (the White
+  Rabbit's guide, above). No dependencies: JSON-RPC over stdio.
 - **HTTP.** Anything that can `curl`:
 
   ```
@@ -296,15 +403,22 @@ Two ways in:
   curl -X POST localhost:8080/__maker/rpc -d '{"op":"play"}'
   curl -X POST localhost:8080/__maker/rpc -d '{"op":"moves","args":{"moves":["E","E","S"]}}'
   curl -X POST localhost:8080/__maker/rpc -d '{"op":"say","args":{"text":"try the gate on the left"}}'
+  curl -X POST localhost:8080/__maker/rpc -d '{"op":"patch","args":{"name":"The Pantry","theme":"court"}}'
   curl "localhost:8080/__maker/inbox?since=0&wait=20000"                           # what you typed in the chat, long-polled
   curl localhost:8080/__maker/level                                                # the room as the page last reported it
+  curl "localhost:8080/__maker/guide?wait=120000"                                  # the White Rabbit's guide: wait for the pick, then the first step
+  curl -X POST localhost:8080/__maker/guide -d '{"answer":"Harder","run":true}'    # their answer, and the step's work done by the bridge
   ```
 
-  The ops are `get`, `set`, `paint`, `check`, `play`, `stop`, `reset`,
-  `press`, `moves`, `say`, `snapshot`, `module`, `pr` (`{ author? }` ->
-  `{ id, file, source, indexLine, branch, brief }`, the pull request's
-  brief), `load`, `generate`, `tool`, `share`, `tutorial` - the same table
-  (`ops` in `src/maker.js`) the MCP tools call. `get` reports the guided
+  The ops are `get`, `set`, `patch` (`{ name?, theme?, blurb?, lesson?,
+  tickMs?, hazards?, short? }`: set those fields, keep the rest; the
+  studio's tutorial hears them as if typed), `paint`, `check`, `play`,
+  `stop`, `reset`, `press`, `moves`, `say`, `snapshot`, `module`, `pr`
+  (`{ author? }` -> `{ id, file, source, indexLine, branch, brief }`, the
+  pull request's brief), `load`, `generate`, `tool`, `share`, `tutorial`,
+  `guide` (`{ show?, mode?, close? }`: the welcome banner, or a pick made
+  for the person) - the same table (`ops` in `src/maker.js`) the MCP tools
+  call. `get` reports the guided
   build the person is on as `tutorial: { id, title, step, at, of }`;
   `tutorial` with `{ id?, skip?, restart? }` picks one, skips that many
   steps or starts it over, and answers the same summary, so an assistant
@@ -312,6 +426,10 @@ Two ways in:
   rpc waits for the page's answer (30 s by default, `timeoutMs`); with no
   page open it is 503, an error the page raised is 422, an op the page
   does not know is 400.
+
+The mirror the page posts after every change carries the room, its lint,
+the last Check, the game and the guided build the person is on
+(`tutorial`), which is how the bridge's Rabbit follows the page.
 
 What an assistant does shows at once: the board redraws, the chat lists
 each action (*set the room to…*, *checked: par 26, a riddle*, *played 6
@@ -352,6 +470,13 @@ says to press Copy first). An assistant already on the bridge gets the
 same brief in its inbox (`maker_read_chat`) the moment the button is
 pressed, and can ask for it any time with `maker_pr_brief` (op `pr`). The
 button waits until the room is well formed.
+
+On a fork - the invitation says to fork first - the same pull request
+against the fork's own `main`, merged by its owner, puts the room on the
+fork's site at the next deploy: `https://<login>.github.io/<repo>/index.html?room=<id>`
+(Pages on "GitHub Actions", the workflow enabled once). That is the page
+the White Rabbit's guide ends on; the pull request against the game's own
+repository offers the room to the site.
 
 What gets a room merged: it solves, the gate (if any) is load-bearing, the
 par is honest (a 400-move untimed room is a chore, a timed room with a par
@@ -509,19 +634,22 @@ seven takes.
 ```
 maker.html                      the page: the landing (site) and the studio (checkout)
 src/maker.js                    the page's module: hero, invitation, the studio, checker, bench, export, the assistant panel and the bridge's ops, the coach
-src/invite.js                   the two prompts, pure: aiPrompt (the invitation) and prPrompt (the brief that ships one room as a pull request), prParts, prShort
+src/invite.js                   the two prompts, pure: aiPrompt (the invitation: fork first, the studio, the bridge, the guide) and prPrompt (the brief that ships one room as a pull request), prParts, prShort, pagesUrl / roomUrl
+src/guide.js                    the White Rabbit's guide, pure: GUIDE_MODES (the banner's three ways), the steps of each (say / ask / do / help / done), the plans worked out against the room, applyAnswer, guideText (a step as instructions a small model follows), PLATFORMS
+AGENTS.md                       the short map for an assistant that reads AGENTS.md first (Codex, Cursor, Copilot, Gemini, Hermes): fork first, the studio, the guide, the rules
+.mcp.json .codex/config.toml .cursor/mcp.json .gemini/settings.json .vscode/mcp.json   the bridge's MCP server registered for each assistant; never published
 src/maker.css                   its styles, on top of styles.css
 src/level.js                    a level as data: lint, check, toModule / fromModule, share links; the tools (line, rect, region, mirror), the transforms, analyse / difficulty, STARTERS, generate / generateSolvable; a level with a range goes to rangecheck.js
 src/rangecheck.js               a glitch range level as data: the fields per range (RANGE_FIELDS), rangeLint, rangeCheck (what verify-range runs on the shipped levels), the maps, the budgets, rangeBlank
 src/scene.js                    the art: assets, dressings, drawRoom - shared with the stages page
 src/check-worker.js             check() and generateSolvable() off the page's thread
 src/bridge.js                   the page's end of the bridge: the event stream, the replies, the mirror, the chat
-src/tutor.js                    MAKER_TUTORIALS, the studio's guided builds - Painting the Roses, A Room with a Gate, The Clock and the Cast, A Room that Teaches (with the other two pages' tutorials); src/coach.js draws the chosen one; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
+src/tutor.js                    MAKER_TUTORIALS, the studio's guided builds - Painting the Roses, Follow the White Rabbit (the one the guide rides on), A Room with a Gate, The Clock and the Cast, A Room that Teaches (with the other two pages' tutorials); src/coach.js draws the chosen one; LESSON_EVENTS + lessonSteps, a room's lesson as tutorial steps
 src/room.js                     the stages page's player for a community room: either rules, the badge, the lesson under it
 stages/community/               the community's levels and index.json; the-first-lesson.js and tick-tock.js are the demo rooms, one lesson each, which-side.js the demo lock level
 src/glitch.js                   the range page: plays the listed glitch levels as tabs of their range, and ?level= as yours
 software/tools/maker.mjs        npm run maker: serves the checkout, opens the page
-software/tools/maker-server.mjs the server: static files + the bridge under /__maker/ (loopback only)
+software/tools/maker-server.mjs the server: static files + the bridge under /__maker/ (loopback only), incl. the guide's state and doors (/guide, /platforms) and repoFacts (the fork from the remotes)
 software/tools/maker-mcp.mjs    the bridge as MCP tools over stdio; .mcp.json at the root registers it
 software/tools/check-stage.mjs  npm run stage -- <file>: the verdict on a module, a room's or a glitch level's
 software/tools/verify-maker.mjs part of npm run verify: level.js and the studio's logic (the shipped ranges' levels through it too), the tutorial, the bridge and the MCP server, the page's two faces, the community index
