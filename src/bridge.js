@@ -6,16 +6,20 @@
 // module is what the page does about it: it listens on the bridge's event
 // stream for commands { id, op, args }, runs each through the handlers the
 // page gives it, answers, mirrors the room back after every change, and
-// carries the chat both ways. Where the page is served without the bridge
-// (serve.sh, any other static server, the site) the first probe says so and
-// nothing else happens: the studio works alone.
+// carries the chat both ways - and the guide's two lines: the person's pick
+// on the welcome banner goes up (guide), a step of the page's tutorial done
+// goes up as an event in the inbox (post with a kind). Where the page is
+// served without the bridge (serve.sh, any other static server, the site)
+// the first probe says so and nothing else happens: the studio works alone.
 //
 //   const bridge = connectBridge(ops, { onHello, onState });
-//   bridge.state({ level, lint, report, game });   // after every change
-//   bridge.post('text the person typed');          // the chat, outbound
+//   bridge.state({ level, lint, report, game, tutorial });   // after every change
+//   bridge.post('text the person typed');                    // the chat, outbound
+//   bridge.post('✓ A rock', { kind: 'tutorial', data });     // an event the assistant reads in the inbox
+//   bridge.guide('fast');                                    // the pick on the welcome banner
 
 export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onState = () => {}, onCommand = () => {} } = {}) {
-  const self = { available: null, connected: false, agents: [], post, state, close };
+  const self = { available: null, connected: false, agents: [], post, state, guide: pickGuide, close };
   let source = null, lastState = null, stateTimer = 0;
 
   async function probe() {
@@ -57,9 +61,16 @@ export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onSt
     clearTimeout(stateTimer);
     stateTimer = setTimeout(() => send(lastState), 150);
   }
-  async function post(text) {
+  /** A line to the assistant's inbox: the chat (kind 'chat', the default) or an event of the page's (kind 'tutorial'). */
+  async function post(text, { kind, data } = {}) {
     if (!self.available) return null;
-    const r = await fetch(`${base}post`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+    const r = await fetch(`${base}post`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, kind, data }) });
+    return r.ok ? r.json() : null;
+  }
+  /** The person picked a way on the welcome banner: the bridge keeps it and tells the assistant. */
+  async function pickGuide(mode) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, from: 'page' }) });
     return r.ok ? r.json() : null;
   }
   function close() { source?.close(); source = null; self.connected = false; }

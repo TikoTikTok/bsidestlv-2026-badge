@@ -69,11 +69,15 @@
   <section class="panel site-only">
     <h2>How it goes</h2>
     <ol class="steps three">
-      <li><b>Clone the repository.</b> Node 20 or newer is all it needs: no packages, no build. <code>npm run maker</code> serves the
-        checkout and opens the studio in your browser.</li>
+      <li><b>Fork, then clone.</b> A fork of your own is where your room lands first: its GitHub Pages site plays it the moment it
+        is merged. Node 20 or newer is all the clone needs, no packages, no build; <code>npm run maker</code> serves the checkout
+        and opens the studio in your browser.</li>
       <li><b>Draw, check, play.</b> Paint with the pencil, line, rectangle and fill tools, or type the map. <b>Check</b> runs the real solver and says how many
         moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
-        <b>Surprise me</b> draws a solvable room from a seed when you want a start.</li>
+        <b>Surprise me</b> draws a solvable room from a seed when you want a start. With an assistant on the bridge, a welcome banner
+        offers three ways to a first room: <b>Follow the White Rabbit</b> (step by step, you hold the brush), <b>Drink Me</b>
+        (four questions and it paints with you) and <b>Eat Me</b> (the one-bite starter); the assistant follows a written guide,
+        so even a small model can walk you through.</li>
       <li><b>Send it in.</b> Export writes a stage module, <code>stages/community/&lt;id&gt;.js</code>. Add it to the index, open a pull request;
         the checks prove it is solvable before anyone has to play it. Or press <b>Open a pull request with your AI</b> in the studio: it hands
         your assistant the room and the steps. An assistant can do all of this with you: the studio has a bridge it drives.</li>
@@ -464,9 +468,10 @@ delay(n)      holds n ticks            ret      end</pre>
      repository, which is readable; nothing on this site is meant to be read by one. -->
 <dialog id="aiDialog" class="ai" data-kind="invite">
   <h2 id="aiTitle">Hand this to your assistant</h2>
-  <p class="note" id="aiNote">Copy the prompt into Claude, ChatGPT or whatever you use. It tells the assistant where the repository is,
-    how to start the studio, and how to drive it: an assistant that can run commands on your machine opens the page itself
-    and works on the room with you, in the page's own chat.</p>
+  <p class="note" id="aiNote">Copy the prompt into Claude Code, Codex, Cursor, Copilot, Gemini or whatever runs commands on your machine.
+    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, connect, and
+    then follow the White Rabbit's guide: a welcome banner on this page lets you pick step by step, the fast lane or the
+    one-bite starter, and the assistant asks, paints and explains from there - in its chat and in the page's own.</p>
   <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
   <div class="stage-bar">
     <button type="button" id="aiCopy" class="btn">Copy</button>
@@ -532,6 +537,20 @@ delay(n)      holds n ticks            ret      end</pre>
   <label class="field">The room, as the link carries it <small>(edit it: the link follows, until the parts above change)</small>
     <textarea id="shareJson" rows="8" spellcheck="false" aria-label="the room's JSON"></textarea></label>
   <div class="stage-bar"><button type="button" id="shareClose" class="btn ghost">Close</button></div>
+</dialog>
+
+<!-- The welcome: an assistant has said hello on the bridge, and the person picks how to build a first
+     room with it. The cards are src/guide.js GUIDE_MODES (the page draws them); the pick goes to the
+     bridge, where the assistant reads the White Rabbit's guide step by step. A checkout only. -->
+<dialog id="guideDialog" class="ai guide dev-only" aria-labelledby="guideTitle">
+  <h2 id="guideTitle">Your assistant is here</h2>
+  <p class="note" id="guideNote">Pick a way to build your first room together. Whichever you choose, you can change your mind,
+    ask for help, or hand any step to the assistant.</p>
+  <div id="guidePicks" class="guide-picks" role="group" aria-label="how to build the first room"></div>
+  <div class="stage-bar">
+    <button type="button" id="guideLater" class="btn ghost">I'll look around first</button>
+    <span id="guideStatus" class="status">You can bring this back any time: type "guide" to the assistant, or it can open it.</span>
+  </div>
 </dialog>
 
 <script type="module" src="src/maker.js"></script>

@@ -12,7 +12,12 @@
 // one listed in stages/community/index.json exists, is well formed and
 // solves (a room) or is what it claims to be (a glitch range level, judged
 // by src/rangecheck.js as the shipped ranges are), and nothing in that
-// folder goes unlisted. Part of `npm run verify`.
+// folder goes unlisted; and the White Rabbit's guide (src/guide.js): every
+// step of the three ways names ops the page has and resolves its
+// placeholders, the plans paint sensible cells, the answers do what they
+// say, the bridge serves it (the pick, the wait, the answers, the Rabbit
+// following the page's build), the MCP server offers it, the page has the
+// welcome banner and the invitation says fork first. Part of `npm run verify`.
 //
 //   node software/tools/verify-maker.mjs
 
@@ -28,7 +33,8 @@ import { blank, setCell, resize, lint, check, kindOf, isGlitch, toModule, fromMo
 import { rangeBlank, RANGE_KINDS, RANGE_FILES, BUDGET } from '../../src/rangecheck.js';
 import { stageOf } from '../../src/seal.js';
 import { MAKER_TUTORIAL, MAKER_TUTORIALS, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
-import { startMaker, OPS } from './maker-server.mjs';
+import { startMaker, OPS, repoFacts } from './maker-server.mjs';
+import { GUIDE_MODES, GUIDE_IDS, GUIDE_OPS, GUIDE_RULES, PLATFORMS, modeById, guideSteps, guideStep, guideText, guideWelcome, applyAnswer, parseSize, fill, boardLine } from '../../src/guide.js';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
 import { RABBIT_WATCH } from '../../stages/rabbit-watch.js';
@@ -36,7 +42,7 @@ import { LOOKING_GLASS } from '../../stages/looking-glass.js';
 import { CATERPILLAR_LOCK } from '../../stages/caterpillar-lock.js';
 import { DORMOUSE_WATCHDOG } from '../../stages/dormouse-watchdog.js';
 import { HUMPTY_WALL } from '../../stages/humpty-wall.js';
-import { aiPrompt, prPrompt, prParts, prShort, repoParts, indexLineText } from '../../src/invite.js';
+import { aiPrompt, prPrompt, prParts, prShort, repoParts, indexLineText, pagesUrl, roomUrl } from '../../src/invite.js';
 
 const SHIPPED_RANGES = { watch: RABBIT_WATCH, glass: LOOKING_GLASS, lock: CATERPILLAR_LOCK, dog: DORMOUSE_WATCHDOG, wall: HUMPTY_WALL };
 /** A shipped range level as the data the maker holds: its range named, the watch's pool on the level. */
@@ -327,6 +333,13 @@ console.log('the studio\'s guided builds tick on its events');
       ['move', ev('move', { dir: 'E' })], ['solution', ev('solution', { par: 23 })],
       ['shelf', ev('shelf', { did: 'save' })], ['lesson', ev('lesson', { steps: 2, malformed: 0 })], ['export', ev('export', { how: 'copy' })], ['assistant', ev('chat', { text: 'hi' })],
     ],
+    rabbit: [
+      ['blank', ev('load', { id: 'blank', from: 'starter' })], ['name', ev('name', { name: 'The Pantry' })],
+      ['wall', ev('paint', { ch: '#', cells: 3, tool: 'pencil' })], ['rock', ev('paint', { ch: 'O', cells: 1, tool: 'pencil' })],
+      ['button', ev('paint', { ch: 'b', cells: 1, tool: 'pencil' })], ['formed', ev('lint', { ok: true, problems: [] })],
+      ['check', ev('check', { ok: true, par: 12, rules: 'tea', gate: null })], ['play', ev('play', { rules: 'tea' })],
+      ['move', ev('move', { dir: 'E' })], ['win', ev('win', { moves: 12 })], ['blurb', ev('blurb', { chars: 30 })], ['export', ev('export', { how: 'link' })],
+    ],
     gate: [
       ['blank', ev('load', { id: 'blank', from: 'starter' })], ['alice', ev('paint', { ch: 'A', cells: 1, tool: 'pencil' })],
       ['wall', ev('paint', { ch: '#', cells: 7, tool: 'line' })], ['gate', ev('paint', { ch: 'G', cells: 1, tool: 'pencil' })],
@@ -353,6 +366,7 @@ console.log('the studio\'s guided builds tick on its events');
   // what no step of that build accepts: fed before every step, none may move
   const WRONG = {
     roses: [ev('brush', { ch: 'O' }), ev('paint', { ch: '.', cells: 1 }), ev('lint', { ok: false }), ev('tool', { tool: 'rect', used: false }), ev('check', { ok: false }), ev('move', { dir: 'wait' }), ev('shelf', { did: 'open' }), ev('lesson', { steps: 0, malformed: 1 }), edge],
+    rabbit: [ev('load', { id: 'gate', from: 'starter' }), ev('name', { name: 'An Untitled Room' }), ev('name', { name: 'Ab' }), ev('paint', { ch: '.', cells: 1, tool: 'pencil' }), ev('lint', { ok: false, problems: ['x'] }), ev('check', { ok: false, gate: null }), ev('move', { dir: 'wait' }), ev('blurb', { chars: 4 }), ev('export', { how: 'png' }), edge],
     gate: [ev('load', { id: 'hall', from: 'starter' }), ev('paint', { ch: '.', cells: 1, tool: 'pencil' }), ev('paint', { ch: '#', cells: 2, tool: 'pencil' }), ev('lint', { ok: false, problems: ['x'] }), ev('check', { ok: true, par: 9, rules: 'tea', gate: 'decoration' }), ev('check', { ok: false, gate: null }), ev('export', { how: 'png' }), ev('move', { dir: 'E' }), ev('tick', { ms: 320, timed: true }), ev('hazard', { did: 'add', n: 0, route: [] }), edge],
     clock: [ev('load', { id: 'blank', from: 'starter' }), ev('tick', { ms: null, timed: false }), ev('hazard', { did: 'route', n: 0, route: [[1, 5]], sight: 3 }), ev('hazard', { did: 'edit', n: 0, route: [], sight: 2 }), ev('check', { ok: true, par: 9, rules: 'tea', gate: null }), ev('check', { ok: false, gate: null }), ev('play', { rules: 'tea' }), ev('move', { dir: 'E' }), ev('export', { how: 'png' }), ev('lint', { ok: false }), { kind: 'edge', button: 'Y', down: true }],
     teach: [ev('name', { name: 'An Untitled Room' }), ev('name', { name: 'Ab' }), ev('blurb', { chars: 4 }), ev('lesson', { steps: 2, malformed: 0 }), ev('lesson', { steps: 3, malformed: 1 }), ev('check', { ok: false, gate: null }), ev('shelf', { did: 'open' }), ev('export', { how: 'png' }), ev('paint', { ch: '#', cells: 1, tool: 'pencil' }), ev('move', { dir: 'E' }), edge],
@@ -375,13 +389,112 @@ console.log('the studio\'s guided builds tick on its events');
   }
 }
 
+// ----------------------------------------------------------------- the guide ----
+// The White Rabbit's guide: the three ways, every step well formed and naming
+// ops the page has, the plans worked out against a room, the answers, the
+// text a small model follows, and what each platform has.
+console.log("the White Rabbit's guide tells an assistant what to say, ask and do, one step at a time");
+{
+  const room = normalize({ name: 'The Pantry', rows: ['#########', '#A......#', '#.......#', '#.......#', '#.......#', '#......D#', '#########'] });
+  const report = { ok: true, kind: 'tea', par: 9, moves: ['E', 'E', 'S', 'S', 'E', 'E', 'E', 'E', 'S'], notes: [] };
+  const ctx = { vars: { name: 'The Pantry', width: 11, height: 8, flavour: 'garden', theme: 'garden', blurb: 'A first room.', starter: 'corridor', author: 'me', where: 'fork', difficulty: 'a stroll' },
+                level: room, lint: [], report, tutorial: { id: 'rabbit', at: 0, of: 12, step: 'blank' }, assistant: 'the verifier', fork: 'someone/their-badge', upstream: 'bsidestlv/bsidestlv-2026-badge', login: 'someone', page: 'https://someone.github.io/their-badge/', repo: 'https://github.com/bsidestlv/bsidestlv-2026-badge' };
+  ok(GUIDE_MODES.length === 3 && GUIDE_IDS.join() === 'tutorial,fast,basic' && GUIDE_MODES.every(m => m.icon && m.title && m.kicker && m.blurb && m.time), 'three ways, each with an icon, a title, a kicker, a blurb and a time');
+  ok(modeById('tutorial').tutorial === 'rabbit' && MAKER_TUTORIALS.some(t => t.id === 'rabbit') && modeById('nope') === null, 'the Rabbit rides on the page\'s guided build "rabbit"');
+  ok(GUIDE_RULES.length >= 8 && GUIDE_RULES.some(r => /one step at a time/i.test(r)) && GUIDE_RULES.some(r => /AskUserQuestion/.test(r)) && GUIDE_RULES.some(r => /their hands|do it for me/i.test(r)), 'the rules: one step at a time, option buttons where they exist, their hands on the brush');
+  for (const mode of GUIDE_IDS) {
+    const steps = guideSteps(mode);
+    ok(steps.length >= 7, `${mode}: ${steps.length} steps`);
+    const ids = new Set();
+    steps.forEach((s, i) => {
+      ok(!ids.has(s.id), `${mode}/${s.id}: an id of its own`); ids.add(s.id);
+      ok(s.title && s.say && s.done && ['answer', 'auto', 'page'].includes(s.next), `${mode}/${s.id}: a title, a say, a done, a next`);
+      if (s.ask) ok(s.ask.q && s.ask.options.length >= 2 && s.ask.options.length <= 4 && s.ask.options.every(o => o.label && o.then) && s.ask.other?.hint && s.ask.other?.then, `${mode}/${s.id}: one question, 2 to 4 options with a then, and room for their own words`);
+      const c = guideStep(mode, i, ctx);
+      ok(c.at === i && c.of === steps.length && c.id === s.id && !c.over, `${mode}/${s.id}: guideStep is step ${i + 1} of ${steps.length}`);
+      for (const d of [...c.do, ...(c.help?.do ?? [])]) ok(GUIDE_OPS.includes(d.op) && OPS.includes(d.op) && typeof d.args === 'object', `${mode}/${s.id}: the plan's op '${d.op}' is one the page has`);
+      const text = guideText(mode, i, ctx);
+      ok(!/<\w+\?>/.test(c.say) && !/<\w+\?>/.test(text) && !/<\w+\?>/.test(JSON.stringify(c.ask ?? {})), `${mode}/${s.id}: every placeholder resolves`);
+      ok(/SAY to the person/.test(text) && /DONE WHEN:/.test(text) && (!c.ask || /ASK one question/.test(text)) && (!c.help || /HELP - when they ask/.test(text)), `${mode}/${s.id}: the text says what to say, ask, help and when it is done`);
+    });
+    ok(steps.at(-1).id === 'finish' && steps.some(s => s.id === 'publish') && steps.find(s => s.id === 'publish').work.length >= 5, `${mode}: ends with the person's page and a finish; the publish step spells out the repository work`);
+    ok(guideStep(mode, steps.length, ctx).over === true && /done/.test(guideText(mode, steps.length, ctx)), `${mode}: past the end it is over`);
+    ok(/HOW TO BEHAVE/.test(guideText(mode, 0, ctx)) && !/HOW TO BEHAVE/.test(guideText(mode, 1, ctx)) && /RULES:/.test(guideText(mode, 1, ctx)), `${mode}: the rules are spelled out on the first step and one line after`);
+  }
+  // the Rabbit's steps are the page's, step for step, each with a help plan
+  const rabbit = MAKER_TUTORIALS.find(t => t.id === 'rabbit');
+  const rs = guideSteps('tutorial');
+  ok(rabbit.steps.every((s, i) => rs[i].id === s.id && rs[i].page === i && rs[i].help && rs[i].next === 'page') && rs.length === rabbit.steps.length + 2, 'the Rabbit narrates every step of the page\'s build, each with a help plan, then the page and the finish');
+  ok(rs.every((s, i) => i >= rabbit.steps.length || /moved past this step/.test(guideStep('tutorial', i, ctx).done)), 'a Rabbit step is done when the page\'s tutorial moves past it');
+  // the plans, against the room
+  const plan = (mode, i, c = {}) => guideStep(mode, i, { ...ctx, ...c });
+  const wall = plan('tutorial', 2).help.do;
+  ok(wall.length === 1 && wall[0].op === 'paint' && wall[0].args.cells.length === 3 && wall[0].args.cells.every(([x, y, ch]) => ch === '#' && room.rows[y][x] === '.'), 'the wall plan paints three floor cells in a line');
+  let next = room; for (const [x, y, ch] of wall[0].args.cells) next = setCell(next, x, y, ch);
+  const rock = plan('tutorial', 3, { level: next }).help.do;
+  ok(rock[0].op === 'paint' && rock[0].args.cells.length === 1 && rock[0].args.cells[0][2] === 'O' && ((c) => next.rows[c[1]][c[0] - 1] === '.' && next.rows[c[1]][c[0] + 1] === '.')(rock[0].args.cells[0]), 'the rock plan puts a rock where it can be pushed');
+  next = setCell(next, ...rock[0].args.cells[0]);
+  const button = plan('tutorial', 4, { level: next }).help.do;
+  ok(button[0].args.cells[0][2] === 'b' && button[0].args.cells[0][1] === rock[0].args.cells[0][1] && Math.abs(button[0].args.cells[0][0] - rock[0].args.cells[0][0]) >= 2, 'the button plan puts the button in the rock\'s row, two or more cells away');
+  next = setCell(next, ...button[0].args.cells[0]);
+  ok(lint(next).length === 0 && plan('tutorial', 5, { level: next }).help.do.length === 0, 'the three plans leave a well-formed room, so the formed plan has nothing to do');
+  const twoRocks = setCell(next, 2, 4, 'O');
+  const formed = plan('tutorial', 5, { level: twoRocks }).help.do;
+  ok(formed[0].op === 'paint' && formed[0].args.cells.length === 1 && formed[0].args.cells[0][2] === 'b', 'the formed plan paints the button a second rock lacks');
+  ok(plan('tutorial', 8).help.do[0].op === 'moves' && plan('tutorial', 8).help.do[0].args.moves.join() === 'E' && plan('tutorial', 9).help.do.map(d => d.op).join() === 'play,moves' && plan('tutorial', 9).help.do[1].args.moves.length === report.moves.length, 'the move plan plays the first move of the solution, the win plan starts the run over and plays all of them');
+  ok(plan('tutorial', 9, { report: null }).help.do.map(d => d.op).join() === 'check,play,moves' && /</.test(plan('tutorial', 9, { report: null }).help.do[2].args.moves[0]), 'without a Check the win plan checks first and leaves the moves to fill');
+  ok(plan('tutorial', 0).help.do[0].op === 'load' && plan('tutorial', 1).help.do[0].op === 'patch' && plan('tutorial', 1).help.do[0].args.name === 'The Pantry' && plan('tutorial', 10).help.do[0].args.blurb === 'A first room.' && plan('tutorial', 11).help.do[0].op === 'share', 'the blank, name, blurb and export plans: load, patch, patch, share');
+  const paint = plan('fast', 4, { vars: { ...ctx.vars, flavour: 'gate', width: 13, height: 9 } });
+  ok(paint.before && paint.do.map(d => d.op).join() === 'generate,patch,check,snapshot' && paint.do[0].args.gate === true && paint.do[0].args.width === 13 && paint.do[0].args.rocks === 2 && paint.do[1].args.name === 'The Pantry' && paint.do[1].args.theme === 'garden', 'the fast lane\'s paint plan: generate with the knobs, patch the name and dressing, check, a picture');
+  ok(plan('fast', 4, { vars: { ...ctx.vars, flavour: 'chase' } }).do[0].args.timed === true && plan('fast', 4, { vars: { ...ctx.vars, width: 17, height: 11 } }).do[0].args.rocks === 3, 'a chase is timed, a grand room gets a rock more');
+  ok(plan('basic', 1).do.map(d => d.op).join() === 'load,patch,check,snapshot' && plan('basic', 1).do[0].args.id === 'corridor' && plan('basic', 2).do[0].args.theme === 'garden', 'the one-bite starter: load the starter, name it, check, a picture; then the dressing');
+  ok(plan('fast', 8).do[0].op === 'pr' && plan('fast', 8).work.some(w => /gh pr create --repo someone\/their-badge --base main/.test(w)) && plan('fast', 8).work.some(w => /build_type=workflow/.test(w) && /gh workflow enable pages\.yml/.test(w)) && plan('fast', 8).work.some(w => /https:\/\/someone\.github\.io\/their-badge\/index\.html\?room=the-pantry/.test(w)) && plan('fast', 8).work.some(w => /--repo bsidestlv\/bsidestlv-2026-badge --base main --head someone:community\/the-pantry/.test(w)),
+     'the publish step: the brief, the pull request on the fork, the site switched on, the room\'s address on their page, the pull request upstream');
+  // the answers
+  const shape = plan('fast', 1);
+  ok(applyAnswer(shape, '2', {}).vars.width === 13 && applyAnswer(shape, 'Grand', {}).vars.height === 11 && applyAnswer(shape, '11x8', {}).vars.width === 11 && applyAnswer(shape, '11 by 8', {}).vars.height === 8 && applyAnswer(shape, 'enormous', {}).then === 'stay', 'a size: by number, by label, by 11x8, and a word that is not one stays');
+  ok(parseSize('11x8').width === 11 && parseSize('3x3').width === 5 && parseSize('99×40').height === 24 && parseSize('big') === null, 'parseSize clamps to 5..24');
+  const flavour = plan('fast', 2);
+  ok(applyAnswer(flavour, 'A locked gate', {}).vars.flavour === 'gate' && applyAnswer(flavour, 'something with the queen chasing', {}).vars.flavour === 'chase' && ['garden', 'gate', 'chase'].includes(applyAnswer(flavour, 'Surprise me', {}).vars.flavour), 'a flavour: by label, by a word, and the dice');
+  const fp = plan('fast', 4, { vars: { ...ctx.vars, minPar: 16, rocks: 2 } });
+  const harder = applyAnswer(fp, 'Harder', { minPar: 16, rocks: 2 });
+  ok(harder.then === 'again' && harder.vars.minPar === 24 && harder.vars.rocks === 3 && applyAnswer(fp, 'Easier', { minPar: 16, rocks: 2 }).vars.rocks === 1 && applyAnswer(fp, 'Keep it', {}).then === 'next' && /Kept/.test(applyAnswer(fp, '1', {}).say) && applyAnswer(fp, 'Roll again', { roll: 1 }).vars.roll === 2 && applyAnswer(fp, 'more walls please', {}).then === 'again', 'the knobs: harder, easier, keep, roll again, a wish in words');
+  const name = plan('fast', 0);
+  ok(applyAnswer(name, "The Mad Hatter's Pantry", {}).vars.name === "The Mad Hatter's Pantry" && applyAnswer(name, '1', {}).vars.name === name.ask.options[0].label && applyAnswer(name, 'ab', {}).then === 'stay', 'a name: their own words, or a borrowed one; too short stays');
+  const rname = plan('tutorial', 1);
+  ok(applyAnswer(rname, 'The Pantry', {}).then === 'help' && applyAnswer(rname, 'The Pantry', {}).vars.name === 'The Pantry' && applyAnswer(rname, 'I typed one ✓', {}).then === 'check' && applyAnswer(rname, 'Why does this matter?', {}).then === 'why' && applyAnswer(rname, 'do it for me', {}).then === 'help' && applyAnswer(rname, 'skip', {}).then === 'skip' && applyAnswer(rname, 'ok', {}).then === 'check',
+     'on the Rabbit a name typed to the assistant is help; done-, why-, help- and skip-shaped answers are what they mean, whatever the step\'s options');
+  const where = plan('fast', 7);
+  ok(applyAnswer(where, 'On my GitHub page', {}).vars.where === 'fork' && applyAnswer(where, 'Just the link for now', {}).then === 'finish' && applyAnswer(where, 'both please', {}).vars.where === 'both', 'where it lives: the fork, the link (straight to the finish), both');
+  ok(applyAnswer(plan('fast', 9), 'The full tour', {}).then === 'mode:tutorial' && applyAnswer(plan('fast', 9), 'Another room', {}).then === 'restart' && applyAnswer(plan('tutorial', 13), 'A Room with a Gate', {}).then === 'tutorial:gate', 'the finish offers the other ways and the next build');
+  // the text, worded for the platform
+  ok(/use your option buttons \(AskUserQuestion\)/.test(guideText('fast', 1, { ...ctx, platform: 'claude' })) && /list the options numbered/.test(guideText('fast', 1, { ...ctx, platform: 'codex' })) && /list the options numbered/.test(guideText('fast', 1, ctx)), 'the ask is worded for the platform: buttons on Claude Code, a numbered list elsewhere and by default');
+  ok(/maker_guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /POST \/__maker\/guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /maker_guide \{"answer": "<what they said>"\}/.test(guideText('fast', 0, ctx)) && /maker_guide \{"next": true\}/.test(guideText('fast', 8, ctx)), 'the text names both doors: the MCP tool and the HTTP route, for run, answer and next');
+  ok(/page tutorial "rabbit" at 0 of 12/.test(boardLine(ctx)) && /checked: par 9 moves/.test(boardLine(ctx)) && /nothing reported yet/.test(boardLine({})), 'the board line says what is on the board');
+  ok(fill('{name} in {theme}', { name: 'x', theme: 'y' }) === 'x in y' && fill('{gone}', {}) === '<gone?>', 'fill leaves a visible gap for an unknown placeholder');
+  const welcome = guideWelcome(ctx);
+  ok(GUIDE_MODES.every(m => welcome.includes(m.title)) && /waitMs/.test(welcome) && /the verifier/.test(welcome) && /HOW TO BEHAVE/.test(welcome), 'the welcome names the three ways, how to wait for the pick, who the assistant is, and the rules');
+  ok(PLATFORMS.length >= 8 && PLATFORMS.every(p => p.id && p.name && p.connect && p.ask && p.run && typeof p.buttons === 'boolean') && ['claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'chatgpt', 'any'].every(id => PLATFORMS.some(p => p.id === id)) && PLATFORMS.filter(p => p.buttons).map(p => p.id).join() === 'claude',
+     'every platform: how it connects, asks and runs the maker; Claude Code is the one with option buttons');
+  for (const [id, file] of [['claude', '.mcp.json'], ['codex', '.codex/config.toml'], ['cursor', '.cursor/mcp.json'], ['copilot', '.vscode/mcp.json'], ['gemini', '.gemini/settings.json']])
+    ok(PLATFORMS.find(p => p.id === id).connect.includes(file) && existsSync(resolve(root, file)), `${id}: its configuration file ${file} is named and in the repository`);
+}
+
 // -------------------------------------------------------------- the invitation ----
 console.log('the invitation and the pull-request brief tell an assistant everything it needs');
 {
   const repo = 'https://github.com/someone/their-badge';
   const inv = aiPrompt(repo);
   ok(inv.includes(repo) && /npm run maker/.test(inv) && /__maker\/rpc/.test(inv) && /maker-mcp\.mjs|\.mcp\.json/.test(inv), 'the invitation names the repository, npm run maker, the bridge and the MCP server');
-  ok(/"pr"/.test(inv) && /maker_pr_brief/.test(inv) && /op "pr", or maker_pr_brief/.test(inv), 'and says the page can hand over the pull-request brief: op pr, or maker_pr_brief');
+  ok(/"pr"/.test(inv) && /maker_pr_brief/.test(inv), 'and says the page can hand over the pull-request brief: op pr, or maker_pr_brief');
+  ok(/^1\. Fork first/m.test(inv) && inv.includes('gh repo fork someone/their-badge --clone') && /cd their-badge/.test(inv) && /gh api -X POST repos\/<my-login>\/their-badge\/pages -f build_type=workflow/.test(inv) && /gh workflow enable pages\.yml/.test(inv) && /https:\/\/<my-login>\.github\.io\/their-badge\//.test(inv),
+     'fork first: gh repo fork --clone, the fork\'s Pages switched on (build_type=workflow, the workflow enabled), the address of their page');
+  ok(/AGENTS\.md/.test(inv) && /welcome banner/.test(inv) && /Follow the White Rabbit/.test(inv) && /Drink Me/.test(inv) && /Eat Me/.test(inv) && /maker_guide \{"waitMs": 120000\}/.test(inv) && /GET \/__maker\/guide\?wait=120000/.test(inv) && /"mode": "tutorial" \| "fast" \| "basic"/.test(inv),
+     'the invitation says AGENTS.md is the map, names the banner and the three ways, and how to wait for the pick or pick');
+  ok(/maker_guide \{"answer": "\.\.\."\}/.test(inv) && /\{"run": true\}/.test(inv) && /\{"help": true, "run": true\}/.test(inv) && /AskUserQuestion/.test(inv) && /numbered list/.test(inv) && /maker_say/.test(inv), 'and how to follow a step: the answer back, run, help, option buttons or a numbered list, the page\'s chat');
+  for (const f of ['.mcp.json', '.cursor/mcp.json', '.codex/config.toml', '.gemini/settings.json', '.vscode/mcp.json']) ok(inv.includes(f), `the invitation names ${f}`);
+  ok(/index\.html\?room=<id>/.test(inv) && /pull request on my fork/.test(inv) && /offers it to someone\/their-badge/.test(inv), 'and ends on their page, then the site');
+  ok(pagesUrl('me', repo) === 'https://me.github.io/their-badge/' && roomUrl('me', repo, TEA_PARTY) === `https://me.github.io/their-badge/index.html?room=${idOf(TEA_PARTY)}` && roomUrl('me', repo, { name: 'x', range: 'lock' }) === 'https://me.github.io/their-badge/glitch.html', 'pagesUrl and roomUrl: where a fork\'s site is and where a room plays on it');
   ok(repoParts(repo).owner === 'someone' && repoParts(repo).repo === 'their-badge' && repoParts('https://github.com/a/b.git').repo === 'b' && repoParts('not a url') === null, 'repoParts reads owner and repository from the URL');
   // a sample room: the tea party, with an author and a Check shaped as check() answers (the solve itself is verify-stage's)
   const level = normalize(TEA_PARTY);
@@ -400,6 +513,7 @@ console.log('the invitation and the pull-request brief tell an assistant everyth
   ok(brief.includes('gh pr create --repo someone/their-badge --base main') && brief.includes(`https://github.com/someone/their-badge/compare/main...<your GitHub login>:community/${id}?expand=1`) && brief.includes('gh repo fork someone/their-badge'),
      'the repository\'s owner and name: gh pr create, the compare URL, the fork');
   ok(brief.includes(`npm run stage -- stages/community/${id}.js`) && /`npm run verify`/.test(brief), 'both run commands');
+  ok(brief.includes(`https://<your GitHub login>.github.io/their-badge/index.html?room=${id}`) && /against the fork's main, merged, puts the room on my page/.test(brief) && /do that first when I ask for my page/.test(brief), 'the brief knows a fork\'s own pull request puts the room on the fork\'s page');
   ok(brief.includes('```js\n' + toModule(level, { author }) + '```'), 'the module source, verbatim, fenced');
   ok(brief.includes(`Community room: ${level.name}`) && (brief.match(new RegExp(`Community room: ${level.name}`, 'g')) ?? []).length >= 3, 'one commit and the title, "Community room: <name>"');
   ok(brief.includes('par 106 moves, a labyrinth') && brief.includes('the gate is load-bearing') && /the checks prove it solves/.test(brief), 'the par, the difficulty word and the notes when a Check is given, and that the checks prove it');
@@ -419,7 +533,7 @@ console.log('the invitation and the pull-request brief tell an assistant everyth
 // ------------------------------------------------------------------ the bridge ----
 console.log('the bridge carries commands to a page and its answers back');
 {
-  const { port, url, bridge, close } = await startMaker({ root, port: 0 });
+  const { port, url, bridge, close } = await startMaker({ root, port: 0, facts: { fork: 'someone/their-badge', upstream: 'bsidestlv/bsidestlv-2026-badge', login: 'someone', page: 'https://someone.github.io/their-badge/', repo: 'https://github.com/bsidestlv/bsidestlv-2026-badge' } });
   const api = async (method, path, body, headers = {}) => { const r = await fetch(`${url}/__maker${path}`, { method, headers: { 'content-type': 'application/json', ...headers }, body: body === undefined ? undefined : JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
   ok(port > 0 && (await api('GET', '/')).body.bridge === 1, `the bridge answers on a free port (${port})`);
   ok((await api('GET', '/')).body.ops.join() === OPS.join(), 'and names its ops');
@@ -427,7 +541,8 @@ console.log('the bridge carries commands to a page and its answers back');
   let r = await api('POST', '/rpc', { op: 'get' });
   ok(r.status === 503 && /no maker page/.test(r.body.error), 'an rpc with no page open is refused with a hint');
   // a fake page: the event stream, run each command, answer
-  const seen = [];
+  const seen = [], patched = [], guided = [];
+  let lastTutorial = { id: 'roses', title: 'Painting the Roses', step: 'brush', at: 0, of: 16 };
   const page = await fetch(`${url}/__maker/events`);
   const reader = page.body.getReader();
   const dec = new TextDecoder();
@@ -444,13 +559,18 @@ console.log('the bridge carries commands to a page and its answers back');
         if (!line) continue;
         const cmd = JSON.parse(line.slice(6));
         seen.push(cmd);
+        if (cmd.op === 'guide' && cmd.id === undefined) { guided.push(cmd.args); continue; }   // the bridge tells the page of a pick made for the person
         if (cmd.id === undefined) continue;
-        if (cmd.op === 'get') await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, lint: [], tutorial: { id: 'roses', title: 'Painting the Roses', step: 'brush', at: 0, of: 16 } } });
+        if (cmd.op === 'get') await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, lint: [], tutorial: lastTutorial } });   // the guide reads the page fresh through get
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
         else if (cmd.op === 'tutorial') await api('POST', '/reply', { id: cmd.id, result: { id: cmd.args?.id ?? 'roses', title: cmd.args?.id ?? 'Painting the Roses', step: 'blank', at: 0, of: 13 } });
         else if (cmd.op === 'check') await api('POST', '/reply', { id: cmd.id, error: 'the room is malformed' });
         else if (cmd.op === 'share') { const url = shareUrl(`http://localhost/${cmd.args.where === 'stages' ? 'index' : 'maker'}.html`, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: cmd.args.where ?? 'studio' } }); }
         else if (cmd.op === 'pr') await api('POST', '/reply', { id: cmd.id, result: { ...prParts(TEA_PARTY, { author: cmd.args?.author }), brief: prPrompt('https://github.com/someone/their-badge', TEA_PARTY, { author: cmd.args?.author }) } });
+        else if (cmd.op === 'patch') { patched.push(cmd.args); await api('POST', '/state', { level: { ...TEA_PARTY, ...cmd.args }, lint: [], report: null, tutorial: lastTutorial }); await api('POST', '/reply', { id: cmd.id, result: { level: { ...TEA_PARTY, ...cmd.args }, lint: [], kind: 'tea' } }); }
+        else if (cmd.op === 'load') await api('POST', '/reply', { id: cmd.id, result: { level: blank(9, 7), lint: lint(blank(9, 7)) } });
+        else if (cmd.op === 'guide') { guided.push(cmd.args); if (cmd.id !== undefined) await api('POST', '/reply', { id: cmd.id, result: { mode: cmd.args?.mode ?? null, open: !!cmd.args?.show } }); }
+        else if (cmd.op === 'snapshot') await api('POST', '/reply', { id: cmd.id, result: { png: 'data:image/png;base64,AAAA', note: 'a picture' } });
         // 'play' is never answered: the timeout path
       }
     }
@@ -484,6 +604,87 @@ console.log('the bridge carries commands to a page and its answers back');
   ok((await api('GET', '/level')).status === 404, 'no mirror until the page reports');
   await api('POST', '/state', { level: QUEENS_GAUNTLET, kind: 'chase' });
   ok((await api('GET', '/level')).body.name === QUEENS_GAUNTLET.name && (await api('GET', '/')).body.mirror.kind === 'chase', 'the mirror is what the page last reported');
+  // the guide: nothing picked, the page picks, the wait wakes, the answers drive it, the Rabbit follows the page
+  r = await api('GET', '/guide');
+  ok(r.status === 200 && r.body.mode === null && r.body.modes.length === 3 && /waiting for the person's pick/.test(r.body.text) && (await api('GET', '/')).body.guide.mode === null, 'no way picked: the welcome, the three ways, and the status says so');
+  ok((await api('POST', '/guide', { answer: 'x' })).body.did === 'nothing picked yet', 'an answer before the pick is told so');
+  r = await api('POST', '/guide', { mode: 'nope' });
+  ok(r.status === 400 && /no such way/.test(r.body.error), 'an unknown way is refused with the list');
+  const waitPick = api('GET', '/guide?wait=5000');
+  await new Promise(r => setTimeout(r, 50));
+  const before = (await api('GET', '/inbox?since=0')).body.latest;
+  r = await api('POST', '/guide', { mode: 'fast', from: 'page' });
+  ok(r.status === 200 && r.body.did === 'picked' && r.body.mode === 'fast' && r.body.at === 0 && r.body.of === 10 && r.body.step.id === 'name' && /step 1 of 10/.test(r.body.text) && /HOW TO BEHAVE/.test(r.body.text), 'the page picks Drink Me: step 1 of 10, the rules spelled out');
+  r = await waitPick;
+  ok(r.status === 200 && r.body.mode === 'fast' && r.body.step.id === 'name', 'the assistant\'s wait for the pick wakes with the first step');
+  r = await api('GET', `/inbox?since=${before}`);
+  ok(r.body.messages.length === 1 && r.body.messages[0].kind === 'guide' && r.body.messages[0].data.mode === 'fast' && /picked "Drink Me"/.test(r.body.messages[0].text), 'and the inbox has the pick as a line of kind guide');
+  await settle();
+  ok(guided.length === 0, 'a pick from the page is not echoed back to it');
+  r = await api('POST', '/guide', { answer: 'The Mad Hatter\'s Pantry' });
+  ok(r.body.did === 'next' && r.body.at === 1 && r.body.step.id === 'shape' && r.body.vars.name === 'The Mad Hatter\'s Pantry' && /"The Mad Hatter's Pantry" - lovely/.test(r.body.step.say), 'an answer in their own words is kept and the guide moves on, filling the next say with it');
+  r = await api('POST', '/guide', { answer: '2' });
+  ok(r.body.did === 'next' && r.body.vars.width === 13 && r.body.vars.height === 9, 'an option by number');
+  r = await api('POST', '/guide', { answer: 'gate', at: 2 });
+  ok(r.body.did === 'next' && r.body.vars.flavour === 'gate' && r.body.step.id === 'dressing', 'an option by value, for the step the assistant was shown');
+  r = await api('POST', '/guide', { answer: 'The court', at: 2 });
+  ok(r.body.did === 'moved' && r.body.step.id === 'dressing' && /✓ A flavour/.test(r.body.say), 'an answer for a step already passed is not taken for the next one');
+  r = await api('POST', '/guide', { answer: 'The court' });
+  ok(r.body.did === 'next' && r.body.step.id === 'paint' && r.body.step.before && r.body.step.do[0].op === 'generate' && r.body.step.do[0].args.gate === true && r.body.step.do[0].args.width === 13 && r.body.step.do[1].args.theme === 'court', 'the paint step\'s plan is worked out from the four answers');
+  r = await api('POST', '/guide', { answer: 'Harder' });
+  ok(r.body.did === 'again' && r.body.at === 4 && r.body.vars.minPar === 24 && r.body.step.do[0].args.minPar === 24 && r.body.step.do[0].args.rocks === 3, 'Harder turns the knobs and stays on the step');
+  r = await api('POST', '/guide', { answer: 'Keep it' });
+  ok(r.body.did === 'next' && r.body.step.id === 'play' && /Kept!/.test(r.body.say), 'Keep it moves on with a word');
+  r = await api('POST', '/guide', { step: 6 });
+  ok(r.body.at === 6 && r.body.step.id === 'words', 'a jump to a step');
+  r = await api('POST', '/guide', { answer: 'A tiny room with a big idea.', run: true });
+  await settle();
+  ok(r.body.did === 'next' && r.body.ran?.length === 1 && r.body.ran[0].op === 'patch' && patched.at(-1)?.blurb === 'A tiny room with a big idea.' && r.body.step.id === 'keep', 'run: the bridge does the step\'s plan through the page (patch) and moves on');
+  ok(applyAnswer(guideStep('fast', 6, {}), 'Push, think, push again.', {}).vars.blurb === 'Push, think, push again. Mind the corners.', 'a prefix of an option is that option');
+  r = await api('POST', '/guide', { run: true });
+  ok(r.body.did === 'ran' && r.body.ran[0].op === 'share' && r.body.ran[0].result.url.includes('index.html?level=') && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'run on a step with a plan before its ask: the share link, on the stages page');
+  r = await api('POST', '/guide', { answer: 'Just the link for now' });
+  ok(r.body.did === 'finish' && r.body.step.id === 'finish', 'Just the link skips to the finish');
+  r = await api('POST', '/guide', { answer: 'The full tour' });
+  await settle();
+  ok(r.body.did === 'picked' && r.body.mode === 'tutorial' && r.body.at === 0 && r.body.of === 14 && r.body.step.id === 'blank' && guided.at(-1)?.mode === 'tutorial' && guided.at(-1)?.by === 'agent', 'the finish can start another way; a pick from the assistant is sent to the page as op guide');
+  // the Rabbit follows the page's own build
+  lastTutorial = { id: 'rabbit', title: 'Follow the White Rabbit', step: 'name', at: 1, of: 12 };
+  await api('POST', '/state', { level: TEA_PARTY, lint: [], report: null, tutorial: lastTutorial });
+  r = await api('GET', '/guide');
+  ok(r.body.at === 1 && r.body.step.id === 'name' && /page tutorial "rabbit" at 1 of 12/.test(r.body.text), 'the Rabbit\'s step is the page\'s');
+  r = await api('POST', '/guide', { answer: 'I typed one ✓' });
+  ok(r.body.did === 'not yet' && /has not seen it yet/.test(r.body.say), 'did it, but the page has not moved: said kindly');
+  r = await api('POST', '/guide', { answer: 'The Pantry' });
+  await settle();
+  ok(r.body.did === 'help' && r.body.ran?.[0]?.op === 'patch' && patched.at(-1)?.name === 'The Pantry', 'a name told to the assistant on the Rabbit is typed in for them (help, run by default)');
+  r = await api('POST', '/guide', { help: true });
+  ok(r.body.did === 'help' && r.body.help.do[0].op === 'patch' && !r.body.ran, 'help without run only shows the plan');
+  r = await api('POST', '/guide', { answer: 'Why does this matter?' });
+  ok(r.body.did === 'why' && /title on the stages page/.test(r.body.say), 'why: the step\'s why');
+  r = await api('POST', '/guide', { next: true });
+  await settle();
+  ok(r.body.did === 'next' && seen.at(-1).op === 'tutorial' && seen.at(-1).args.skip === 1, 'next on a Rabbit step skips it on the page');
+  lastTutorial = { id: 'rabbit', title: 'Follow the White Rabbit', step: 'done', at: 12, of: 12 };
+  await api('POST', '/state', { level: TEA_PARTY, lint: [], report: null, tutorial: lastTutorial });
+  r = await api('GET', '/guide');
+  ok(r.body.at === 12 && r.body.step.id === 'publish' && r.body.step.ask && r.body.step.work.length >= 5, 'the page\'s build done, the bridge\'s own steps follow: the person\'s page');
+  r = await api('POST', '/guide', { answer: 'Not now' });
+  ok(r.body.step.id === 'finish', 'not now: the finish');
+  r = await api('POST', '/guide', { answer: "That's all for now" });
+  ok(r.body.did === 'end' && r.body.over === true && r.body.step === null && /done/.test(r.body.text), 'the end: over, and the text says so');
+  r = await api('POST', '/guide', { show: true });
+  await settle();
+  ok(r.body.did === 'shown' && guided.at(-1)?.show === true, 'show: the banner again, through the page');
+  r = await api('GET', '/guide?mode=basic&step=1&platform=codex');
+  ok(r.body.preview === true && r.body.step.id === 'starter' && r.body.step.ask.options.map(o => o.label).join() === 'The corridor,The gate,Two rooms' && /list the options numbered/.test(r.body.text) && (await api('GET', '/guide')).body.mode === 'tutorial', 'a preview of any step, worded for a platform, changes nothing');
+  ok((await api('GET', '/platforms')).body.platforms.length === PLATFORMS.length && (await api('GET', '/guide?platforms=1')).body.platforms[0].id === 'claude', 'the platforms are served');
+  r = await api('POST', '/post', { text: '✓ A rock (4 of 12)', kind: 'tutorial', data: { id: 'rabbit', step: 'rock', at: 4, of: 12 } });
+  ok(r.body.kind === 'tutorial' && r.body.data.step === 'rock' && (await api('GET', `/inbox?since=${r.body.n - 1}`)).body.messages[0].kind === 'tutorial', 'the page posts a step done as a line of kind tutorial');
+  ok((await api('POST', '/post', { text: 'plain' })).body.kind === 'chat', 'a line the person typed is kind chat');
+  const facts = repoFacts(root);
+  ok(facts.fork === null || (/^[\w.-]+\/[\w.-]+$/.test(facts.fork) && facts.page.startsWith('https://') && facts.repo.startsWith('https://github.com/')), 'repoFacts reads the fork, the upstream and the page from the remotes, or nothing');
+  ok((await api('GET', '/')).body.repo.fork === 'someone/their-badge' && (await api('GET', '/')).body.guide.modes.join() === GUIDE_IDS.join(), 'the status carries the facts it was given and the ways');
   // the guards
   r = await api('POST', '/rpc', { op: 'get' }, { origin: 'http://evil.example' });
   ok(r.status === 403, 'a foreign origin is refused');
@@ -523,6 +724,20 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(tut && MAKER_TUTORIALS.every(t => tut.inputSchema.properties.id.enum.includes(t.id) && tut.description.includes(t.id)) && 'skip' in tut.inputSchema.properties && 'restart' in tut.inputSchema.properties, 'mcp: maker_tutorial names every guided build, skip and restart');
   c = await call('tools/call', { name: 'maker_tutorial', arguments: { id: 'gate' } });
   ok(!c.result.isError && JSON.parse(c.result.content[0].text).id === 'gate' && seen.at(-1).op === 'tutorial' && seen.at(-1).args.id === 'gate', 'mcp: maker_tutorial picks a guided build through the bridge');
+  const guideTool = tools.find(t => t.name === 'maker_guide');
+  ok(guideTool && GUIDE_IDS.every(id => guideTool.inputSchema.properties.mode.enum.includes(id) && guideTool.description.includes(id)) && ['waitMs', 'answer', 'at', 'run', 'help', 'next', 'back', 'restart', 'step', 'show', 'vars', 'platform'].every(k => k in guideTool.inputSchema.properties) && /SAY/.test(guideTool.description) && /ASK/.test(guideTool.description),
+     'mcp: maker_guide names the three ways and every knob, and says what a step is');
+  c = await call('tools/call', { name: 'maker_guide', arguments: {} });
+  ok(!c.result.isError && JSON.parse(c.result.content[0].text).mode === 'tutorial' && JSON.parse(c.result.content[0].text).over === true, 'mcp: maker_guide reads where the guide stands');
+  c = await call('tools/call', { name: 'maker_guide', arguments: { mode: 'basic' } });
+  ok(!c.result.isError && JSON.parse(c.result.content[0].text).did === 'picked' && JSON.parse(c.result.content[0].text).step.id === 'name' && /use your option buttons/.test(JSON.parse(c.result.content[0].text).text), 'mcp: maker_guide picks a way, and the text is worded for Claude Code by default');
+  c = await call('tools/call', { name: 'maker_guide', arguments: { answer: 'The Verifier\'s Room', platform: 'codex' } });
+  ok(!c.result.isError && JSON.parse(c.result.content[0].text).did === 'next' && JSON.parse(c.result.content[0].text).vars.name === 'The Verifier\'s Room' && /list the options numbered/.test(JSON.parse(c.result.content[0].text).text), 'mcp: maker_guide passes the answer and words the next ask for the platform given');
+  ok(tools.some(t => t.name === 'maker_patch' && t.inputSchema.properties.theme?.enum?.includes('court') && 'blurb' in t.inputSchema.properties), 'mcp: maker_patch is a tool, with the dressing and the blurb');
+  c = await call('tools/call', { name: 'maker_patch', arguments: { name: 'Patched' } });
+  await settle();
+  ok(!c.result.isError && seen.at(-1).op === 'patch' && seen.at(-1).args.name === 'Patched', 'mcp: maker_patch is the op patch');
+  ok(/maker_guide \{ waitMs: 120000 \}/.test(init.result.instructions) && /welcome banner/.test(init.result.instructions), 'mcp: the server\'s instructions send a new assistant to the guide');
   const unknown = await call('no/such');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
@@ -651,13 +866,40 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/MAKER_TUTORIALS/.test(mod) && /className = `learn-pick/.test(mod) && /setAttribute\('data-id', t\.id\)/.test(mod) && /' on'/.test(mod), 'src/maker.js draws a card per guided build (button.learn-pick[data-id], the chosen one .on)');
   ok(/'alice\.maker\.tutorial'/.test(mod) && /get\('tutorial'\)/.test(mod) && /'alice\.tutor\.maker'/.test(mod) && /`alice\.tutor\.maker\.\$\{id\}`/.test(mod), 'the choice is remembered (alice.maker.tutorial), ?tutorial= picks one, progress is per build and the first keeps its old key');
   ok(/tutorial: tutorialSummary\(\)/.test(mod) && /step: tutor\.step\?\.id \?\? 'done', at: tutor\.at, of: tutor\.steps\.length/.test(mod), 'get reports the tutorial as { id, title, step, at, of }');
-  ok(OPS.includes('tutorial') && /\| "tutorial"/.test(aiPrompt('https://github.com/o/r')), 'the bridge has the tutorial op and the prompt names it');
+  ok(OPS.includes('tutorial') && OPS.includes('guide') && OPS.includes('patch') && /maker_guide/.test(aiPrompt('https://github.com/o/r')) && /maker_patch/.test(aiPrompt('https://github.com/o/r')), 'the bridge has the tutorial, guide and patch ops and the prompt names the guide and patch');
   const coachJs = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
   ok(/function use\(next/.test(coachJs) && /return \{ feed, render, skip, restart, use, get tutor\(\)/.test(coachJs) && /onRender\(\)/.test(coachJs), 'src/coach.js can put another tutorial under the same coach, and says when it redraws');
   ok(/mountCoach\(first, \{ looks, title = ''/.test(coachJs) && /\$\('#learnTitle'\)/.test(coachJs), 'src/coach.js keeps its API for the stages and the range, and fills #learnTitle where there is one');
   ok(/\.learn-picks \{/.test(makerCss) && /\.learn-pick\.on \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.learn-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
   const mcpJs = readFileSync(resolve(root, 'software/tools/maker-mcp.mjs'), 'utf8');
   ok(/name: 'maker_tutorial'/.test(mcpJs) && /case 'maker_tutorial': return rpc\('tutorial'/.test(mcpJs), 'the MCP server has maker_tutorial over the tutorial op');
+  // the welcome banner and the guide on the page
+  ok(/<dialog id="guideDialog" class="ai guide dev-only" aria-labelledby="guideTitle">/.test(html) && html.indexOf('id="guideDialog"') > html.indexOf('id="shareDialog"'), 'the welcome banner is a dev-only dialog after the Share dialog');
+  for (const id of ['guideTitle', 'guideNote', 'guidePicks', 'guideLater', 'guideStatus']) ok(new RegExp(`id="${id}"`).test(html), `the banner has #${id}`);
+  ok(/from '\.\/guide\.js'/.test(mod) && /for \(const m of GUIDE_MODES\)/.test(mod) && /b\.dataset\.mode = m\.id/.test(mod) && /className = 'guide-pick'/.test(mod), 'src/maker.js draws a card per way from GUIDE_MODES (button.guide-pick[data-mode])');
+  ok(/function showGuide\(name, \{ again = false \} = \{\}\)/.test(mod) && /function pickGuide\(mode, \{ from = 'page' \} = \{\}\)/.test(mod) && /showGuide\(name\); \},/.test(mod) && /if \(b\.connected && b\.agents\.length\) showGuide\(b\.agents\.at\(-1\)\)/.test(mod), 'the banner comes up on an assistant\'s hello, and when one was here before the page');
+  ok(/if \(from === 'page'\) bridge\?\.guide\(m\.id\)/.test(mod) && /if \(m\.tutorial\) \{ pickTutorial\(m\.tutorial\); if \(tutor\.done\) coach\.restart\(\); \}/.test(mod), 'a pick on the page goes up the bridge and puts the Rabbit\'s build under the coach; a pick from the assistant is not echoed');
+  ok(/kind: 'tutorial', data: \{ id: picked, step: s\.id, at: tutor\.at, of: tutor\.steps\.length, done: tutor\.done \}/.test(mod) && /guideMode === 'tutorial' && bridge\?\.available/.test(mod), 'on the Rabbit a step done goes up the bridge as a line of kind tutorial');
+  ok(/tutorial: tutorialSummary\(\), guide: guideMode \}/.test(mod), 'the mirror carries the page\'s tutorial and the way picked, so the bridge\'s Rabbit follows the page');
+  ok(/tell\('export', \{ how: 'link', format: r\.format, chars: r\.chars, where: r\.where \}\)/.test(mod) && /tell\('export', \{ how: 'pr' \}\)/.test(mod.slice(mod.indexOf('  pr: ('))), 'a link or a brief taken by the assistant counts as the room sent in');
+  ok(/if \(\/\^\(guide\|welcome\|rabbit\)\\W\*\$\/i\.test\(text\)\)/.test(mod) && /get\('guide'\) === '1'\) showGuide\(null, \{ again: true \}\)/.test(mod), '"guide" typed in the chat, or ?guide=1, brings the banner back');
+  ok(/guide: \{ show: \(name, o\) => showGuide\(name, o\), pick: pickGuide, get mode\(\)/.test(mod), 'window.__maker.guide for headless checks');
+  const guideJs = readFileSync(resolve(root, 'src/guide.js'), 'utf8');
+  ok(!/document\.|window\.|fetch\(/.test(guideJs) && /from '\.\/tutor\.js'/.test(guideJs) && /from '\.\/level\.js'/.test(guideJs), 'src/guide.js is pure: no DOM, no fetch; it reads the page\'s builds and the starters');
+  ok(/\.guide-picks \{/.test(makerCss) && /\.guide-pick \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.guide-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
+  ok(/Fork, then clone\./.test(html) && /Follow the White Rabbit<\/b>/.test(html) && /Drink Me<\/b>/.test(html) && /Eat Me<\/b>/.test(html) && /fork the repository for you/.test(html), 'the landing says fork first and names the three ways; the dialog\'s note says what the assistant will do');
+  // the assistants' own doors
+  const cursor = JSON.parse(readFileSync(resolve(root, '.cursor/mcp.json'), 'utf8')), gemini = JSON.parse(readFileSync(resolve(root, '.gemini/settings.json'), 'utf8')), vscode = JSON.parse(readFileSync(resolve(root, '.vscode/mcp.json'), 'utf8'));
+  ok(cursor.mcpServers?.['alice-maker']?.args?.[0] === 'software/tools/maker-mcp.mjs' && gemini.mcpServers?.['alice-maker']?.args?.[0] === 'software/tools/maker-mcp.mjs' && vscode.servers?.['alice-maker']?.type === 'stdio' && vscode.servers['alice-maker'].args[0] === 'software/tools/maker-mcp.mjs', 'Cursor, Gemini CLI and VS Code Copilot register the same server');
+  const codex = readFileSync(resolve(root, '.codex/config.toml'), 'utf8');
+  ok(/\[mcp_servers\.alice-maker\]/.test(codex) && /software\/tools\/maker-mcp\.mjs/.test(codex), 'Codex registers it too');
+  ok(/^\.vscode\/\*$/m.test(readFileSync(resolve(root, '.gitignore'), 'utf8')) && /^!\.vscode\/mcp\.json$/m.test(readFileSync(resolve(root, '.gitignore'), 'utf8')), '.gitignore keeps .vscode/mcp.json and nothing else of .vscode');
+  const pagesYml = readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8');
+  ok(!/\.cursor|\.gemini|\.vscode|\.codex|AGENTS\.md/.test(pagesYml), 'pages.yml publishes none of the assistants\' files');
+  const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
+  ok(/maker_guide/.test(agents) && /Fork first/.test(agents) && /gh repo fork/.test(agents) && /build_type=workflow/.test(agents) && /Follow the White Rabbit/.test(agents) && /npm run maker/.test(agents) && /CLAUDE\.md/.test(agents), 'AGENTS.md is the short map: fork first, the studio, the guide, the rules');
+  const doc = readFileSync(resolve(root, 'software/docs/LEVEL_MAKER.md'), 'utf8');
+  ok(/## Building with an AI, step by step/.test(doc) && /Follow the White Rabbit/.test(doc) && /\/__maker\/guide/.test(doc) && /maker_guide/.test(doc) && /gh repo fork/.test(doc) && PLATFORMS.every(p => doc.includes(p.name.split(' (')[0])), 'LEVEL_MAKER.md has the guided way, the endpoint, the tool, fork first, every platform');
 }
 
 // ------------------------------------------------------------- the community ----

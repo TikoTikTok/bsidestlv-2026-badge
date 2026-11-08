@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "alice-maker": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["software/tools/maker-mcp.mjs"],
+      "env": { "MAKER_URL": "http://localhost:8080", "MAKER_AGENT": "Copilot" }
+    }
+  }
+}
