@@ -20,7 +20,8 @@ import { CATERPILLAR_LOCK } from '../../stages/caterpillar-lock.js';
 import { DORMOUSE_WATCHDOG } from '../../stages/dormouse-watchdog.js';
 import { HUMPTY_WALL } from '../../stages/humpty-wall.js';
 import { rangeCheck, rangeLint, rangeBlank, RANGE_KINDS, RANGE_NAMES, RANGE_MAPS, RANGE_FILES, BUDGET, SEEDS } from '../../src/rangecheck.js';
-import { TUTORIAL, STAGES_TUTORIAL, Tutor } from '../../src/tutor.js';
+import { TUTORIAL, STAGES_TUTORIAL, LESSON_KEYS, LESSON_EVENTS, Tutor } from '../../src/tutor.js';
+import { expandBeat } from '../../src/prompt.js';
 import { stageOf } from '../../src/seal.js';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
@@ -127,12 +128,28 @@ console.log('\nthe refusals');
 // Every step names a range and level that exist, and the engine walks them.
 
 console.log('\nthe tutorial');
+// the buttons a step says to press (`keys`, beats for src/prompt.js) must be
+// buttons the badge has, and the steps that name one in their line must carry them
+const keysOk = (s, at) => {
+  if (s.keys !== undefined) {
+    ok(Array.isArray(s.keys) && s.keys.length > 0, `${at}: keys is a list of beats`);
+    for (const b of (Array.isArray(s.keys) ? s.keys : [])) { try { expandBeat(b); } catch (e) { fail(`${at}: ${e.message}`); } }
+  }
+  if (s.hold !== undefined) ok(Number.isInteger(s.hold) && s.hold > 0 && s.keys, `${at}: hold is milliseconds, with keys`);
+  const named = /\b(START|SELECT|SL|SR|A|B|X|Y|BootSel|any button|d-pad)\b/.test(s.say);
+  if (named && !/tune|symbols|taps/.test(s.say)) ok(s.keys, `${at}: the line names a button ("${s.say}") but the step carries no keys`);
+};
+for (const [on, keys] of Object.entries(LESSON_KEYS)) {
+  ok(LESSON_EVENTS.includes(on), `LESSON_KEYS: ${on} is not a lesson event`);
+  for (const b of keys) { try { expandBeat(b); } catch (e) { fail(`LESSON_KEYS ${on}: ${e.message}`); } }
+}
 {
   const byRange = SHIPPED;
   const ids = new Set();
   for (const s of TUTORIAL) {
     ok(!ids.has(s.id), `tutorial: duplicate step ${s.id}`); ids.add(s.id);
     ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `tutorial ${s.id}: say and why`);
+    keysOk(s, `tutorial ${s.id}`);
     ok(s.chapter === 1 || s.chapter === 2, `tutorial ${s.id}: chapter 1 or 2`);
     if (s.range) {
       ok(byRange[s.range], `tutorial ${s.id}: no such range ${s.range}`);
@@ -172,6 +189,7 @@ console.log('\nthe stages\' tutorial');
   for (const s of STAGES_TUTORIAL) {
     ok(!ids.has(s.id), `stages tutorial: duplicate step ${s.id}`); ids.add(s.id);
     ok(typeof s.say === 'string' && s.say.length && typeof s.why === 'string' && s.why.length, `stages tutorial ${s.id}: say and why`);
+    keysOk(s, `stages tutorial ${s.id}`);
     ok(['tea', 'chase', 'rooms'].includes(s.stage), `stages tutorial ${s.id}: stage tea, chase or rooms`);
     ok({ 1: 'tea', 2: 'chase', 3: 'rooms' }[s.chapter] === s.stage, `stages tutorial ${s.id}: chapter one is the tea party, chapter two the gauntlet, chapter three the community's rooms`);
     ok(!s.badge, `stages tutorial ${s.id}: nothing here needs the quick-glitch layer`);

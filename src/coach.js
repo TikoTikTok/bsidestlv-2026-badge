@@ -23,11 +23,14 @@
 //   coach.use(other, { title, chapters, finish });   // another tutorial under the same coach (the maker's builds)
 //   coach.tutor                    // the one in use
 
+import { keyGlyphs, mountPrompt } from './prompt.js';
+
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
 export function mountCoach(first, { looks, title = '', chapters = {}, finish, prepare = () => {}, onRender = () => {}, learnMode = 'learn' } = {}) {
   let tutor = first;            // the tutorial in use; use() swaps it, the buttons stay bound once
+  let art = null;               // the Learn panel's badge, lit with the step's keys
   const classic = () => !looks || looks.look.id === 'classic';
 
   function render() {
@@ -49,12 +52,20 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
       $('#coachSay').textContent = step.say;
       $('#coachSkip').hidden = false;
     }
+    // the buttons the step asks for (src/prompt.js): glyphs after the line, the badge in the panel
+    let keysEl = $('#coachKeys');
+    if (!keysEl) { keysEl = el('span', 'coach-keys'); keysEl.id = 'coachKeys'; $('#coachSay').after(keysEl); }
+    keysEl.replaceChildren();
+    if (!tutor.done && step.keys) keysEl.append(keyGlyphs(step.keys, { hold: step.hold }));
     const now = $('#learnCoach');
     now.textContent = '';
+    art?.stop();
+    art = null;
     if (tutor.done) {
       const skipped = tutor.skipped.size;
       now.append(el('b', '', finish.title), finish.note(skipped));
     } else {
+      if (step.keys) { const host = el('div', 'prompts'); now.append(host); art = mountPrompt(host, { beats: step.keys, hold: step.hold, frame: 'cap' }); }
       now.append(el('b', '', `${tutor.at + 1}. ${step.title}`), step.say, el('div', 'why', step.why));
     }
     const ol = $('#learnSteps');
