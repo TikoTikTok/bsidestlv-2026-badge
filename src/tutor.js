@@ -426,6 +426,85 @@ const ROSES = [
   },
 ];
 
+// "Follow the White Rabbit": a first room from nothing, one small step at a
+// time - the build an assistant on the bridge coaches (src/guide.js rides on
+// it step for step): a blank, a name, a wall, a rock and its button, the lint
+// green, the proof, the play, a step, the door, a line for the card, sent in.
+const RABBIT = [
+  {
+    id: 'blank', chapter: 1, title: 'A blank room', panel: 'edit',
+    say: 'Open Start from… under the map and pick A blank room.',
+    why: 'A blank is walls all round, Alice in one corner and the door in the other: the smallest thing that is already a room. Everything you add from here is the puzzle.',
+    done: made('load', (ev) => ev.id === 'blank' || ev.id === 'wide'),
+  },
+  {
+    id: 'name', chapter: 1, title: 'Name it', panel: 'edit',
+    say: 'Type a name of your own in the Name box.',
+    why: 'The name is the room\'s title on the stages page and, lower-case with hyphens, the id of its file and its index line. Two rooms cannot share one, so make it yours.',
+    done: made('name', (ev) => ev.name.trim().length >= 3 && !/untitled/i.test(ev.name)),
+  },
+  {
+    id: 'wall', chapter: 1, title: 'A wall', panel: 'edit',
+    say: 'Pick the wall brush (1) and paint two or three cells inside the room.',
+    why: 'Walls are what make a room a puzzle: a rock cannot go through one, and a rock pushed against one stays there. The map box on the right is the same room as text; edit whichever you like.',
+    done: made('paint', (ev) => ev.ch === '#'),
+  },
+  {
+    id: 'rock', chapter: 1, title: 'A rock', panel: 'edit',
+    say: 'Place a rock (brush 4) on a floor cell Alice can get behind.',
+    why: 'A rock moves one cell per push, away from Alice, so she needs the cell behind it. The hatched cells are corners where a rock would be lost: keep it off them.',
+    done: made('paint', (ev) => ev.ch === 'O'),
+  },
+  {
+    id: 'button', chapter: 1, title: 'Its button', panel: 'edit',
+    say: 'Place a button (brush 5) somewhere the rock can be pushed to - its own row with clear floor between is easiest.',
+    why: 'The door opens when every button holds a rock. One rock and one button is a whole puzzle; the lint under the map counts them for you.',
+    done: made('paint', (ev) => ev.ch === 'b'),
+  },
+  {
+    id: 'formed', chapter: 1, title: 'Well formed', panel: 'edit',
+    say: 'Make the lint go green: one Alice, one door, as many rocks as buttons, walls all round.',
+    why: 'Lint is the shape of the room, not its difficulty. A room that passes it may still be impossible; that is what Check is for.',
+    done: made('lint', (ev) => ev.ok === true),
+  },
+  {
+    id: 'check', chapter: 2, title: 'Prove it', panel: 'edit',
+    say: 'Press Check and read the verdict.',
+    why: 'Check runs the real solver, the same search CI runs before a room ships: how many moves, and a word for how hard it found the room. "Unsolvable" is not a failure but a clue: the rock is stuck, or the button out of reach.',
+    done: made('check', (ev) => ev.ok === true),
+  },
+  {
+    id: 'play', chapter: 2, title: 'Play it', panel: 'play',
+    say: 'Press Run & debug.',
+    why: 'The room is played with the rules the site uses, from the keyboard, a click on the simulated badge, or a real badge on USB.',
+    done: made('play'),
+  },
+  {
+    id: 'move', chapter: 2, title: 'Take a step', panel: 'play',
+    say: 'Move Alice: WASD, the arrows, or click the d-pad.',
+    why: 'Here the keyboard stands in for the badge. On the published site only the badge plays.',
+    done: made('move', (ev) => ev.dir !== 'wait'),
+  },
+  {
+    id: 'win', chapter: 2, title: 'To the door', panel: 'play',
+    say: 'Push the rock onto its button and walk Alice to the door. B takes a move back; START starts over.',
+    why: 'What the solver found in a second you find by hand: that is the test of a room. If it feels like a chore, shorten it; if it feels like a trick, you have a puzzle.',
+    done: made('win'),
+  },
+  {
+    id: 'blurb', chapter: 3, title: 'A line about it', panel: 'edit',
+    say: 'Write a blurb in the box under the map: one line, what the room is about.',
+    why: 'The blurb is what the card on the stages page shows beside your room. Say what the idea is, not how to solve it.',
+    done: made('blurb', (ev) => ev.chars >= 10),
+  },
+  {
+    id: 'export', chapter: 3, title: 'Send it in', panel: 'export',
+    say: 'Copy a link, copy or download the module, or hand it to your assistant to open the pull request.',
+    why: 'A link carries the whole room to anyone with the game. The module is the file a pull request carries, stages/community/<id>.js, plus one line in the index; on your own fork it lands on your own page.',
+    done: made('export', SENT),
+  },
+];
+
 // "A Room with a Gate": from a blank room to one the gate holds shut - a wall
 // across, a gate in it, the lever on Alice's side, the rock's button and the
 // door behind - proven load-bearing by Check, played to the door, sent in.
@@ -653,6 +732,17 @@ export const MAKER_TUTORIALS = [
       note: (skipped) => `You have been through the whole studio${skippedNote(skipped)}. Start over any time; the shelf keeps your rooms, the export sends one in.`,
     },
     steps: ROSES,
+  },
+  {
+    id: 'rabbit', title: 'Follow the White Rabbit',
+    blurb: 'Your first room, one small step at a time: a blank, a name, a wall, a rock and its button, the proof, the play, a line, and out the door. An assistant on the bridge coaches it.',
+    chapters: { 1: 'Chapter one · the room', 2: 'Chapter two · the proof', 3: 'Chapter three · yours' },
+    finish: {
+      title: 'Down the rabbit hole',
+      say: 'Your first room is real. Put it on your page, or paint the next one.',
+      note: (skipped) => `You made a room from nothing${skippedNote(skipped)}. The Rabbit's next lesson is "A Room with a Gate"; or ask your assistant to put this one on your GitHub page.`,
+    },
+    steps: RABBIT,
   },
   {
     id: 'gate', title: 'A Room with a Gate',

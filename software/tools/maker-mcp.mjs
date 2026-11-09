@@ -15,12 +15,18 @@
 // page (src/bridge.js) does the work and answers. maker_open starts that
 // server and the page when nothing is listening. No dependencies: JSON-RPC
 // over stdio, newline-delimited, as the protocol specifies.
+//
+// The first room with a person goes through maker_guide (src/guide.js): say
+// hello (any tool does), wait for their pick on the welcome banner
+// (maker_guide { waitMs }), then follow the step it returns - what to say,
+// what to ask, what to do - and pass every answer back (maker_guide { answer }).
 
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { MAKER_TUTORIALS } from '../../src/tutor.js';   // pure data, no DOM: the guided builds' ids for maker_tutorial
+import { GUIDE_MODES, GUIDE_IDS } from '../../src/guide.js';   // the White Rabbit's guide: the three ways, for maker_guide
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const base = () => (process.env.MAKER_URL ?? 'http://localhost:8080').replace(/\/$/, '');
@@ -45,6 +51,9 @@ const TOOLS = [
   { name: 'maker_status', description: 'Is the level maker serving and is its page open? Says how to get there when not. Call this first.', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_open', description: 'Start `npm run maker` (the server and the bridge) and open maker.html in the browser, if nothing is listening yet. Returns the status.', inputSchema: { type: 'object', properties: { port: { type: 'number' } } } },
   { name: 'maker_get', description: 'The room on the page right now: the level, what lint says, the last Check, the game if one is running, the tool and brush in hand.', inputSchema: { type: 'object', properties: {} } },
+  { name: 'maker_guide', description: `The White Rabbit's guide to building a first room WITH the person, one step at a time (src/guide.js). With no arguments: where things stand and the current step as plain instructions - what to SAY, what to ASK (one question, a few options; use your option buttons if you have them), what to DO on the board, when it is DONE. The ways: ${GUIDE_MODES.map(m => `${m.id} ("${m.title}", ${m.kicker})`).join(', ')}. After saying hello, call it with waitMs to wait for the person's pick on the welcome banner; mode picks a way for them (when they answered in words); answer passes their answer to the step's question (the guide decides: next step, this step again with the knobs turned, help, or why) - add run: true to have the bridge run the step's ops for you; help: true (with run) does the step for them when they ask for a shortcut; next / back / restart / step move along; show: true brings the banner back; vars sets what the steps fill in (name, theme, author…); platform ('claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'any') words the ask for your controls. Every question is shown on the page too, as buttons: when your own dialog comes back, call this first - "moved" or "already picked on the page" means they answered there; go on from the step it shows. Follow the text it returns exactly.`,
+    inputSchema: { type: 'object', properties: { waitMs: { type: 'number' }, mode: { type: 'string', enum: GUIDE_IDS }, answer: { type: 'string' }, at: { type: 'number', description: 'with answer: the step (0-based, the `at` you were shown) the answer is for, so an answer to a step the person has already finished is not taken for the next one' }, run: { type: 'boolean' }, help: { type: 'boolean' }, next: { type: 'boolean' }, back: { type: 'boolean' }, restart: { type: 'boolean' }, step: { type: 'number' }, show: { type: 'boolean' }, vars: { type: 'object' }, platform: { type: 'string' } } } },
+  { name: 'maker_patch', description: 'Set some fields of the room on the page and leave the rest: name, theme (garden, hall, court), blurb, lesson (a list of { on, say } or one line a step as "event: words"), tickMs, hazards, short; null removes one. The person sees it at once; the studio\'s tutorial hears it as if typed.', inputSchema: { type: 'object', properties: { name: { type: 'string' }, theme: { type: 'string', enum: ['garden', 'hall', 'court'] }, blurb: { type: 'string' }, lesson: {}, tickMs: { type: 'number' }, hazards: { type: 'array' }, short: { type: 'string' } } } },
   { name: 'maker_set_level', description: 'Replace the room on the page with this level. Returns what lint says about it. The person sees it drawn at once.', inputSchema: { type: 'object', properties: { level: LEVEL_SCHEMA }, required: ['level'] } },
   { name: 'maker_paint', description: 'Paint cells of the room on the page: a list of [x, y, ch] (x from the left, y from the top, ch one of # . A O b L G D). One undo step. Rooms only: a glitch level is set whole with maker_set_level.', inputSchema: { type: 'object', properties: { cells: { type: 'array', items: { type: 'array', items: {} } } }, required: ['cells'] } },
   { name: 'maker_check', description: 'Run what CI runs on the level on the page. A room: the real solver - solvable or not, par in moves or ticks, states searched, whether the gate is load-bearing, the difficulty, the moves. A glitch level: the budgets, a replay, a hand simulated on it, the attacker on a lock or a wall - hand or badge-only, the notes, the problems.', inputSchema: { type: 'object', properties: {} } },
@@ -54,7 +63,7 @@ const TOOLS = [
   { name: 'maker_reset', description: 'Reset the running game (START).', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_stop', description: 'Leave Run & debug and go back to the editor.', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_say', description: 'Say something to the person in the page\'s chat panel. Keep it short; they see it at once.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
-  { name: 'maker_read_chat', description: 'What the person typed in the page\'s chat after message number `since` (0 = everything). With waitMs, waits up to that long for a new line.', inputSchema: { type: 'object', properties: { since: { type: 'number' }, waitMs: { type: 'number' } } } },
+  { name: 'maker_read_chat', description: 'What the person typed in the page\'s chat after message number `since` (0 = everything), and the page\'s events between the lines: kind "guide" (they picked a way on the welcome banner), kind "tutorial" (a step of the guided build done: "✓ A rock (4 of 12)"), kind "chat" (their words). With waitMs, waits up to that long for a new line.', inputSchema: { type: 'object', properties: { since: { type: 'number' }, waitMs: { type: 'number' } } } },
   { name: 'maker_snapshot', description: 'A picture of the board (the editor) or the run (the game), as the person sees it.', inputSchema: { type: 'object', properties: { what: { type: 'string', enum: ['board', 'run'] } } } },
   { name: 'maker_load', description: 'Load into the page: a shipped stage (tea-party, queens-gauntlet), a starter (blank, wide, corridor, gate, two-rooms, hall), a community level by its id, or a shipped glitch range level as a copy to edit by <range>:<id> - watch: tea-time, late, very-late, no-hello; glass: sleepy, quick, blind; lock: who, temper, explain; dog: forty-winks, twinkle, treacle-well; wall: pleased, great-fall, kings-horses (the id alone works when one range has it).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
   { name: 'maker_generate', description: 'Draw a random room from a seed and put it on the page, keeping only one the solver clears. Options: width, height, rocks, walls (0..0.3 density), gate, timed, cast, seed, minPar. Rooms only: refused while a glitch level is on the page.', inputSchema: { type: 'object', properties: { seed: { type: 'number' }, width: { type: 'number' }, height: { type: 'number' }, rocks: { type: 'number' }, walls: { type: 'number' }, gate: { type: 'boolean' }, timed: { type: 'boolean' }, cast: { type: 'number' }, minPar: { type: 'number' } } } },
@@ -100,6 +109,13 @@ async function call(name, a = {}) {
   switch (name) {
     case 'maker_get': return rpc('get');
     case 'maker_set_level': return rpc('set', { level: a.level });
+    case 'maker_patch': return rpc('patch', a);
+    case 'maker_guide': {
+      if (a.show) return api('POST', '/guide', { show: true, platform: a.platform });
+      const drive = ['mode', 'answer', 'run', 'help', 'next', 'back', 'restart', 'step', 'vars'].some(k => a[k] !== undefined);
+      if (drive) return api('POST', '/guide', { mode: a.mode, answer: a.answer, at: a.at, run: a.run, help: a.help, next: a.next, back: a.back, restart: a.restart, step: a.step, vars: a.vars, platform: a.platform ?? 'claude' });
+      return api('GET', `/guide?wait=${a.waitMs ?? 0}${a.platform ? `&platform=${encodeURIComponent(a.platform)}` : ''}`);
+    }
     case 'maker_paint': return rpc('paint', { cells: a.cells });
     case 'maker_check': return rpc('check', {}, 90_000);
     case 'maker_play': return rpc('play');
@@ -136,7 +152,7 @@ rl.on('line', async (line) => {
   const { id, method, params = {} } = msg;
   const reply = (result) => { if (id !== undefined) out({ jsonrpc: '2.0', id, result }); };
   try {
-    if (method === 'initialize') return reply({ protocolVersion: params.protocolVersion ?? '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'alice-maker', version: '1.0.0' }, instructions: 'The level studio of Alice in AI Land. Call maker_status first; maker_open starts the page when nothing is listening. The person sees every change you make on their screen, so say what you are doing with maker_say and read their replies with maker_read_chat.' });
+    if (method === 'initialize') return reply({ protocolVersion: params.protocolVersion ?? '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'alice-maker', version: '1.0.0' }, instructions: 'The level studio of Alice in AI Land. Call maker_status first; maker_open starts the page when nothing is listening. Your first tool call says hello for you, which pops the welcome banner on the person\'s screen: then maker_guide { waitMs: 120000 } waits for their pick and returns the first step of the White Rabbit\'s guide - follow its text exactly, one step at a time, and pass every answer back with maker_guide { answer }. The person sees every change you make on their screen, so say what you are doing with maker_say and read their replies with maker_read_chat.' });
     if (method === 'notifications/initialized' || method?.startsWith('notifications/')) return;
     if (method === 'ping') return reply({});
     if (method === 'tools/list') return reply({ tools: TOOLS });

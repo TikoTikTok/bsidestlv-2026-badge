@@ -78,8 +78,16 @@ where the pages are developed; `?gate=1` brings the gate up there to try it.
 A stage is a few lines of text, and anyone with a clone can write one.
 `maker.html` on the published site is the invitation: what a stage is, how
 to get the maker, and a *Try it now with your favourite AI* button that
-hands an assistant the prompt (clone the repository, run the maker, design
-a room together, send it in). The same page on a local checkout is the
+hands an assistant the prompt: fork the repository first (so the room lands
+on your own GitHub Pages site), run the maker, connect, and follow the
+**White Rabbit's guide** - the moment the assistant says hello, the page
+pops a welcome banner with three ways to a first room: *Follow the White
+Rabbit* (step by step, you hold the brush, it coaches), *Drink Me* (four
+questions and it paints with you) and *Eat Me* (the one-bite starter). The
+guide is written down step by step (`src/guide.js`: what to say, what to
+ask, what to do, when it is done), so Claude Code, Codex, Cursor, Copilot,
+Gemini, Hermes or anything with a shell can walk you through it, and the
+last steps put the room on your page. The same page on a local checkout is the
 maker itself: a grid editor drawn with the game's own tiles, a map you can
 also type, the cast and their routes for a timed room, a **Check** that runs
 the real solver (par, whether the gate is load-bearing, what the cast

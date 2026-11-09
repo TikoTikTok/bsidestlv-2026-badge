@@ -43,6 +43,7 @@ import { CHARS, BRUSHES, kindOf, isGlitch, blank, setCell, resize, lint, check, 
 import { MAKER_TUTORIALS, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
+import { GUIDE_MODES, modeById } from './guide.js';
 import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
 import { RANGE_KINDS, RANGE_NAMES, RANGE_FILES, RANGE_MAPS, RANGE_GLYPHS, POOL_BUTTONS, BUDGET, rangeBlank, wallListing, takeFor } from './rangecheck.js';
 import { loadStage, stageOf } from './seal.js';
@@ -249,7 +250,19 @@ const tutors = new Map(MAKER_TUTORIALS.map(t => [t.id, new Tutor(t.steps, tutorS
 let picked = [new URLSearchParams(location.search).get('tutorial'), load(TUTORIAL)].find(id => tutorialById(id)) ?? MAKER_TUTORIALS[0].id;
 let tutor = tutors.get(picked);
 let coach = null;
-const tell = (what, extra = {}) => coach?.feed({ ...extra, kind: 'maker', what });
+/** Every event the studio produces goes to the coach; on the Rabbit's guided way, a step done goes up the bridge too, so the assistant sees it. */
+const tell = (what, extra = {}) => {
+  const s = coach?.feed({ ...extra, kind: 'maker', what });
+  if (s) {
+    if (guideMode === 'tutorial' && bridge?.available)
+      bridge.post(`✓ ${s.title} (${tutor.at} of ${tutor.steps.length}${tutor.done ? ', the build is done' : ''})`, { kind: 'tutorial', data: { id: picked, step: s.id, at: tutor.at, of: tutor.steps.length, done: tutor.done } });
+    // A step that waits on the lint may come up when the room already passes it: the stroke that finished the
+    // step before fired the lint first. Tell it once more, so "Well formed" ticks without another edit.
+    const next = tutor.step;
+    if (next && what !== 'lint' && level && [].concat(next.done.what ?? []).includes('lint')) queueMicrotask(() => tell('lint', { ok: !lint(level).length, problems: lint(level), why: 'again' }));
+  }
+  return s;
+};
 const tutorialSummary = () => ({ id: picked, title: tutorialById(picked).title, step: tutor.step?.id ?? 'done', at: tutor.at, of: tutor.steps.length });
 
 // ---------------------------------------------------------------- the level ----
@@ -266,6 +279,7 @@ let report = null;             // the checker's last word on this level
 let analysis = null;           // analyse(level, report): the overlays' data
 let cell = 48;                 // how big a cell is drawn, px
 let bridge = null;             // the assistant's bridge (src/bridge.js), connected once the studio exists
+let guideMode = null;          // the way picked on the welcome banner (src/guide.js GUIDE_MODES), or null
 const prefs = Object.assign({ overlays: { grid: true, coords: false, stuck: true, reach: false, path: true, sight: false }, zoom: 48, autoCheck: false }, loadJson(PREFS, {}));
 const overlays = prefs.overlays;
 cell = prefs.zoom;
@@ -1393,6 +1407,7 @@ async function sendChat() {
   const text = chatText.value.trim();
   if (!text) return;
   chatText.value = '';
+  if (/^(guide|welcome|rabbit)\W*$/i.test(text)) { showGuide(bridge?.agents.at(-1) ?? null, { again: true }); return; }
   chat(text, 'you');
   tell('chat', { text });
   if (!bridge?.available) chat('no assistant can hear you yet: this page is served without the bridge, start it with `npm run maker`', 'act');
@@ -1410,7 +1425,7 @@ const gameSummary = () => {
            buttonsHeld: state.rocks.filter(r => map.buttons.has(r)).length, buttons: map.buttons.size, dead: game.dead, waiting: game.waiting,
            won: kind === 'tea' ? teaGoal(map, state) : chaseGoal(map, state), phase: state.phase ?? 0, planned: !!game.plan };
 };
-const snapshotState = () => ({ level, kind: kindOf(level), category: isGlitch(level) ? 'glitch' : 'room', lint: lint(level), report: report?.pending ? null : report, game: gameSummary(), tool, brush, symmetry });
+const snapshotState = () => ({ level, kind: kindOf(level), category: isGlitch(level) ? 'glitch' : 'room', lint: lint(level), report: report?.pending ? null : report, game: gameSummary(), tool, brush, symmetry, tutorial: tutorialSummary(), guide: guideMode });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const ops = {
@@ -1421,12 +1436,34 @@ const ops = {
     chat(isGlitch(level) ? `set the level to "${level.name}" (${RANGE_NAMES[level.range] ?? level.range})` : `set the room to "${level.name}" (${dims().w}×${dims().h})`, 'act');
     return { lint: lint(level), kind: kindOf(level) };
   },
+  patch: (fields = {}) => {
+    const allowed = ['name', 'theme', 'blurb', 'lesson', 'tickMs', 'hazards', 'rows', 'short'];
+    const keys = Object.keys(fields ?? {}).filter(k => allowed.includes(k));
+    if (!keys.length) throw new Error(`patch wants some of ${allowed.join(', ')}: the fields to set on the room (null removes one)`);
+    const next = { ...level };
+    for (const k of keys) {
+      if (fields[k] === null || fields[k] === undefined) delete next[k];
+      else next[k] = k === 'lesson' && typeof fields[k] === 'string' ? lessonFromText(fields[k]) : fields[k];
+    }
+    if (next.theme !== undefined && !THEMES[next.theme]) throw new Error(`no dressing '${next.theme}' (garden, hall, court)`);
+    if (!Array.isArray(next.rows) && !isGlitch(next)) throw new Error('rows must stay a list of strings');
+    hazardPick = -1; setLevel(next, { why: 'assistant' });
+    if (keys.includes('name')) tell('name', { name: level.name });
+    if (keys.includes('blurb')) tell('blurb', { chars: (level.blurb ?? '').trim().length });
+    if (keys.includes('lesson')) tell('lesson', { steps: (level.lesson ?? []).filter(s => LESSON_EVENTS.includes(s.on)).length, malformed: (level.lesson ?? []).filter(s => !LESSON_EVENTS.includes(s.on)).length });
+    if (keys.includes('tickMs') || keys.includes('hazards')) tell('tick', { ms: level.tickMs ?? null, timed: kindOf(level) === 'chase' });
+    chat(`set ${keys.join(', ')} on "${level.name}"`, 'act');
+    return { level, lint: lint(level), kind: kindOf(level) };
+  },
   paint: ({ cells }) => {
     if (isGlitch(level)) throw new Error('paint is for rooms: this is a glitch level, set its fields with set');
     if (!Array.isArray(cells)) throw new Error('paint wants { cells: [[x, y, ch], ...] }');
     let next = level;
     for (const [x, y, ch] of cells) { if (!(ch in CHARS)) throw new Error(`no brush '${ch}'`); next = setCell(next, +x, +y, ch); }
     setLevel(next, { why: 'assistant' });
+    const byBrush = new Map();
+    for (const [, , ch] of cells) byBrush.set(ch, (byBrush.get(ch) ?? 0) + 1);
+    for (const [ch, n] of byBrush) tell('paint', { ch, cells: n, tool: 'assistant' });     // the guided builds hear it as a stroke
     chat(`painted ${cells.length} cell${cells.length === 1 ? '' : 's'}`, 'act');
     return { lint: lint(level) };
   },
@@ -1475,6 +1512,7 @@ const ops = {
     const a = author || $('#author').value.trim() || undefined;
     const last = report?.ok ? report : null;
     chat('took the pull request brief', 'act');
+    tell('export', { how: 'pr' });
     return { ...prParts(level, { author: a }), brief: prPrompt(repo, level, { author: a, report: last, difficulty: last ? difficulty(last, analysis?.pushes ?? 0) : null }) };
   },
   load: async ({ id }) => { await loadById(id); chat(`loaded ${level.name}`, 'act'); return { level, lint: lint(level) }; },
@@ -1494,6 +1532,7 @@ const ops = {
   },
   share: (a = {}) => {
     const r = shareLink(a);
+    tell('export', { how: 'link', format: r.format, chars: r.chars, where: r.where });
     chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'stages' ? 'on the stages page' : 'in the studio'}`, 'act');
     return r;
   },
@@ -1505,11 +1544,103 @@ const ops = {
     if (skips) chat(`skipped ${skips} step${skips === 1 ? '' : 's'} of the guided build`, 'act');
     return tutorialSummary();
   },
+  guide: ({ show, mode, close, by } = {}) => {
+    if (close) guideDialog.close();
+    if (show) showGuide(bridge?.agents.at(-1) ?? null, { again: true });
+    if (mode) pickGuide(mode, { from: by ?? 'assistant' });
+    return { mode: guideMode, open: guideDialog.open, ways: GUIDE_MODES.map(m => m.id), tutorial: tutorialSummary() };
+  },
+  // The guide's current question, as a card in the chat with its options as buttons: the person may answer here
+  // instead of in the assistant's chat, and the bridge applies the press at once (whichever side answers first wins).
+  ask: ({ mode, title, at, of, step, say, q, options = [], other, over } = {}) => {
+    const m = modeById(mode);
+    for (const old of chatLog.querySelectorAll('li.ask:not(.answered)')) { old.classList.add('stale'); for (const x of old.querySelectorAll('button')) x.disabled = true; }
+    const li = document.createElement('li');
+    li.className = 'ask';
+    li.append(Object.assign(document.createElement('b'), { textContent: m ? `${m.icon} ${m.title}` : title ?? 'guide' }), ' ');
+    if (over) { li.append(say ?? 'That was the way. The room stays on the board.'); chatLog.prepend(li); return { shown: true, over: true }; }
+    li.append(Object.assign(document.createElement('span'), { className: 'ask-say', textContent: `${at + 1} of ${of} · ${step}: ${say}` }));
+    if (q && options.length) {
+      const row = document.createElement('div');
+      row.className = 'ask-row';
+      row.append(Object.assign(document.createElement('span'), { className: 'ask-q', textContent: q }));
+      for (const o of options) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'btn ghost ask-pick'; btn.textContent = o.label; if (o.hint) btn.title = o.hint;
+        btn.addEventListener('click', async () => {
+          for (const x of row.querySelectorAll('button')) x.disabled = true;
+          li.classList.add('answered');
+          chat(o.label, 'you');
+          const r = await bridge?.answer(o.label, at);
+          if (r?.say) chat(r.say, m ? m.title : 'guide');
+          else if (r?.did === 'moved') chat('that step was already done', 'act');
+        });
+        row.append(btn);
+      }
+      if (other) row.append(Object.assign(document.createElement('small'), { textContent: `or type below: ${other}` }));
+      li.append(row);
+    }
+    chatLog.prepend(li);
+    return { shown: true, at, step };
+  },
 };
+
+// --------------------------------------------------------------- the welcome ----
+// An assistant said hello on the bridge: the banner (#guideDialog) offers the
+// three ways of src/guide.js GUIDE_MODES to build a first room with it. The
+// pick goes up the bridge (the assistant reads the White Rabbit's guide from
+// there) and, for the Rabbit, puts the page's own build under the coach, so
+// the checklist and the assistant narrate the same steps. The assistant can
+// show it or pick too (op guide); the person can close it and come back
+// (?guide=1, or "guide" typed in the chat).
+
+const guideDialog = $('#guideDialog');
+let guideShown = false;              // once a page load, unless asked again
+{
+  const box = $('#guidePicks');
+  for (const m of GUIDE_MODES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'guide-pick'; b.dataset.mode = m.id;
+    b.append(Object.assign(document.createElement('span'), { className: 'icon', textContent: m.icon }),
+             Object.assign(document.createElement('b'), { textContent: m.title }),
+             Object.assign(document.createElement('i'), { textContent: m.kicker }),
+             Object.assign(document.createElement('small'), { textContent: m.blurb }),
+             Object.assign(document.createElement('em'), { textContent: m.time }));
+    b.addEventListener('click', () => { guideDialog.close(); pickGuide(m.id, { from: 'page' }); });
+    box.append(b);
+  }
+}
+/** The banner, with who is here. Once a page load, and not once a way is picked, unless asked `again`. */
+function showGuide(name, { again = false } = {}) {
+  if (!again && (guideShown || guideMode)) return false;
+  guideShown = true;
+  $('#guideTitle').textContent = name ? `${name} is here` : 'Your assistant is here';
+  $('#guideNote').textContent = `${name ?? 'Your assistant'} is on the bridge, ready to build your first room with you. Pick a way: you can change your mind, ask for help, or hand any step over at any time.`;
+  if (!guideDialog.open) guideDialog.showModal();
+  return true;
+}
+/** The pick: kept, told to the assistant (unless it came from it), the Rabbit's build put under the coach. */
+function pickGuide(mode, { from = 'page' } = {}) {
+  const m = modeById(mode);
+  if (!m) throw new Error(`no such way '${mode}'; they are ${GUIDE_MODES.map(x => x.id).join(', ')}`);
+  guideMode = m.id;
+  if (guideDialog.open) guideDialog.close();
+  if (m.tutorial) { pickTutorial(m.tutorial); if (tutor.done) coach.restart(); }
+  const who = bridge?.agents.at(-1) ?? 'your assistant';
+  chat(from === 'page' ? `you chose ${m.icon} ${m.title}: ${who} takes it from here - watch this chat and the board` : `${who} chose ${m.icon} ${m.title} for you`, 'act');
+  if (from === 'page') bridge?.guide(m.id);
+  $('#assistantPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(() => chatText.focus({ preventScroll: true }), 400);
+  bridge?.state(snapshotState());
+  return { mode: guideMode, tutorial: tutorialSummary() };
+}
+$('#guideLater').addEventListener('click', () => { guideDialog.close(); chat('the welcome is closed; type "guide" here, or ask your assistant, to bring it back', 'act'); });
+guideDialog.addEventListener('click', (e) => { if (e.target === guideDialog) guideDialog.close(); });
+guideDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
 
 const bridgeChip = $('#bridgeChip'), bridgeState = $('#bridgeState');
 bridge = connectBridge(ops, {
-  onHello: (name) => { chat(`${name} is here`, 'act'); tell('hello', { name }); },
+  onHello: (name) => { chat(`${name} is here`, 'act'); tell('hello', { name }); showGuide(name); },
   onState: (b) => {
     const who = b.agents.length ? b.agents.join(', ') : null;
     bridgeChip.textContent = !b.available ? '◌ no bridge' : !b.connected ? '◌ bridge…' : who ? `● ${who}` : '○ bridge open';
@@ -1518,9 +1649,11 @@ bridge = connectBridge(ops, {
     bridgeState.textContent = !b.available ? 'no bridge here' : !b.connected ? 'bridge lost' : who ? `${who} connected` : 'waiting for an assistant';
     bridgeState.className = `tag${who ? ' on' : ''}`;
     $('#bridgeUrl').textContent = `${location.origin}/__maker/`;
+    if (b.connected && b.agents.length) showGuide(b.agents.at(-1));     // an assistant was here before the page: the banner still comes up
   },
   onCommand: (cmd) => { if (cmd.op !== 'get' && cmd.op !== 'snapshot' && cmd.op !== 'say' && cmd.op !== 'hello') console.debug('bridge:', cmd.op, cmd.args); },
 });
+bridge.state(snapshotState());       // the first mirror goes up as soon as the stream opens, so the guide knows the room before anything changes
 
 // ---------------------------------------------------------------- the coach ----
 // The tutorials, mounted once the studio exists: a card per guided build in
@@ -1563,9 +1696,10 @@ coach = mountCoach(tutor, {
     if (!show || !step?.panel) return;
     $(PANELS[step.panel])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
-  onRender: renderPicks,
+  onRender: () => { renderPicks(); bridge?.state(snapshotState()); },   // a step done, skipped or swapped: the mirror carries the new position at once, so the bridge's Rabbit never lags
 });
 tell('lint', { ok: !lint(level).length, why: 'open' });
+if (new URLSearchParams(location.search).get('guide') === '1') showGuide(null, { again: true });
 
 // ------------------------------------------------------------------- the loop ----
 
@@ -1589,6 +1723,7 @@ window.__maker = {
   undo: undoEdit, redo: redoEdit, get past() { return past.length; }, get future() { return future.length; },
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
+  guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
 };
 
