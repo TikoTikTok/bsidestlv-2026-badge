@@ -859,8 +859,9 @@ console.log('the bridge carries commands to a page and its answers back');
 console.log('maker.html keeps the studio to a checkout and the landing to the site');
 {
   const html = readFileSync(resolve(root, 'maker.html'), 'utf8');
-  for (const id of ['editPanel', 'playPanel', 'exportPanel', 'assistantPanel', 'learnPanel'])
-    ok(new RegExp(`<section class="panel dev-only" id="${id}">`).test(html), `#${id} is class dev-only`);
+  const MODE_OF = { editPanel: 'edit', playPanel: 'play', exportPanel: 'export', assistantPanel: 'assistant', learnPanel: 'learn' };
+  for (const id of Object.keys(MODE_OF))
+    ok(new RegExp(`<section class="panel dev-only" id="${id}" data-mode="${MODE_OF[id]}">`).test(html), `#${id} is class dev-only, the ${MODE_OF[id]} mode on a phone`);
   ok(/<div id="coach" class="coach dev-only" hidden>/.test(html), 'the coach line is dev-only: the tutorial is the studio\'s');
   for (const id of ['coachTitle', 'coachCount', 'coachSay', 'coachSkip', 'coachOpen', 'learnProgress', 'learnCoach', 'learnSteps', 'learnSkip', 'learnRestart', 'learnStatus'])
     ok(new RegExp(`id="${id}"`).test(html), `the coach has #${id}`);
@@ -888,10 +889,16 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(!/\.mcp\.json|maker-mcp/.test(readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8')), 'pages.yml does not publish the MCP server or .mcp.json');
   ok(/id="padDevice" class="pad-device dev-only"/.test(html), 'the controller name in the header is dev-only');
   ok((html.match(/class="panel site-only"/g) ?? []).length >= 3, 'the landing prose panels are class site-only');
-  ok(/<section class="panel hero" id="hero">/.test(html), 'the hero is on both faces');
+  ok(/<section class="panel hero" id="hero" data-mode="home">/.test(html), 'the hero is on both faces, "home" on a phone');
   for (const id of ['aiDialog', 'aiPrompt', 'aiCopy', 'aiClaude', 'aiChatGPT', 'aiBtn', 'repoClone', 'docsLink'])
     ok(new RegExp(`id="${id}"`).test(html), `the invitation has #${id}`);
-  ok(!/id="modes"/.test(html), 'no mode bar: the maker is one column in the phone looks');
+  // the phone looks: a mode bar of the studio's own (dev-only), one panel at a time, the landing all "home"
+  ok(/<nav id="modes" class="modes dev-only" aria-label="what is on screen">/.test(html), 'the mode bar is the studio\'s (class dev-only): the site\'s landing is one page');
+  for (const m of ['learn', 'edit', 'play', 'export', 'assistant', 'home']) ok(new RegExp(`class="mode[^"]*" data-mode="${m}"`).test(html), `the mode bar has a ${m} button`);
+  ok(/<html [^>]*data-mode="home"[^>]*data-learn="side"/.test(html), '<html> opens on the landing (data-mode="home") with the guide beside the board (data-learn="side")');
+  ok((html.match(/class="panel (?:hero|site-only)"[^>]*data-mode="home"/g) ?? []).length === 4, 'the hero and the three landing panels are all "home"');
+  ok(/<\/nav>\s*(<!--[^]*?-->\s*)?<div id="coach"/.test(html), 'the coach line sits between the mode bar and main');
+  ok(/const MODES = \['home', 'learn', 'edit', 'play', 'export', 'assistant'\]/.test(mod) && /html\.dataset\.mode = m;/.test(mod) && /onMode\(m\) \{ if \(dev\) try \{ localStorage\.setItem\(MODE, m\)/.test(mod), 'src/maker.js opens the mode bar where it was left (alice.maker.mode, set on <html> before paint) and keeps it');
   const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
   ok(/html\[data-host=dev\] \.site-only \{ display: none !important; \}/.test(css), 'styles.css hides .site-only on a dev host');
   ok(/<link rel="stylesheet" href="src\/maker\.css">/.test(html), 'the page loads src/maker.css');
@@ -983,6 +990,24 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   // the guided builds: the cards in the Learn panel, the choice kept, the bridge steering them
   for (const id of ['learnTitle', 'learnPick']) ok(new RegExp(`id="${id}"`).test(html), `the Learn panel has #${id} (the chosen build's title, the cards)`);
   ok(/<h2><span id="learnTitle">Painting the Roses<\/span> <span id="learnProgress"/.test(html), 'the Learn panel\'s heading is the chosen build\'s title, the first one before the page runs');
+  // the guide beside the board (the classic look): the column, the drawer, the page - src/maker.css; the switch and the way to a panel - src/maker.js
+  for (const id of ['learnPin', 'learnClose']) ok(new RegExp(`id="${id}"`).test(html), `the Learn panel has #${id}`);
+  ok(/id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false"/.test(html), 'the coach line\'s "learn" names the panel it opens (aria-controls, aria-expanded)');
+  for (const sel of ['html[data-look=classic][data-host=dev][data-learn=side] main {', 'html[data-look=classic][data-host=dev][data-learn=side] #learnPanel {',
+                     'html[data-look=classic][data-host=dev][data-learn=side][data-learn-open] #learnPanel {', 'html[data-look=classic][data-host=dev][data-learn=side] .coach { display: none; }',
+                     '#learnPanel { container-type: inline-size; }', '@container (max-width: 480px) {', '@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }',
+                     'html:not([data-look=classic]) #learnPanel.off { display: none; }', 'html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }'])
+    ok(makerCss.includes(sel), `src/maker.css: ${sel}`);
+  const bp = /@media \(min-width: (\d+)px\) \{\s*html\[data-look=classic\]\[data-host=dev\]\[data-learn=side\] main \{/.exec(makerCss)?.[1];
+  ok(bp && new RegExp(`@media \\(max-width: ${bp - 1}\\.98px\\)`).test(makerCss) && new RegExp(`matchMedia\\('\\(min-width: ${bp}px\\)'\\)`).test(mod), `the column / drawer breakpoint (${bp}px) is one number in src/maker.css and src/maker.js`);
+  ok(/'alice\.maker\.learn'/.test(mod) && /html\.dataset\.learn = 'page'/.test(mod) && /function goTo\(key\)/.test(mod) && /function openLearn\(/.test(mod) && /function setLearn\(/.test(mod) && /WIDE\.addEventListener\('change'/.test(mod),
+     'src/maker.js keeps the guide\'s place (alice.maker.learn, read before paint), goes to a panel by its key, and closes the drawer when the window crosses the breakpoint');
+  ok(/if \(looks\.look\.id !== 'classic'\) \{ looks\.setMode\(key\); return; \}/.test(mod) && (mod.match(/scrollIntoView\(/g) ?? []).length === 3 && /goTo\('play'\)/.test(mod) && /goTo\('edit'\)/.test(mod) && /goTo\('assistant'\)/.test(mod) && /if \(show && step\?\.panel\) goTo\(step\.panel\)/.test(mod),
+     'every way to a panel goes through goTo (the mode bar on a phone, a scroll on the classic page): Run & debug, back to the editor, the welcome, a tutorial step');
+  ok(/open\(\) \{/.test(mod) && /openLearn\(\);/.test(mod) && /goTo, setLearn, openLearn, get learn\(\)/.test(mod), 'the coach line\'s "learn" opens the drawer; window.__maker exposes goTo, setLearn, openLearn and learn');
+  const coachSrc = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
+  ok(/open = null \} = \{\}\)/.test(coachSrc) && /else if \(open\) open\(\);/.test(coachSrc) && /setProperty\('--coach-h'/.test(coachSrc) && /next\?\.range \?\? next\?\.stage \?\? next\?\.panel/.test(coachSrc),
+     'src/coach.js takes the page\'s way to the Learn panel (open), measures the line (--coach-h), and follows a step to its panel on a phone');
   ok(/MAKER_TUTORIALS/.test(mod) && /className = `learn-pick/.test(mod) && /setAttribute\('data-id', t\.id\)/.test(mod) && /' on'/.test(mod), 'src/maker.js draws a card per guided build (button.learn-pick[data-id], the chosen one .on)');
   ok(/'alice\.maker\.tutorial'/.test(mod) && /get\('tutorial'\)/.test(mod) && /'alice\.tutor\.maker'/.test(mod) && /`alice\.tutor\.maker\.\$\{id\}`/.test(mod), 'the choice is remembered (alice.maker.tutorial), ?tutorial= picks one, progress is per build and the first keeps its old key');
   ok(/tutorial: tutorialSummary\(\)/.test(mod) && /step: tutor\.step\?\.id \?\? 'done', at: tutor\.at, of: tutor\.steps\.length/.test(mod), 'get reports the tutorial as { id, title, step, at, of }');
