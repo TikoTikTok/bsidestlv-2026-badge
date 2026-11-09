@@ -71,7 +71,8 @@
     <ol class="steps three">
       <li><b>Fork, then clone.</b> A fork of your own is where your room lands first: its GitHub Pages site plays it the moment it
         is merged. Node 20 or newer is all the clone needs, no packages, no build; <code>npm run maker</code> serves the checkout
-        and opens the studio in your browser.</li>
+        and opens the studio. An assistant opens it in its own browser pane, beside its chat, so you watch the room and answer
+        on the page; by hand, in your browser.</li>
       <li><b>Draw, check, play.</b> Paint with the pencil, line, rectangle and fill tools, or type the map. <b>Check</b> runs the real solver and says how many
         moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
         <b>Surprise me</b> draws a solvable room from a seed when you want a start. With an assistant on the bridge, a welcome banner
@@ -381,6 +382,7 @@ delay(n)      holds n ticks            ret      end</pre>
       <button type="button" id="playBtn" class="btn room-only">Run &amp; debug</button>
       <button type="button" id="tryRange" class="btn glitch-only" title="Open glitch.html with this level as a tab of its range">Try it on the range</button>
       <button type="button" id="newBtn" class="btn ghost">New</button>
+      <button type="button" id="openBtn" class="btn ghost" aria-haspopup="dialog" aria-controls="openDialog" title="A stage, a community level, one from the shelf, or a link">Open…</button>
       <label>Load <select id="load"><option value="">a shipped stage…</option></select></label>
       <label title="Check again on its own after every edit"><input id="autoCheck" type="checkbox"> auto-check</label>
       <button type="button" id="pngBtn" class="btn ghost room-only" title="Save the board as a picture">Save a picture</button>
@@ -469,9 +471,10 @@ delay(n)      holds n ticks            ret      end</pre>
 <dialog id="aiDialog" class="ai" data-kind="invite">
   <h2 id="aiTitle">Hand this to your assistant</h2>
   <p class="note" id="aiNote">Copy the prompt into Claude Code, Codex, Cursor, Copilot, Gemini or whatever runs commands on your machine.
-    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, connect, and
-    then follow the White Rabbit's guide: a welcome banner on this page lets you pick step by step, the fast lane or the
-    one-bite starter, and the assistant asks, paints and explains from there - in its chat and in the page's own.</p>
+    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, open this
+    page in its own browser pane (Claude Code's, Cursor's, VS Code's Simple Browser; your browser only when it has none), connect,
+    and then follow the White Rabbit's guide: a welcome banner lets you pick step by step, the fast lane or the one-bite starter,
+    and from there every step is on the page - the line, the why, the buttons - while the assistant paints and narrates.</p>
   <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
   <div class="stage-bar">
     <button type="button" id="aiCopy" class="btn">Copy</button>
@@ -547,9 +550,34 @@ delay(n)      holds n ticks            ret      end</pre>
   <p class="note" id="guideNote">Pick a way to build your first room together. Whichever you choose, you can change your mind,
     ask for help, or hand any step to the assistant.</p>
   <div id="guidePicks" class="guide-picks" role="group" aria-label="how to build the first room"></div>
+  <p class="guide-else"><small>Not a first room?</small> <button type="button" id="guideOpen" class="btn ghost" aria-haspopup="dialog" aria-controls="openDialog">Open an existing level…</button>
+    <small>a stage, one of the community's, one from your shelf, or a link someone sent - and carry it on together.</small></p>
   <div class="stage-bar">
     <button type="button" id="guideLater" class="btn ghost">I'll look around first</button>
     <span id="guideStatus" class="status">You can bring this back any time: type "guide" to the assistant, or it can open it.</span>
+  </div>
+</dialog>
+
+<!-- Open a level: what to work on when it is not a new one. A new room or a new level of a range; a copy of a shipped stage;
+     one of the community's levels; one from the shelf; or a share link pasted in (?level=, src/level.js decodeShare), the same
+     link the stages page and the Share dialog make. Open… in the stage bar, the welcome banner, ?open=1 and a first visit
+     show it. A checkout only. -->
+<dialog id="openDialog" class="ai open-level dev-only" aria-labelledby="openTitle">
+  <h2 id="openTitle">What will you work on?</h2>
+  <p class="note">Start something new, or carry on a level that is already there: a copy of a stage, one of the community's,
+    one from your shelf, or a level someone shared with you in a link. Whatever you pick replaces what is on the board.</p>
+  <div class="open-grid">
+    <section class="open-group" data-group="new"><h3>New</h3><div class="open-list" id="openNew"></div></section>
+    <section class="open-group" data-group="stages"><h3>The stages</h3><div class="open-list" id="openStages"></div></section>
+    <section class="open-group" data-group="community"><h3>The community's</h3><div class="open-list" id="openCommunity"></div></section>
+    <section class="open-group" data-group="shelf"><h3>My shelf</h3><div class="open-list" id="openShelf"></div></section>
+  </div>
+  <label class="field">A link someone sent <span class="share-row">
+    <input id="openLink" type="text" placeholder="paste a share link, or its level= token" spellcheck="false" autocomplete="off">
+    <button type="button" id="openLinkBtn" class="btn">Open it</button></span></label>
+  <div class="stage-bar">
+    <button type="button" id="openClose" class="btn ghost">Keep what is on the board</button>
+    <span id="openStatus" class="status"></span>
   </div>
 </dialog>
 

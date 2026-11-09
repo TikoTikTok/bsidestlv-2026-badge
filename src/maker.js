@@ -711,6 +711,7 @@ async function loadById(id) {
       b.addEventListener('click', () => loadById(s.id).catch((e) => { report = { ok: false, problems: [`could not load ${s.id}: ${e.message}`] }; showReport(); }));
       $('#starters').append(b);
     }
+    if (openDialog.open) fillOpen();   // the picker came up before the index did: its community column fills now
   }).catch(() => {});
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
@@ -958,6 +959,7 @@ shippedLoad.then(() => {
 });
 const rangeStudio = { setCategory, setRangeKind, rangeLevelById, tryUrl, shipped: shippedRanges, shippedLoad, categoryOf: () => (isGlitch(level) ? 'glitch' : 'room') };
 
+const firstVisit = sharedRoom === null && loadJson(STORE, null) === null;   // nothing kept on this device yet, no link: the picker opens by itself (below)
 {
   // a link's room first (malformed or not: the lint says what is wrong with it), then the room left here last time, then a blank one
   const first = sharedRoom ?? loadJson(STORE, null);
@@ -1550,38 +1552,76 @@ const ops = {
     if (mode) pickGuide(mode, { from: by ?? 'assistant' });
     return { mode: guideMode, open: guideDialog.open, ways: GUIDE_MODES.map(m => m.id), tutorial: tutorialSummary() };
   },
-  // The guide's current question, as a card in the chat with its options as buttons: the person may answer here
-  // instead of in the assistant's chat, and the bridge applies the press at once (whichever side answers first wins).
-  ask: ({ mode, title, at, of, step, say, q, options = [], other, over } = {}) => {
+  // The guide's current step, as a card in the chat - the whole of it: the line, the why, the board in a line, what the
+  // assistant does on it, the question with its options as buttons, and "Do it for me" when the step has a help plan. The
+  // person may follow and answer here instead of in the assistant's chat; the bridge applies a press at once (whichever side
+  // answers first wins). An answer that keeps the step (a why, a "not yet", a stay, the help) leaves the buttons live.
+  ask: ({ mode, title, at, of, step, say, why, board, next, q, options = [], other, help, does = [], before, work, over } = {}) => {
     const m = modeById(mode);
     for (const old of chatLog.querySelectorAll('li.ask:not(.answered)')) { old.classList.add('stale'); for (const x of old.querySelectorAll('button')) x.disabled = true; }
     const li = document.createElement('li');
     li.className = 'ask';
-    li.append(Object.assign(document.createElement('b'), { textContent: m ? `${m.icon} ${m.title}` : title ?? 'guide' }), ' ');
+    const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+    const who = m ? m.title : 'guide';
+    li.append(el('b', '', m ? `${m.icon} ${m.title}` : title ?? 'guide'), ' ');
     if (over) { li.append(say ?? 'That was the way. The room stays on the board.'); chatLog.prepend(li); return { shown: true, over: true }; }
-    li.append(Object.assign(document.createElement('span'), { className: 'ask-say', textContent: `${at + 1} of ${of} · ${step}: ${say}` }));
+    li.append(el('span', 'ask-step', `step ${at + 1} of ${of} · ${step}`), el('span', 'ask-say', say ?? ''));
+    if (why) li.append(el('span', 'ask-why', why));
+    if (board) li.append(el('span', 'ask-board', String(board).replace(/^Board: /, '')));
+    if (does.length && !q) li.append(el('span', 'ask-does', `${bridge?.agents.at(-1) ?? 'the assistant'} is on it: ${does.join(', ')}${work?.length ? ', then the repository work below' : ''}`));
+    if (work?.length) {
+      const d = document.createElement('details'); d.className = 'ask-work';
+      d.append(el('summary', '', 'what the assistant does now'));
+      const ul = document.createElement('ul'); for (const w of work) ul.append(el('li', '', w)); d.append(ul);
+      li.append(d);
+    }
+    // the buttons are held while the bridge works, and stay held once the step is answered or superseded
+    const lock = (on) => { li.classList.toggle('busy', on); for (const x of li.querySelectorAll('button')) x.disabled = on || li.classList.contains('answered') || li.classList.contains('stale'); };
     if (q && options.length) {
       const row = document.createElement('div');
       row.className = 'ask-row';
-      row.append(Object.assign(document.createElement('span'), { className: 'ask-q', textContent: q }));
+      row.append(el('span', 'ask-q', q));
       for (const o of options) {
         const btn = document.createElement('button');
         btn.type = 'button'; btn.className = 'btn ghost ask-pick'; btn.textContent = o.label; if (o.hint) btn.title = o.hint;
         btn.addEventListener('click', async () => {
-          for (const x of row.querySelectorAll('button')) x.disabled = true;
-          li.classList.add('answered');
+          lock(true);
           chat(o.label, 'you');
           const r = await bridge?.answer(o.label, at);
-          if (r?.say) chat(r.say, m ? m.title : 'guide');
+          const stays = !!r && !r.over && r.at === at && ['why', 'stay', 'not yet', 'help'].includes(r.did);
+          if (!stays) li.classList.add('answered');
+          if (r?.say) chat(r.say, who);
           else if (r?.did === 'moved') chat('that step was already done', 'act');
+          lock(false);
         });
         row.append(btn);
       }
-      if (other) row.append(Object.assign(document.createElement('small'), { textContent: `or type below: ${other}` }));
+      // the hint for their own words, when it is written for them (the ones that start "or ..."); the rest are the assistant's
+      const hint = other && /^or\b/i.test(other) ? other.replace(/^or\s+/i, '').replace(/\s*[-;:]\s*(answer|pick|turn|offer|if they|their|then)\b.*$/i, '') : null;
+      li.append(row);
+      row.append(el('small', '', hint ? `or type below: ${hint}` : 'or type your own answer below'));
+    }
+    // Do it for me, unless an option offers the help or a redo already; on a step the assistant has already done (before), the help is a repeat and its words are the label
+    if (help && !options.some(o => o.then === 'help' || o.then === 'again')) {
+      const row = document.createElement('div');
+      row.className = 'ask-row ask-more';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn ghost ask-help'; btn.textContent = before ? help : 'Do it for me'; btn.title = help;
+      btn.addEventListener('click', async () => {
+        lock(true);
+        chat('Do it for me', 'you');
+        const r = await bridge?.help(at);
+        if (r?.did === 'moved') li.classList.add('answered');
+        chat(r?.say ?? help, who);
+        const failed = r?.ran?.find(x => x.error);
+        if (failed) chat(failed.error, 'act');
+        lock(false);
+      });
+      row.append(btn); if (!before) row.append(el('small', '', help));
       li.append(row);
     }
     chatLog.prepend(li);
-    return { shown: true, at, step };
+    return { shown: true, at, step, next: next ?? null, before: !!before };
   },
 };
 
@@ -1595,6 +1635,7 @@ const ops = {
 // (?guide=1, or "guide" typed in the chat).
 
 const guideDialog = $('#guideDialog');
+const openDialog = $('#openDialog');   // the level picker, wired at the end of the studio
 let guideShown = false;              // once a page load, unless asked again
 {
   const box = $('#guidePicks');
@@ -1634,6 +1675,15 @@ function pickGuide(mode, { from = 'page' } = {}) {
   bridge?.state(snapshotState());
   return { mode: guideMode, tutorial: tutorialSummary() };
 }
+/** The way the bridge already holds, taken up quietly by a page that (re)attached mid-walk: the Rabbit's build under the coach, the banner kept shut, the bridge not told again. */
+function adoptGuide(mode) {
+  const m = modeById(mode);
+  guideMode = m.id;
+  if (guideDialog.open) guideDialog.close();
+  if (m.tutorial && picked !== m.tutorial) pickTutorial(m.tutorial);
+  chat(`carrying on with ${m.icon} ${m.title} - the current step is below`, 'act');
+  bridge?.state(snapshotState());
+}
 $('#guideLater').addEventListener('click', () => { guideDialog.close(); chat('the welcome is closed; type "guide" here, or ask your assistant, to bring it back', 'act'); });
 guideDialog.addEventListener('click', (e) => { if (e.target === guideDialog) guideDialog.close(); });
 guideDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
@@ -1649,6 +1699,7 @@ bridge = connectBridge(ops, {
     bridgeState.textContent = !b.available ? 'no bridge here' : !b.connected ? 'bridge lost' : who ? `${who} connected` : 'waiting for an assistant';
     bridgeState.className = `tag${who ? ' on' : ''}`;
     $('#bridgeUrl').textContent = `${location.origin}/__maker/`;
+    if (b.guideMode && b.guideMode !== guideMode && modeById(b.guideMode)) adoptGuide(b.guideMode);   // a way is already picked on the bridge (a reload mid-walk): take it up, no banner
     if (b.connected && b.agents.length) showGuide(b.agents.at(-1));     // an assistant was here before the page: the banner still comes up
   },
   onCommand: (cmd) => { if (cmd.op !== 'get' && cmd.op !== 'snapshot' && cmd.op !== 'say' && cmd.op !== 'hello') console.debug('bridge:', cmd.op, cmd.args); },
@@ -1725,7 +1776,64 @@ window.__maker = {
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
   guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
+  openLevel: showOpen, get openDialog() { return openDialog.open; },
 };
+
+// ------------------------------------------------------------ open a level ----
+// What to work on when it is not a new room: the picker (#openDialog) lists a
+// new room and a new level of each range, the shipped stages as copies, the
+// community's levels, the shelf, and takes a share link pasted in - the same
+// ?level= the stages page's Share and the Share dialog here write - so a
+// level that lives anywhere can be carried on here. Open… in the stage bar,
+// the welcome banner's "open an existing level", ?open=1 and the first visit
+// of a device (nothing kept yet, no link) show it.
+function openPick(host, label, note, act) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'open-pick';
+  b.append(Object.assign(document.createElement('b'), { textContent: label }), Object.assign(document.createElement('small'), { textContent: note }));
+  b.addEventListener('click', async () => {
+    try { await act(); openDialog.close(); }
+    catch (e) { $('#openStatus').textContent = `could not open: ${e.message}`; $('#openStatus').className = 'status hot'; }
+  });
+  host.append(b);
+}
+function fillOpen() {
+  const fresh = $('#openNew'); fresh.replaceChildren();
+  openPick(fresh, 'A new room', 'a walled 9×7 with Alice and the door', () => { hazardPick = -1; setLevel(blank(9, 7), { why: 'new' }); });
+  for (const kind of RANGE_KINDS) openPick(fresh, `A new ${kind} level`, `for ${RANGE_NAMES[kind]} on the glitch range`, () => { hazardPick = -1; setLevel(rangeBlank(kind), { why: 'new' }); });
+  const stages = $('#openStages'); stages.replaceChildren();
+  for (const [id, name] of SHIPPED) openPick(stages, name, 'a copy of the shipped stage', () => loadById(id));
+  const comm = $('#openCommunity'); comm.replaceChildren();
+  for (const s of community) openPick(comm, s.name, `${s.kind === 'chase' ? 'timed' : RANGE_KINDS.includes(s.kind) ? `a ${s.kind} level` : 'untimed'} · by ${s.author}`, () => loadById(s.id));
+  if (!community.length) comm.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'none yet - yours could be the first' }));
+  const kept = $('#openShelf'); kept.replaceChildren();
+  for (const item of shelf) openPick(kept, item.level.name, describeShelf(item.level), () => { hazardPick = -1; setLevel(item.level, { why: 'shelf' }); if (item.par) { report = item.report; render(); } tell('shelf', { did: 'open' }); });
+  if (!shelf.length) kept.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'nothing kept yet - "Keep this room" puts one here' }));
+  $('#openStatus').textContent = ''; $('#openStatus').className = 'status';
+}
+function showOpen() {
+  fillOpen();
+  if (guideDialog.open) guideDialog.close();
+  if (!openDialog.open) openDialog.showModal();
+}
+$('#openBtn').addEventListener('click', showOpen);
+$('#guideOpen').addEventListener('click', showOpen);
+$('#openLinkBtn').addEventListener('click', () => {
+  try {
+    const lv = decodeShare($('#openLink').value);
+    hazardPick = -1; setLevel(lv, { why: 'load' }); tell('load', { id: idOf(lv), from: 'link' });
+    $('#openLink').value = ''; openDialog.close();
+    chat(`opened ${lv.name} from a link`, 'act');
+  } catch (e) { $('#openStatus').textContent = `the link: ${e.message}`; $('#openStatus').className = 'status hot'; }
+});
+$('#openLink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#openLinkBtn').click(); } });
+$('#openClose').addEventListener('click', () => openDialog.close());
+openDialog.addEventListener('click', (e) => { if (e.target === openDialog) openDialog.close(); });
+openDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('open') === '1' || (firstVisit && q.get('guide') !== '1')) showOpen();
+}
 
 // ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once
 if (sharedOk && new URLSearchParams(location.search).get('play') === '1') startPlay();
