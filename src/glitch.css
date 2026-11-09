@@ -1,0 +1,159 @@
+/* Alice in AI Land - the glitch range on top of styles.css.
+
+   styles.css is the shared chrome, the look picker and the block every
+   phone look shares: one column, a mode bar, one panel on screen at a
+   time, the prose folded. This file is what the range page adds on top of
+   that: two timing traces, and how the range's panels and the on-screen pad
+   reshape in the phone looks. The looks themselves are one file each in
+   src/looks/, described by src/looks/index.json and loaded on demand by
+   src/look-boot.js; a look is picked by <html data-look>, and in the
+   classic look everything here stays switched off.
+
+   The looks share one DOM. They differ in CSS only: the range panels turn
+   into flex columns and reorder, the pad's three clusters flatten into one
+   grid (display: contents) and take a grid-template-areas per look, and a
+   look may swap the palette through the variables styles.css already uses. */
+
+/* ------------------------------------------------------ in every look -- */
+
+/* the traces: where the pulse landed against the routine, and the tune inside its window */
+.trace { display: none; }
+.trace-head, .trace-axis {
+  display: flex; justify-content: space-between; gap: .5rem;
+  font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+}
+.trace-axis { text-transform: none; letter-spacing: 0; margin-top: 3px; }
+.trace-band { position: relative; height: 10px; margin-top: 4px; }
+.trace-pulse {
+  position: absolute; top: 2px; height: 6px; min-width: 4px; border-radius: 1px;
+  background: var(--accent); box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.trace-pulse.win { background: var(--accent-2); box-shadow: 0 0 6px color-mix(in srgb, var(--accent-2) 70%, transparent); }
+.trace-pulse.hot { background: var(--hot); box-shadow: 0 0 6px color-mix(in srgb, var(--hot) 70%, transparent); }
+.trace-pulse.nop { background: var(--amber); box-shadow: 0 0 6px color-mix(in srgb, var(--amber) 70%, transparent); }
+.trace-ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; }
+.trace-ticks span { position: relative; height: 22px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2); }
+.trace-ticks span.target { background: color-mix(in srgb, var(--accent-2) 30%, transparent); border-color: var(--accent-2); }
+.trace-ticks span.crash { border-color: var(--hot); }
+.trace-ticks span.crash::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px;
+  border-radius: 50%; background: var(--hot);
+}
+.trace-ticks span.hit { background: color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); }
+.trace-ticks span.hit.win { background: color-mix(in srgb, var(--accent-2) 50%, transparent); border-color: var(--accent-2); }
+.trace-ticks span.hit.hot { background: color-mix(in srgb, var(--hot) 40%, transparent); border-color: var(--hot); }
+.trace-ticks span.hit.nop { background: color-mix(in srgb, var(--amber) 40%, transparent); border-color: var(--amber); }
+.trace-ticks span.pc { background: var(--accent); border-color: var(--accent); }
+.trace-bar {
+  position: relative; height: 22px; margin-top: 4px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 2px; background: var(--panel-2);
+}
+.trace-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.trace-fill.win { background: color-mix(in srgb, var(--accent-2) 25%, transparent); }
+.trace-fill.hot { background: color-mix(in srgb, var(--hot) 25%, transparent); }
+.trace-mark { position: absolute; top: 3px; width: 2px; height: 16px; background: var(--accent-2); box-shadow: 0 0 4px color-mix(in srgb, var(--accent-2) 80%, transparent); }
+
+/* --------------------------------------------- the phone looks, range part -- */
+
+html:not([data-look=classic]) .pad-status {
+  display: grid; grid-template-columns: auto auto minmax(0, auto); grid-template-areas: 'dev turn look' 'leds turn look';
+  gap: 4px 10px; align-items: center; justify-items: end; min-width: 0; max-width: 100%;   /* the chip's column may shrink: the icon took some of the width */
+}
+html:not([data-look=classic]) .pad-device { grid-area: dev; font-size: 10px; }
+html:not([data-look=classic]) .pad-leds { grid-area: leds; gap: 3px; flex-wrap: nowrap; }
+html:not([data-look=classic]) .look-chip { grid-area: look; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+html:not([data-look=classic]) .turn-btn { grid-area: turn; }
+html:not([data-look=classic]) .led { font-size: 0; width: 7px; height: 7px; min-width: 0; padding: 0; border-radius: 2px; }
+
+html:not([data-look=classic]) .trace { display: block; }
+
+/* the range panels become a column and reorder: the thing to look at comes first */
+html:not([data-look=classic]) .range { display: flex; flex-direction: column; }
+/* a height-bound panel (the handheld's screen) scrolls; its items never squash */
+html:not([data-look=classic]) .range > *, html:not([data-look=classic]) .range > .glass > * { flex-shrink: 0; }
+html:not([data-look=classic]) .range > h2 { order: 0; margin: 0; }
+html:not([data-look=classic]) .range > details.how { order: 1; margin-top: 4px; }
+html:not([data-look=classic]) .range > .tabs { order: 2; }
+html:not([data-look=classic]) .range > .note { order: 3; margin: 8px 0 0; font-size: 11px; }
+html:not([data-look=classic]) .glass { display: contents; }
+html:not([data-look=classic]) .glass > .stage-wrap { order: 4; display: flex; justify-content: center; margin-top: 8px; padding: 0; overflow: hidden; }
+html:not([data-look=classic]) .glass .stage-wrap canvas { width: min(100%, 432px); }
+html:not([data-look=classic]) .range > .stage-bar { order: 5; margin-top: 8px; gap: 8px; }
+html:not([data-look=classic]) .range > .stage-bar .status { order: -1; flex: 1 1 100%; }
+html:not([data-look=classic]) .range > .readout { order: 6; margin-top: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+html:not([data-look=classic]) .readout .tile { padding: 6px 8px; }
+html:not([data-look=classic]) .readout .tile b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html:not([data-look=classic]) .readout .tile small:last-child { display: none; }
+html:not([data-look=classic]) .readout .tile:last-child { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; }
+html:not([data-look=classic]) .readout .tile:last-child b { flex: none; overflow: visible; }
+html:not([data-look=classic]) .readout .tile:last-child small:last-child { display: inline; flex: 1; min-width: 0; margin-left: auto; text-align: right; }
+html:not([data-look=classic]) .range > .trace { order: 7; margin-top: 8px; }
+html:not([data-look=classic]) .glass > .listing { order: 8; margin-top: 8px; max-height: 170px; }
+html:not([data-look=classic]) .range > .log { order: 9; max-height: 150px; }
+html:not([data-look=classic]) .log:empty { display: none; }
+
+html:not([data-look=classic]) .watch { order: 4; margin-top: 10px; align-items: flex-start; flex-wrap: nowrap; }
+/* the lock: the garden beside the guess, the clock under it; a column on a phone */
+html:not([data-look=classic]) .lock { display: contents; }
+html:not([data-look=classic]) .lock > .stage-wrap { order: 4; display: flex; justify-content: center; margin-top: 8px; padding: 0; overflow: hidden; }
+html:not([data-look=classic]) .lock .stage-wrap canvas { width: min(100%, 336px); }
+html:not([data-look=classic]) .lock > .lock-side { order: 5; margin-top: 8px; }
+html:not([data-look=classic]) .lock-side .trace { margin-top: 8px; }
+html:not([data-look=classic]) .lock-side .stage-bar { margin-top: 8px; gap: 8px; }
+html:not([data-look=classic]) .lock-side .stage-bar .status { order: -1; flex: 1 1 100%; }
+html:not([data-look=classic]) .watch canvas { width: 72px; height: 72px; }
+html:not([data-look=classic]) .watch-side { flex: 1; min-width: 0; }
+html:not([data-look=classic]) .glyph { width: min(3rem, 11vw); height: min(3rem, 11vw); font-size: 18px; }
+html:not([data-look=classic]) .watch-side .trace { margin-top: 8px; }
+html:not([data-look=classic]) .watch-side .stage-bar { margin-top: 8px; gap: 8px; }
+html:not([data-look=classic]) .watch-side .stage-bar .status { order: -1; flex: 1 1 6rem; }
+
+/* the pad sits in the flow at the bottom, no longer fixed over the page */
+html:not([data-look=classic]) .touchpad { position: static; flex: none; padding: 0 14px; }
+html:not([data-look=classic]) body.touchpad-open { padding-bottom: 0; }
+html:not([data-look=classic]) .touchpad summary {
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: 6px 0; font-size: 10px;
+}
+html:not([data-look=classic]) .touchpad summary::before { content: none; }
+html:not([data-look=classic]) .touchpad summary::after {
+  content: ''; order: 1; width: 36px; height: 4px; border-radius: 2px; background: var(--line);
+}
+html:not([data-look=classic]) .touchpad .tp-label { order: 0; }
+html:not([data-look=classic]) .touchpad .tp-hint { order: 2; }
+html:not([data-look=classic]) .touchpad summary small { margin: 0; font-size: 9px; }
+html:not([data-look=classic]) .tp-dpad,
+html:not([data-look=classic]) .tp-mid,
+html:not([data-look=classic]) .tp-face { display: contents; }
+.tp [data-btn=SELECT] { grid-area: sel; }
+.tp [data-btn=START] { grid-area: sta; }
+
+/* -------------------------------------------- the dormouse and the wall -- */
+
+/* the watchdog's window, as a lit band on the clock bar */
+.trace-window { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent-2) 22%, transparent); border-left: 1px solid var(--accent-2); border-right: 1px solid var(--accent-2); }
+.trace-mark.hot { background: var(--hot); box-shadow: 0 0 4px color-mix(in srgb, var(--hot) 80%, transparent); }
+.glyph.small { width: 1.6rem; height: 1.6rem; font-size: 11px; }
+.glyph.early { color: var(--amber); border-color: var(--amber); }
+
+/* Humpty's stack frame: the slots the name fills, what sits behind the buffer, and what the overflow hit */
+.frame { display: flex; gap: .3rem; flex-wrap: wrap; align-items: flex-end; margin: .2rem 0 .6rem; }
+.frame .slot {
+  display: grid; place-items: center; width: 1.9rem; height: 1.9rem; font-size: 12px; color: var(--dim);
+  border: 1px dashed var(--line); border-radius: var(--r-xs); background: var(--well); position: relative;
+}
+.frame .slot.buf { border-style: solid; }
+.frame .slot.canary { border-color: var(--amber); }
+.frame .slot.lr { border-color: var(--accent); }
+.frame .slot.filled { color: var(--text); }
+.frame .slot.hit { background: color-mix(in srgb, var(--hot) 25%, transparent); border-color: var(--hot); color: var(--text); }
+.frame .slot.good { background: color-mix(in srgb, var(--accent-2) 25%, transparent); border-color: var(--accent-2); color: var(--text); }
+.frame .slot::after { position: absolute; top: 100%; left: 0; right: 0; margin-top: 2px; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; text-align: center; color: var(--dim); content: attr(data-tag); }
+.frame .slot[data-tag] { margin-bottom: 12px; }
+#wallListing { margin-top: .9rem; }
+html:not([data-look=classic]) .range > .listing { order: 8; margin-top: 8px; max-height: 170px; }
+html:not([data-look=classic]) .range > .frame { order: 5; }
+
+/* the range page has eight modes: let the bar scroll rather than squash */
+html:not([data-look=classic]) .modes { overflow-x: auto; scrollbar-width: none; }
+html:not([data-look=classic]) .modes::-webkit-scrollbar { display: none; }
+html:not([data-look=classic]) .mode { flex: 1 0 auto; padding: 0 9px; }

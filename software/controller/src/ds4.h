@@ -15,6 +15,7 @@
 #include "tusb.h"
 
 // Sony Interactive Entertainment / Wireless Controller (CUH-ZCT2U, "v2").
+// Only the numbers are borrowed; the string descriptors name the badge.
 #define DS4_VID   0x054C
 #define DS4_PID   0x09CC
 
@@ -22,6 +23,13 @@
 // (1 report-ID byte + 63 payload bytes).
 #define DS4_REPORT_ID_INPUT   0x01
 #define DS4_REPORT_LEN        64
+
+// Interrupt endpoint polling interval, and the rate main.c streams reports
+// at. The real controller asks for 5 ms; this one asks for 1 ms because the
+// quick-glitch offset is stepped in milliseconds and the host cannot see a
+// finer offset than the report clock. Full speed allows 1 ms and every host
+// honours it.
+#define DS4_REPORT_INTERVAL_MS  1
 
 // Feature reports the host may ask for during probing.
 #define DS4_FEATURE_CALIB     0x02  // IMU calibration, 37 bytes incl. ID

@@ -2,15 +2,30 @@
    Console-feeling chrome: deep blue plastic, hard edges, one accent. */
 
 :root {
-  --ink: #05080f;
+  /* the palette. A theme (src/themes/<id>.css) overrides these on html[data-theme=<id>]
+     and everything below paints from them, so a theme is a block of variables and a
+     few flourishes. The classic theme is this block alone. */
+  --ink: #05080f;          /* the page */
+  --ink-2: #070c16;        /* the deepest wells: listings, the rooms' canvases */
+  --well: #0a1120;         /* inset boxes: tiles, glyphs, cells */
   --panel: #0e1729;
   --panel-2: #132038;
+  --panel-end: #0b1322;    /* the foot of a panel's gradient */
   --line: #24365a;
+  --haze: #17253f;         /* the glow at the top of the page */
+  --bar: rgba(8, 13, 24, .92);   /* the header, and the fixed pad */
   --text: #cfe0f5;
   --dim: #7f95b8;
-  --accent: #6fb0f0;
-  --accent-2: #3fd6a3;
-  --hot: #f4798d;
+  --accent: #6fb0f0;       /* the primary: buttons, headings, the lit key */
+  --accent-2: #3fd6a3;     /* good: armed, won, done */
+  --hot: #f4798d;          /* bad: crashed, refused */
+  --amber: #f3b23f;        /* neither: a pulse that landed on nothing */
+  --on-accent: #05080f;    /* text on an accent */
+  --glow: color-mix(in srgb, var(--accent) 60%, transparent);
+  --shade: rgba(0, 0, 0, .6);    /* the dialogs' drop shadow */
+  --font: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: var(--font);   /* the brand, headings, buttons */
+  --r: 10px; --r-s: 8px; --r-xs: 6px;    /* corners: panels, boxes, buttons */
   color-scheme: dark;
 }
 
@@ -19,14 +34,21 @@
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 600px at 50% -10%, #17253f 0%, transparent 60%),
+    radial-gradient(1200px 600px at 50% -10%, var(--haze) 0%, transparent 60%),
     var(--ink);
   color: var(--text);
-  font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font: 14px/1.5 var(--font);
   padding-bottom: 4rem;
 }
 
 canvas { image-rendering: pixelated; display: block; }
+
+/* the bench's chrome - the walk and art panels, Solve, the playback and tick
+   sliders, the keyboard prose - is class dev-only and goes on the site
+   (html[data-host=site], set by src/look-boot.js before paint) */
+html[data-host=site] .dev-only { display: none !important; }
+/* and the other way: what only the published site shows (the level maker's landing prose) */
+html[data-host=dev] .site-only { display: none !important; }
 
 /* ---------------------------------------------------------------- bar -- */
 
@@ -36,14 +58,14 @@ canvas { image-rendering: pixelated; display: block; }
   align-items: center; justify-content: space-between;
   padding: .75rem clamp(.75rem, 3vw, 2rem);
   padding-top: calc(.75rem + env(safe-area-inset-top, 0px));
-  background: rgba(8, 13, 24, .92);
+  background: var(--bar);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: .6rem; }
 .brand b { letter-spacing: .14em; font-size: 15px; }
 .brand small { display: block; color: var(--dim); font-size: 11px; letter-spacing: .04em; }
-.mark { color: var(--accent); font-size: 22px; text-shadow: 0 0 12px rgba(111, 176, 240, .6); }
+.mark { color: var(--accent); font-size: 22px; text-shadow: 0 0 12px var(--glow); }
 
 .controls { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; }
 .controls label { display: flex; align-items: center; gap: .4rem; color: var(--dim); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
@@ -61,9 +83,9 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(.75rem, 3vw, 2rem); }
 
 .panel {
   margin: 2rem 0;
-  background: linear-gradient(180deg, var(--panel) 0%, #0b1322 100%);
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-end) 100%);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r);
   padding: 1.25rem;
 }
 .panel > h2 {
@@ -75,47 +97,15 @@ main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(.75rem, 3vw, 2rem); }
 
 pre {
   margin: 0; padding: 1rem; overflow-x: auto;
-  background: #070c16; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-s);
   font-size: 12px; line-height: 1.6;
 }
 
-.stage-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #060a12; padding: .75rem; }
+.stage-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--ink-2); padding: .75rem; }
+/* a room wider than the screen shrinks rather than scrolls: 13 tiles is 624 px, a phone is 360 */
+.stage-wrap canvas { max-width: 100%; height: auto; }
 
-/* ---------------------------------------------------------- 8-way walk -- */
-
-.walk-stage {
-  display: grid; gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-}
-.compass { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; }
-.cell {
-  border: 1px solid var(--line); border-radius: 8px; background: #0a1120;
-  padding: .35rem; display: grid; place-items: center; gap: .2rem;
-  cursor: pointer; position: relative;
-}
-.cell:hover { border-color: var(--accent); }
-.cell.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; }
-.cell b { font-size: 10px; letter-spacing: .12em; color: var(--dim); }
-.cell.on b { color: var(--accent-2); }
-.cell.spacer { border: none; background: none; cursor: default; }
-.cell canvas { display: block; }
-
-.walk-hero {
-  border: 1px solid var(--line); border-radius: 10px; background: #070c16;
-  padding: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
-  justify-content: center;
-}
-.walk-hero canvas { background: #0a1120; border: 1px solid var(--line); border-radius: 8px; }
-.hero-meta { display: flex; flex-direction: column; gap: .5rem; font-size: 11px; color: var(--dim); }
-.hero-meta b { font-size: 24px; letter-spacing: .12em; color: var(--accent); }
-.hero-meta label { display: flex; flex-direction: column; gap: .25rem; text-transform: uppercase; letter-spacing: .06em; }
-.hero-meta output { color: var(--accent); }
-.hero-meta .check { flex-direction: row; align-items: center; gap: .4rem; text-transform: none; }
-
-@media (max-width: 760px) {
-  .walk-stage { grid-template-columns: 1fr; }
-}
+/* ---------------------------------------------------------------- tabs -- */
 
 .tabs { display: flex; gap: .4rem; margin-bottom: .9rem; flex-wrap: wrap; }
 .tab {
@@ -126,29 +116,11 @@ pre {
 .tab:hover { color: var(--text); border-color: var(--accent); }
 .tab.on { color: var(--ink); background: var(--accent); border-color: var(--accent); }
 
-/* ----------------------------------------------------------------- items -- */
-
-.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: .6rem; }
-.item { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
-.swatchbox {
-  border: 1px solid var(--line); border-radius: 8px; padding: .4rem;
-  display: grid; place-items: center; width: 100%;
-}
-.swatchbox.checker {
-  background-image: linear-gradient(45deg, #1b2436 25%, transparent 25%), linear-gradient(-45deg, #1b2436 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1b2436 75%), linear-gradient(-45deg, transparent 75%, #1b2436 75%);
-  background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; background-color: #242e42;
-}
-.swatchbox.dark { background: #070c16; }
-.swatchbox.light { background: #cdd8e6; }
-.item figcaption { font-size: 10px; color: var(--dim); cursor: pointer; text-align: center; word-break: break-word; }
-.item figcaption:hover { color: var(--accent); }
-.item figcaption.copied { color: var(--accent-2); }
-
 /* ------------------------------------------------------------ stage bar -- */
 
 .stage-bar { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-top: .9rem; }
 .btn {
-  background: var(--accent); color: #05080f; border: 0; border-radius: 6px;
+  background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--r-xs);
   padding: .4rem .9rem; font: inherit; font-size: 12px; letter-spacing: .08em;
   text-transform: uppercase; cursor: pointer;
 }
@@ -163,3 +135,852 @@ pre {
 .status.busy { color: var(--accent); }
 
 .status.hot { color: var(--hot); }
+
+/* ------------------------------------------------------------ glitch range -- */
+
+.brand small a, .note a { color: var(--accent); text-decoration: none; }
+.brand small a:hover, .note a:hover { text-decoration: underline; }
+.status a { color: var(--accent); }    /* a status that sends the player to another page carries the link */
+kbd {
+  font: inherit; font-size: 11px; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
+  border-radius: 4px; padding: 0 .35em;
+}
+
+.pad-status { gap: .5rem; }
+.pad-device { font-size: 11px; color: var(--dim); letter-spacing: .04em; }
+.pad-device.on { color: var(--accent-2); }
+.pad-leds { display: flex; gap: .25rem; flex-wrap: wrap; }
+.led {
+  font-size: 9px; letter-spacing: .06em; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 4px; padding: .1rem .3rem; min-width: 2.4em; text-align: center;
+  transition: background .05s, color .05s;
+}
+.led.on { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+
+.range { position: relative; border-color: var(--line); }
+.range.armed, .panel.armed { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; }
+.armed-mark { float: right; font-size: 10px; letter-spacing: .12em; color: var(--accent-2); visibility: hidden; }
+.range.armed .armed-mark, .panel.armed .armed-mark { visibility: visible; }
+
+.watch { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.watch canvas { background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s); flex: none; }
+.combo { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.glyph {
+  width: 2.4rem; height: 2.4rem; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
+  font-size: 16px; color: var(--dim);
+}
+.glyph.done { color: var(--accent-2); border-color: var(--accent-2); }
+.glyph.next { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+.glyph.bad { color: var(--hot); border-color: var(--hot); }
+
+.glass { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 860px) { .glass { grid-template-columns: 1fr; } }
+.lock { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 860px) { .lock { grid-template-columns: 1fr; } }
+.lock-side { min-width: 0; }
+/* the room is 9 tiles = 432 px; on a phone let it shrink rather than scroll */
+.glass .stage-wrap canvas { max-width: 100%; height: auto; }
+.listing {
+  margin: 0; padding: .5rem 0; list-style: none; max-height: 420px; overflow: auto;
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-s);
+  font-size: 12px; line-height: 1.45;
+}
+.listing li { display: flex; gap: .75rem; padding: 0 .75rem; white-space: pre; }
+.listing .tick { color: var(--dim); min-width: 2.2em; text-align: right; opacity: .7; }
+.listing code { color: var(--text); }
+.listing li.dead code { opacity: .35; }
+.listing li.faded code { color: var(--dim); letter-spacing: .04em; }
+.listing li.target code { color: var(--accent-2); }
+.listing li.target::after { content: '← the check'; color: var(--accent-2); opacity: .6; font-size: 10px; align-self: center; }
+.listing li.crash code { color: var(--hot); }
+.listing li.crash::after { content: '✗ crashed here'; color: var(--hot); opacity: .7; font-size: 10px; align-self: center; }
+.listing li.pc { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.listing li.pc .tick { color: var(--accent); opacity: 1; }
+
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .5rem; margin-top: .9rem; }
+.tile {
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well); padding: .5rem .6rem;
+  display: flex; flex-direction: column; gap: .15rem;
+}
+.tile small { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+.tile small:last-child { text-transform: none; letter-spacing: 0; opacity: .8; }
+.tile b { font-size: 16px; color: var(--accent); }
+.tile b.win { color: var(--accent-2); }
+.tile b.hot { color: var(--hot); }
+
+.log { margin: .9rem 0 0; padding: 0 0 0 1.4rem; font-size: 11px; color: var(--dim); max-height: 190px; overflow: auto; }
+.log li { padding: .1rem 0; }
+.log li.win { color: var(--accent-2); }
+.log.bench { max-height: 240px; font-size: 12px; }
+.log li.hot { color: var(--hot); }
+
+.chords { border-collapse: collapse; font-size: 12px; margin: .25rem 0 1rem; }
+.chords th { text-align: left; color: var(--accent); white-space: nowrap; padding: .3rem .9rem .3rem 0; vertical-align: top; font-weight: 600; }
+.chords td { color: var(--dim); padding: .3rem 0; border-top: 1px solid var(--line); }
+.chords tr:first-child td { border-top: 0; }
+
+/* a phone: the sticky header must not eat the screen */
+@media (max-width: 480px) {
+  .bar { gap: .4rem .75rem; padding-top: calc(.5rem + env(safe-area-inset-top, 0px)); padding-bottom: .5rem; }
+  .led { font-size: 8px; min-width: 2em; padding: 0 .2rem; }
+  .chords th { white-space: normal; }
+}
+
+/* ------------------------------------------------------------ on-screen pad -- */
+
+.touchpad {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
+  background: var(--bar); backdrop-filter: blur(6px);
+  border-top: 1px solid var(--line);
+  padding: 0 clamp(.75rem, 3vw, 2rem) env(safe-area-inset-bottom, 0px);
+}
+.touchpad summary {
+  cursor: pointer; list-style: none; padding: .5rem 0; font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent);
+}
+.touchpad summary::-webkit-details-marker { display: none; }
+.touchpad summary::before { content: '▲ '; }
+.touchpad[open] summary::before { content: '▼ '; }
+.touchpad summary small { text-transform: none; letter-spacing: 0; color: var(--dim); margin-left: .5rem; }
+.touchpad summary small code { color: var(--accent-2); }
+body.touchpad-open { --pad-h: 16rem; padding-bottom: var(--pad-h); }   /* --pad-h: what the open pad covers, for the guide's column and drawer too */
+
+.tp {
+  --key: min(2.6rem, 10vw);     /* three keys and two gaps per cluster, two clusters, must fit a 320 px phone */
+  display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+  padding: .25rem 0 .75rem; max-width: 480px; margin: 0 auto;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.tp button {
+  font: inherit; font-size: 13px; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: var(--r); width: var(--key); height: var(--key);
+  touch-action: none; -webkit-tap-highlight-color: transparent; cursor: pointer; padding: 0;
+}
+.tp button.down { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+.tp-dpad { display: grid; grid-template-areas: '. u .' 'l . r' '. d .'; gap: .2rem; }
+.tp-dpad [data-btn=UP] { grid-area: u; }
+.tp-dpad [data-btn=LEFT] { grid-area: l; }
+.tp-dpad [data-btn=RIGHT] { grid-area: r; }
+.tp-dpad [data-btn=DOWN] { grid-area: d; }
+.tp-mid { display: flex; flex-direction: column; gap: .5rem; }
+.tp-mid button { width: auto; height: 1.8rem; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; border-radius: 99px; padding: 0 .7rem; }
+.tp-face { display: grid; grid-template-areas: 'sl . sr' '. y .' 'x . b' '. a .'; gap: .2rem; }
+.tp-face [data-btn=SL] { grid-area: sl; }
+.tp-face [data-btn=SR] { grid-area: sr; }
+.tp-face [data-btn=Y] { grid-area: y; }
+.tp-face [data-btn=X] { grid-area: x; }
+.tp-face [data-btn=B] { grid-area: b; }
+.tp-face [data-btn=A] { grid-area: a; }
+.tp-face [data-btn=SL], .tp-face [data-btn=SR] { height: 1.8rem; font-size: 10px; letter-spacing: .1em; }
+.tp-face [data-btn=Y], .tp-face [data-btn=X], .tp-face [data-btn=B], .tp-face [data-btn=A] { border-radius: 50%; }
+
+/* ------------------------------------------------------------ flash page -- */
+
+.steps { margin: .25rem 0 .5rem; padding-left: 1.4rem; color: var(--dim); font-size: 12px; max-width: 70ch; }
+.steps li { margin: .35rem 0; }
+.steps b { color: var(--text); }
+
+.images { display: grid; gap: .6rem; margin: .5rem 0; }
+.image {
+  display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'r t' 'r f' 'r b'; column-gap: .75rem; row-gap: .2rem;
+  align-items: start; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
+  padding: .75rem .9rem; cursor: pointer;
+}
+.image:hover { border-color: var(--accent); }
+.image.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; }
+.image.off { opacity: .55; cursor: default; }
+.image input { grid-area: r; margin: .2rem 0 0; accent-color: var(--accent-2); }
+.image > b { grid-area: t; font-size: 13px; letter-spacing: .06em; color: var(--text); }
+.image .facts { grid-area: f; font-size: 11px; color: var(--accent); }
+.image .facts a { color: inherit; }
+.image .blurb { grid-area: b; font-size: 12px; color: var(--dim); max-width: 70ch; }
+
+.file-pick input { font: inherit; font-size: 11px; color: var(--dim); }
+.flash-progress { display: block; width: 100%; height: 8px; margin-top: .9rem; accent-color: var(--accent); }
+.flash-log li.dim { opacity: .55; }
+.flash-log li.win { color: var(--accent-2); }
+
+/* ------------------------------------------------------------------ the gate -- */
+/* The dialog src/gate.js raises on the site until a badge has shown its vault. */
+
+.gate {
+  width: min(92vw, 640px); margin: auto; padding: 1.4rem 1.6rem 1.2rem;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 30px 80px var(--shade), 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+  font: inherit;
+}
+.gate::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
+/* back after a disconnect: the page is paused behind it until the same badge proves itself again */
+.gate.reconnect { box-shadow: 0 30px 80px var(--shade), 0 0 0 1px color-mix(in srgb, var(--hot) 35%, transparent); }
+.gate.reconnect h2, .gate.reconnect .gate-mark { color: var(--hot); text-shadow: 0 0 12px color-mix(in srgb, var(--hot) 50%, transparent); }
+.gate.reconnect .gate-mark { animation: gate-pulse 1.6s ease-in-out infinite; }
+@keyframes gate-pulse { 50% { opacity: .35; } }
+.gate h2 { margin: 0 0 .4rem; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.gate h3 { margin: 0 0 .3rem; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.gate-mark { float: right; color: var(--accent); font-size: 26px; text-shadow: 0 0 12px var(--glow); }
+.gate-ways { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+.gate-way { border: 1px solid var(--line); border-radius: var(--r-s); padding: .8rem .9rem; background: var(--panel-2); }
+.gate-way .note { margin-bottom: .6rem; }
+.gate-beacon { display: block; width: 100%; height: 10px; accent-color: var(--accent-2); }
+.gate-status { margin: .5rem 0 0; font-size: 12px; color: var(--dim); min-height: 1.5em; }
+.gate-status.busy { color: var(--accent); }
+.gate-status.win { color: var(--accent-2); }
+.gate-status.hot { color: var(--hot); }
+.gate-foot { margin: .6rem 0 0; font-size: 11px; color: var(--dim); }
+.gate-device { color: var(--text); }
+.gate-device.on { color: var(--accent-2); }
+.gate-device.hot { color: var(--hot); }
+.gate-device a, .gate-flash a { color: var(--accent); }
+/* the way in for a badge that has no firmware yet: lit up when the gate sees such a controller */
+.gate-flash { margin: .8rem 0 0; padding: .55rem .75rem; border: 1px dashed var(--line); border-radius: var(--r-s); max-width: none; }
+.gate-flash.hot { border-color: var(--hot); border-style: solid; color: var(--text); }
+.refusal { margin: 0 0 1rem; padding: .6rem .9rem; border: 1px solid var(--hot); border-radius: var(--r-s); color: var(--hot); font-size: 12px; }
+@media (max-width: 560px) { .gate-ways { grid-template-columns: 1fr; } }
+
+/* The badge's vault page (badge.html). */
+.vault-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; margin: .6rem 0 1rem; }
+.vault-field label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-bottom: .2rem; }
+.vault-field input { width: 100%; font: inherit; font-size: 12px; color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .5rem; }
+.vault-field input:focus { outline: none; border-color: var(--accent); }
+.vault-field output { display: block; font-size: 12px; word-break: break-all; color: var(--text); }
+.vault-field output.on { color: var(--accent-2); }
+
+/* The rabbit hole's hidden door: a link for things that follow every link.
+   Off-canvas, out of the tab order and the accessibility tree, so a person
+   never meets it and a crawler always does. */
+.hole { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+
+/* ------------------------------------------------- the tutorial's coach -- */
+
+/* the current step, pinned above the panels in every look (src/coach.js), on every page with a tutorial */
+/* a sibling of main, between the mode bar and the panels, so no look's main layout sees it */
+.coach {
+  display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; box-sizing: border-box;
+  width: min(1180px, calc(100% - 2 * clamp(.75rem, 3vw, 2rem))); margin: 1rem auto 0;
+  padding: .55rem .9rem; border: 1px solid var(--accent-2); border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--accent-2) 8%, var(--panel)); font-size: 12px;
+}
+.coach[hidden] { display: none; }
+.coach-step { display: flex; flex-direction: column; min-width: 7rem; }
+.coach-step b { color: var(--accent-2); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.coach-step small { color: var(--dim); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.coach-say { flex: 0 1 auto; color: var(--text); }   /* the step's glyphs (.key-glyphs) follow the sentence, the actions keep the right edge */
+.coach-actions { display: flex; gap: .4rem; margin-left: auto; }
+.coach-actions .btn { padding: .2rem .6rem; font-size: 10px; }
+.coach.done { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.coach.done .coach-step b { color: var(--accent); }
+/* the classic page scrolls, so the line sticks under the header (src/looks.js measures it into --bar-h) and the step is
+   in view wherever the player is; a panel scrolled to lands under the header and the line (src/coach.js: --coach-h) */
+html[data-look=classic] .coach { position: sticky; top: var(--bar-h, 0px); z-index: 9; }
+html[data-look=classic] main > .panel { scroll-margin-top: calc(var(--bar-h, 0px) + var(--coach-h, 0px) + 1.5rem); }
+
+.learn-now { margin: .5rem 0 1rem; padding: .75rem .9rem; border-left: 3px solid var(--accent-2); background: var(--well); font-size: 12px; }
+.learn-now b { display: block; color: var(--accent-2); margin-bottom: .25rem; }
+.learn-now .why { color: var(--dim); margin-top: .35rem; }
+.learn-steps { margin: 0; padding: 0 0 0 1.4rem; font-size: 12px; color: var(--dim); columns: 2; column-gap: 2rem; }
+.learn-steps li { padding: .15rem 0; break-inside: avoid; cursor: pointer; }
+.learn-steps li.chapter { list-style: none; margin: .4rem 0 .2rem -1.4rem; color: var(--accent); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; cursor: default; }
+.learn-steps li.done { color: var(--accent-2); }
+.learn-steps li.done::marker { content: '✓ '; }
+.learn-steps li.skipped { text-decoration: line-through; opacity: .7; }
+.learn-steps li.now { color: var(--text); font-weight: 600; }
+.learn-steps li.badge::after { content: ' · badge'; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+html:not([data-look=classic]) .learn-steps { columns: 1; }
+html:not([data-look=classic]) .coach { flex: none; width: calc(100% - 28px); max-width: 532px; margin: 10px auto 0; padding: .45rem .7rem; font-size: 11px; }
+html:not([data-look=classic]) .coach-actions { margin-left: 0; }
+
+/* ------------------------------------------- the guide beside the stage -- */
+/* A page's guide - the Learn panel with its tutorial, the flash page's steps -
+   is one panel of a long page, and followed from there it is followed away
+   from the stage, the range, the board or the Flash button it is about. In the
+   classic look it leaves the page instead. The panel is class `side`, and
+   html[data-learn=side] - every such page's default (<html data-learn="side">),
+   the choice kept in localStorage alice.learn by src/coach.js and honoured
+   before paint by src/look-boot.js - puts it
+     a wide window   in a column at the right of main, sticky under the header,
+                     scrolling on its own; the coach line stands down (the
+                     column says the step)
+     a narrow one    (a small window, the in-app browser's pane) back in the
+                     page - except the Learn panel, which the coach line can
+                     open: a drawer over the right edge, under the header and
+                     the line (html[data-learn-open]), closed by the panel's x
+   "unpin" (#learnPin, the coach's) is html[data-learn=page]: the panel back in
+   the page where it is written, on every page. The breakpoint is the one
+   src/coach.js asks matchMedia about. The phone looks need none of this: a
+   page with a mode bar has Learn as a mode. --bar-h and --coach-h are measured
+   by src/looks.js and src/coach.js; --pad-h is the range's on-screen pad while
+   it is open (above). The panel's own width sizes its insides (a container
+   query), so the column, the drawer and the page each get the checklist in as
+   many columns as fit. */
+
+.side { container-type: inline-size; }
+.side > h2 { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.learn-pin, .learn-close { font: inherit; cursor: pointer; color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: var(--r-xs); }
+.learn-pin { margin-left: auto; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; padding: .15rem .5rem; }
+.learn-close { display: none; width: 1.6rem; height: 1.6rem; padding: 0; font-size: 16px; line-height: 1; place-items: center; }
+.learn-pin:hover, .learn-close:hover { color: var(--text); border-color: var(--accent); }
+@container (max-width: 480px) {
+  .side .learn-steps { columns: 1; }
+  .side .learn-now .prompts { width: 104px; }
+}
+/* beside the stage, and on a phone's one screen, the steps come first: the current one, skip / start over,
+   the checklist, then the maker's cards, and the note last (in the page the panel reads top to bottom as written) */
+html[data-look=classic][data-learn=side] .side, html:not([data-look=classic]) .side { display: flex; flex-direction: column; }
+html[data-look=classic][data-learn=side] .side > h2, html:not([data-look=classic]) .side > h2 { order: -5; }
+html[data-look=classic][data-learn=side] .side > .learn-now, html:not([data-look=classic]) .side > .learn-now { order: -4; margin: .4rem 0 .6rem; }
+html[data-look=classic][data-learn=side] .side > .stage-bar, html:not([data-look=classic]) .side > .stage-bar { order: -3; margin: 0 0 .8rem; }
+html[data-look=classic][data-learn=side] .side > .learn-steps, html:not([data-look=classic]) .side > .learn-steps { order: -2; }
+html[data-look=classic][data-learn=side] .side > .learn-picks, html:not([data-look=classic]) .side > .learn-picks { order: -1; margin: 1rem 0 0; }
+html[data-look=classic][data-learn=side] .side > .note, html:not([data-look=classic]) .side > .note { order: 1; margin: .8rem 0 0; }
+html:not([data-look=classic]) #learnPanel.off { display: none; }   /* the id outweighs main > .panel.off below: another mode still hides it */
+html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }   /* the panel's place is the mode bar's there */
+
+@media (min-width: 1000px) {
+  html[data-look=classic][data-learn=side] main {
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 340px); gap: 0 1.25rem; align-items: start; max-width: 1540px;
+  }
+  html[data-look=classic][data-learn=side] main > .panel { grid-column: 1; min-width: 0; margin: 2rem 0 0; }
+  html[data-look=classic][data-learn=side] main > .side {
+    grid-column: 2; grid-row: 1 / span 12; position: sticky; top: calc(var(--bar-h, 64px) + 1rem);
+    max-height: calc(100dvh - var(--bar-h, 64px) - var(--pad-h, 0px) - var(--dock-h, 0px) - 2rem); overflow: auto; overscroll-behavior: contain;
+  }
+  /* the dock (below) is the column's foot: the same area, aligned to its end, sticky to the viewport's bottom */
+  html[data-look=classic][data-learn=side] main > .dock {
+    position: sticky; right: auto; bottom: 1rem; z-index: 2; width: auto; margin: 0; grid-column: 2; grid-row: 1 / span 12; align-self: end;
+    border-radius: var(--r); box-shadow: 0 12px 40px var(--shade);
+  }
+  html[data-look=classic][data-learn=side] .coach { display: none; }
+}
+/* the column takes from the stage what the two-column grids above were given down to 860 px; until the window makes it up they go one column */
+@media (min-width: 1000px) and (max-width: 1179.98px) {
+  html[data-look=classic][data-learn=side] .glass, html[data-look=classic][data-learn=side] .lock { grid-template-columns: 1fr; }
+}
+/* the drawer is the Learn panel's alone: the coach line is what opens it; another side panel (the flash page's steps) stays in the page here */
+@media (max-width: 999.98px) {
+  html[data-look=classic][data-learn=side] #learnPanel {
+    position: fixed; z-index: 9; right: 0; top: calc(var(--bar-h, 64px) + var(--coach-h, 0px) + 1rem); bottom: calc(var(--pad-h, 0px) + var(--dock-h, 0px));
+    width: min(380px, 94vw); margin: 0; border-radius: var(--r) 0 0 var(--r); overflow: auto; overscroll-behavior: contain;
+    box-shadow: -12px 0 40px var(--shade); transform: translateX(100%); visibility: hidden;
+    transition: transform .2s ease, visibility 0s .2s;
+  }
+  html[data-look=classic][data-learn=side][data-learn-open] #learnPanel { transform: none; visibility: visible; transition: transform .2s ease; }
+  html[data-look=classic][data-learn=side] .learn-close { display: inline-grid; }
+}
+@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }
+
+/* --------------------------------------------- the dock at the column's foot -- */
+/* A page's second companion - the maker's assistant chat - is class `dock`. In
+   the classic look it keeps to the bottom right of the screen, folded to its
+   heading (a chip: the title, the bridge's state, a count of what came in)
+   until html[data-dock-open], which the page sets when there is something to
+   see - an assistant said hello, the guide asked - and the heading toggles.
+   Beside the guide's column (data-learn=side on a wide window, above) it is
+   the column's foot: the same grid area as the side panel, that one aligned
+   to the start and this one to the end, sticky to the viewport's bottom, and
+   the column's max-height leaves it its room. Anywhere else in the classic
+   look (a narrow window, the guide unpinned) it is fixed over the right edge
+   like the drawer, which stops above it. --dock-h is what the dock takes at
+   the bottom of the screen - its height and the gap above it - measured by the
+   page (a ResizeObserver, like --bar-h). The phone looks need none of this:
+   the chat is a mode there, and the fold and the count never show. */
+.dock > h2 { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.dock-fold { display: none; margin-left: auto; width: 1.6rem; height: 1.6rem; padding: 0; font: inherit; font-size: 14px; line-height: 1; cursor: pointer; color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: var(--r-xs); place-items: center; }
+.dock-fold:hover { color: var(--text); border-color: var(--accent); }
+.dock-new { display: none; margin-left: auto; min-width: 1.6em; padding: .05em .45em; border-radius: 1em; background: var(--accent-2); color: var(--on-accent); font-size: 10px; font-weight: 700; letter-spacing: 0; text-align: center; }
+.dock-new:not([hidden]) ~ .dock-fold { margin-left: 0; }
+html[data-look=classic] .dock {
+  position: fixed; right: 0; bottom: var(--pad-h, 0px); z-index: 9; width: min(380px, 94vw); margin: 0; padding: .6rem .9rem .8rem;
+  border-radius: var(--r) 0 0 0; box-shadow: -12px 0 40px var(--shade);
+  display: flex; flex-direction: column; min-height: 0;
+}
+html[data-look=classic] .dock > h2 { margin: 0; cursor: pointer; user-select: none; -webkit-user-select: none; flex-wrap: nowrap; white-space: nowrap; }
+html[data-look=classic] .dock-fold { display: inline-grid; }
+html[data-look=classic] .dock-new:not([hidden]) { display: inline-block; }
+html[data-look=classic][data-dock-open] .dock { max-height: min(46dvh, 420px); }   /* at 1024x768 the column above keeps ~300 px: the current step stays whole */
+html[data-look=classic]:not([data-dock-open]) .dock > :not(h2) { display: none; }
+
+/* --------------------------------------------- the rig inside the panel it plays -- */
+/* A page's third companion - the maker's Run & debug - is class `rig`: a panel
+   whose body is of use only beside the thing it tests. In the classic look it
+   is not a panel of its own: while a room is played the page moves its body
+   (#rig: the legend, the room, the badge, the controls, the log) into the
+   panel it plays - the editor, which is `.armed` meanwhile (the mark in its
+   heading, the accent border; its own studio gives way, src/maker.css) - and
+   back when play stops, so the room plays where it was painted and nothing
+   scrolls away from it; the panel itself stays out of the page here. Nothing
+   is fixed and nothing keeps clear of it. The phone looks need none of this:
+   the rig is a mode there (Play), one screen - the room above the badge above
+   the log - with its body where it is written. */
+html[data-look=classic] main > .rig { display: none; }
+
+/* the controls legend under a stage's title: what each button does, always on screen */
+.keys { display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin: .4rem 0 .2rem; font-size: 11px; color: var(--dim); }
+.keys span { white-space: nowrap; }
+.keys kbd { margin-right: .3em; }
+.status.hint { color: var(--accent); }
+
+/* ------------------------------------------------------ the stages page -- */
+/* The one player's panel: the level's name with who made it, the facts strip
+   (the rules, the size, what is in it, the par, your best), the lesson a room
+   carries; then the explorer (src/gallery.js): the levels in groups, a card
+   each with the room drawn small and what you have won in it, and the
+   prizes (src/progress.js), every one shown, won or not. */
+.panel > h2 .by { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); font-size: 11px; margin-left: .4rem; }
+.facts { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; margin: .2rem 0 .6rem; font-size: 12px; }
+.facts span { display: flex; flex-direction: column; gap: .05rem; }
+.facts small { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.facts b { font-weight: 500; color: var(--text); }
+.facts .dim b { color: var(--dim); font-weight: 400; }
+.facts .win b { color: var(--accent-2); }
+.lesson { margin: .4rem 0 .6rem; padding: .6rem .8rem; border-left: 3px solid var(--accent); background: var(--well); font-size: 12px; color: var(--text); }
+.lesson b { color: var(--accent); margin-right: .3em; }
+.lesson.done { border-color: var(--accent-2); }
+.lesson.done b { color: var(--accent-2); }
+
+.sub { margin: 1.1rem 0 .15rem; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.level-group > .sub:first-child { margin-top: .4rem; }
+.level-group > .note { margin-bottom: .5rem; }
+.progress-line { float: right; font-size: 10px; letter-spacing: .1em; color: var(--dim); }
+.levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin: .2rem 0 .4rem; }
+.level-card {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; padding: .5rem .6rem .55rem;
+  cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s);
+}
+.level-card .thumb { display: block; width: 100%; height: auto; max-height: 84px; object-fit: contain; border-radius: 4px; background: var(--ink-2); margin-bottom: .2rem; }
+.level-card b { color: var(--text); font-size: 12px; letter-spacing: .02em; }
+.level-card small { font-size: 10px; }
+.level-card:hover { border-color: var(--accent); color: var(--text); }
+.level-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; color: var(--text); }
+.level-card.off { cursor: default; opacity: .6; }
+.level-card.off:hover { border-color: var(--line); }
+/* a room that came in a link (?level=, src/gallery.js openShared): a card of its own, not the index's */
+.level-card.shared { border-style: dashed; border-color: var(--accent); }
+.level-card.shared.on { border-style: solid; border-color: var(--accent-2); }
+.level-par { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); min-height: 1.2em; }
+.level-par:empty { display: none; }
+.level-mark { position: absolute; right: .5rem; top: .5rem; font-size: 10px; letter-spacing: .06em; color: var(--on-accent); background: var(--accent-2); border-radius: 99px; padding: .05rem .45rem; }
+.level-mark:empty { display: none; }
+.level-card.star .level-mark::after { content: ' ★'; }
+
+.prizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; margin: .4rem 0 .8rem; }
+.prize {
+  display: grid; grid-template-columns: 2.2rem 1fr; grid-template-areas: 'i t' 'i s' 'i w'; column-gap: .6rem; align-items: center;
+  padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well); color: var(--dim); opacity: .72;
+}
+.prize .icon { grid-area: i; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 1px solid var(--line); font-size: 18px; color: var(--dim); }
+.prize b { grid-area: t; font-size: 12px; color: var(--text); }
+.prize small { grid-area: s; font-size: 10px; line-height: 1.4; }
+.prize em { grid-area: w; font-style: normal; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-2); }
+.prize.on { opacity: 1; border-color: var(--accent-2); }
+.prize.on .icon { color: var(--on-accent); background: var(--accent-2); border-color: var(--accent-2); box-shadow: 0 0 10px color-mix(in srgb, var(--accent-2) 45%, transparent); }
+.prize.on b { color: var(--accent-2); }
+
+/* a prize won: one line at the foot of the screen, for a moment */
+.toast {
+  position: fixed; left: 50%; bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); z-index: 12; transform: translateX(-50%);
+  max-width: min(92vw, 560px); padding: .55rem 1rem; font-size: 12px; color: var(--text); text-align: center;
+  background: color-mix(in srgb, var(--accent-2) 14%, var(--panel)); border: 1px solid var(--accent-2); border-radius: 99px;
+  box-shadow: 0 10px 30px var(--shade), 0 0 14px color-mix(in srgb, var(--accent-2) 35%, transparent);
+}
+.toast[hidden] { display: none; }
+
+/* the Share dialog: the open level as a link, two doors */
+.share-sheet {
+  width: min(92vw, 640px); margin: auto; padding: 1.3rem 1.5rem 1.1rem; font: inherit;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 30px 80px var(--shade), 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.share-sheet::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
+.share-sheet h2 { margin: 0 0 .4rem; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.share-way { display: flex; flex-direction: column; gap: .15rem; margin: .7rem 0; }
+.share-way > b { font-size: 12px; color: var(--text); }
+.share-way > small { font-size: 10px; color: var(--dim); }
+.share-row { display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
+.share-row input { flex: 1; min-width: 0; font: inherit; font-size: 11px; color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .5rem; }
+.share-row input:focus { outline: none; border-color: var(--accent); }
+.share-row .btn { flex: none; }
+@media (max-width: 480px) { .share-row { flex-wrap: wrap; } .share-row input { flex-basis: 100%; } }
+
+/* ------------------------------------------------------------------ looks -- */
+/* How the site sits on a screen. The classic look is this file alone: every
+   panel, the page scrolls. A phone look is one more stylesheet, src/looks/
+   <id>.css, picked by <html data-look> (src/look-boot.js puts it in the head
+   before paint, src/looks.js swaps it). The block below is what every phone
+   look shares, on every page: one column, the header static, a mode bar that
+   shows one panel at a time, the prose folded behind "how it works". A look's
+   own file reshapes the chrome on top - bezel, soft keys, the pad - with
+   rules written html[data-look=<id>] ..., which win by coming later. The
+   palette is the theme's: src/themes/<id>.css on <html data-theme>, loaded
+   after the look's sheet, overriding the variables at the top of this file. */
+
+/* the mode bar and the folds exist in every look; the classic one hides them */
+.modes { display: none; }
+.mode {
+  flex: 1; font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--dim); background: transparent; border: 0; border-radius: var(--r-xs); height: 32px; cursor: pointer;
+}
+.mode.on { background: var(--accent); color: var(--ink); }
+.mode.help { flex: 0 0 2.6rem; font-size: 13px; text-transform: none; }
+
+/* the prose folds on a phone; the classic look keeps it open (glitch.js sets `open`) */
+details.how > summary { display: none; }
+details.how > summary::-webkit-details-marker { display: none; }
+
+.tab .short { display: none; }
+
+/* the phone looks, shared */
+html:not([data-look=classic]) body {
+  display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; padding-bottom: 0;
+}
+html:not([data-look=classic]) .bar { position: relative; flex: none; }   /* not sticky: the column does not scroll; positioned, for the page-turn popover */
+html:not([data-look=classic]) .brand small { font-size: 10px; }
+html:not([data-look=classic]) .modes {
+  display: flex; flex: none; width: calc(100% - 28px); max-width: 532px; margin: 10px auto 0; padding: 2px;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel);
+}
+html:not([data-look=classic]) main {
+  flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: 0 14px;
+}
+html:not([data-look=classic]) main > .panel { margin: 12px 0; padding: 14px; }
+html:not([data-look=classic]) main > .panel > h2 { font-size: 11px; }
+
+html:not([data-look=classic]) details.how > summary {
+  display: block; cursor: pointer; list-style: none; font-size: 10px; color: var(--dim); letter-spacing: .04em;
+}
+html:not([data-look=classic]) details.how > summary::after { content: ' ▸'; }
+html:not([data-look=classic]) details.how[open] > summary::after { content: ' ▾'; }
+html:not([data-look=classic]) details.how .note { margin-top: .5rem; }
+
+html:not([data-look=classic]) .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 8px 0 0; }
+html:not([data-look=classic]) .tabs::-webkit-scrollbar { display: none; }
+html:not([data-look=classic]) .tab { white-space: nowrap; font-size: 10px; padding: 5px 9px; }
+html:not([data-look=classic]) .tab .long { display: none; }
+html:not([data-look=classic]) .tab .short { display: inline; }
+html:not([data-look=classic]) main > .panel.off { display: none; }
+html:not([data-look=classic]) .armed-mark { display: none; }
+html:not([data-look=classic]) .panel.armed { border-color: var(--line); box-shadow: none; }
+html:not([data-look=classic]) .stage-wrap { padding: 0; overflow: hidden; display: flex; justify-content: center; }
+html:not([data-look=classic]) .stage-wrap canvas { max-width: 100%; height: auto; }
+html:not([data-look=classic]) .stage-bar { gap: 8px; }
+html:not([data-look=classic]) .controls label { font-size: 10px; }
+html:not([data-look=classic]) .log:empty { display: none; }
+html:not([data-look=classic]) .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html:not([data-look=classic]) .prizes { grid-template-columns: 1fr; }
+
+/* the on-screen pad as a mirror: on the site nothing on the screen is a
+   controller, so the pad only shows what the badge is pressing */
+.touchpad.mirror .tp button { pointer-events: none; opacity: .7; }
+.touchpad.mirror .tp button.down { opacity: 1; }
+
+/* -------------------------------------------------- the phone upside down -- */
+/* src/tilt.js puts data-flip on <html> when gravity says the phone is held
+   the other way up and the OS did not turn the page to match (a portrait page
+   on an iPhone or a Samsung never goes upside down), or when the player says
+   so in the looks sheet. The value is the turn the page still needs, clockwise:
+   180 when the OS left the page where it was, 90 or 270 when auto-rotate took
+   it to landscape on the way round and stopped there, that being as far as it
+   goes. The body becomes a fixed box the size of the viewport - its sides
+   swapped for a quarter turn - and turns: it is the containing block of
+   everything fixed inside it (the range's pad), so those turn with it, and the
+   page scrolls inside the box. Dialogs live in the top layer, outside the
+   body's turn, so each turns itself; the bottom sheet moves to the player's
+   bottom edge first. The notch moves with the phone, so the safe-area insets
+   follow it. */
+html[data-flip] { overflow: hidden; }   /* else the body's overflow would propagate to the viewport and the body itself never scroll */
+html[data-flip] body { position: fixed; overflow: auto; }
+html[data-flip="180"] body { inset: 0; transform: rotate(180deg); }
+/* a quarter turn: a box the viewport's height wide and its width tall, turned
+   about its top-left corner and pushed back into view by its own size */
+html[data-flip="90"] body, html[data-flip="270"] body { top: 0; left: 0; width: 100vh; height: 100vw; width: 100dvh; height: 100dvw; transform-origin: 0 0; }
+html[data-flip="90"] body { transform: rotate(90deg) translateY(-100%); }
+html[data-flip="270"] body { transform: rotate(-90deg) translateX(-100%); }
+/* dialogs: a half turn in place; a quarter turn about the dialog's own top-left
+   corner, put at the viewport's centre (the sheet: at the edge that is the
+   player's bottom) and pulled back by half (the sheet: all) of its own size */
+html[data-flip="180"] dialog { transform: rotate(180deg); }
+html[data-flip="180"] .look-sheet { inset: 0 0 auto 0; }
+html[data-flip="90"] dialog, html[data-flip="270"] dialog { inset: 50% auto auto 50%; margin: 0; transform-origin: 0 0; }
+html[data-flip="90"] dialog { transform: rotate(90deg) translate(-50%, -50%); }
+html[data-flip="270"] dialog { transform: rotate(-90deg) translate(-50%, -50%); }
+html[data-flip="90"] .gate, html[data-flip="270"] .gate { width: min(92vh, 640px); width: min(92dvh, 640px); max-height: calc(100vw - 2em - 6px); max-height: calc(100dvw - 2em - 6px); }
+html[data-flip="90"] .look-sheet, html[data-flip="270"] .look-sheet { width: min(100vh, 560px); width: min(100dvh, 560px); max-height: 92vw; max-height: 92dvw; }
+html[data-flip="90"] .look-sheet { left: 0; transform: rotate(90deg) translate(-50%, -100%); }
+html[data-flip="270"] .look-sheet { left: 100%; transform: rotate(-90deg) translate(-50%, -100%); }
+/* the notch: at the bottom after a half turn; at the viewport's left (90) or
+   right (270) edge after a quarter, which is the player's bottom either way */
+html[data-flip="180"] .bar { padding-top: calc(.75rem + env(safe-area-inset-bottom, 0px)); }
+html[data-flip="180"] .touchpad { padding-bottom: env(safe-area-inset-top, 0px); }
+html[data-flip="180"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-top, 0px)); }
+html[data-flip="90"] .bar { padding-top: calc(.75rem + env(safe-area-inset-right, 0px)); }
+html[data-flip="90"] .touchpad { padding-bottom: env(safe-area-inset-left, 0px); }
+html[data-flip="90"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-left, 0px)); }
+html[data-flip="270"] .bar { padding-top: calc(.75rem + env(safe-area-inset-left, 0px)); }
+html[data-flip="270"] .touchpad { padding-bottom: env(safe-area-inset-right, 0px); }
+html[data-flip="270"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-area-inset-right, 0px)); }
+html[data-flip="90"] .bar, html[data-flip="270"] .bar { padding-left: clamp(.75rem, 3vh, 2rem); padding-right: clamp(.75rem, 3vh, 2rem); }   /* the header's side padding scales with the player's width, which is the viewport's height now */
+/* a quarter-turned page sits in a landscape viewport, which the width queries
+   above take for a wide screen: the phone breakpoints hold here regardless */
+html[data-flip="90"] .glass, html[data-flip="270"] .glass,
+html[data-flip="90"] .lock, html[data-flip="270"] .lock,
+html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways { grid-template-columns: 1fr; }
+
+/* the turn-over switch in the looks sheet: auto (the sensors), no, yes */
+.flip-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.flip-row .pick-head { flex: 1 1 100%; }
+.flip-chip {
+  font: inherit; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 99px; height: 26px; padding: 0 12px;
+}
+.flip-chip.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.flip-row small { margin-left: auto; color: var(--dim); font-size: 10px; }
+
+/* ------------------------------------------------------- the look picker -- */
+/* a chip in the header opens a sheet of cards: the themes, then the looks,
+   one card per entry in the manifests, and the sheet is the only place they
+   show (a page's help panel points at the chip). A look card's miniature is
+   shaped by its `shape` (page / sheet / device / dock) and painted in the
+   theme in force; a theme card's is painted in its own five swatch colours.
+   A new look or theme needs no artwork. */
+
+.look-chip {
+  font: inherit; font-size: 10px; letter-spacing: .08em; color: var(--accent); white-space: nowrap;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: 99px; height: 26px; padding: 0 10px; cursor: pointer;
+}
+.look-chip:hover { background: var(--panel-2); }
+
+/* the page-turn icon beside the chip (src/looks.js fills the glyph and keeps
+   the state): dim on auto, lit while the page is turned, filled on "yes",
+   struck through on "no"; a dot while iOS still has to be asked for the
+   sensors (red once refused). Its popover hangs under the header, anchored
+   to the icon by --caret, and is the first-visit tip too. */
+.turn-btn {
+  position: relative; flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  color: var(--dim); background: var(--panel); border: 1px solid var(--line); border-radius: 99px; cursor: pointer;
+}
+.turn-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.turn-btn svg .no { display: none; }
+.turn-btn:hover, .turn-btn[aria-expanded=true] { color: var(--accent); border-color: var(--accent); }
+.turn-btn[data-turned=yes] { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--glow); }
+.turn-btn[data-state=on] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.turn-btn[data-state=off] { color: var(--dim); box-shadow: none; }
+.turn-btn[data-state=off] svg .no { display: block; }
+.turn-btn[data-ask]::after {
+  content: ''; position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--amber); box-shadow: 0 0 0 2px var(--panel);
+}
+.turn-btn[data-ask=denied]::after { background: var(--hot); }
+.turn-pop {
+  position: absolute; z-index: 11; top: calc(100% + 8px); left: 0;   /* src/looks.js sets left under the icon, inside the header */
+  width: min(300px, calc(100vw - 1.5rem)); padding: 10px 12px;
+  color: var(--text); background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r);
+  box-shadow: 0 10px 30px var(--shade); font: 12px/1.4 var(--font);
+}
+.turn-pop[hidden] { display: none; }
+.turn-pop::before {
+  content: ''; position: absolute; top: -6px; left: calc(var(--caret, 90%) - 5px); width: 10px; height: 10px;
+  background: var(--panel); border-left: 1px solid var(--accent); border-top: 1px solid var(--accent); transform: rotate(45deg);
+}
+.turn-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.turn-head b { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.turn-head small, .turn-note { font-size: 10px; color: var(--dim); }
+.turn-note { margin: 6px 0 8px; }
+.turn-choice { display: flex; gap: 6px; }
+
+.look-sheet {
+  border: 0; padding: 0; background: transparent; color: var(--text);
+  width: min(100%, 560px); max-width: none; max-height: 92vh; inset: auto 0 0 0; margin: 0 auto; overflow: auto;
+}
+.look-sheet::backdrop { background: color-mix(in srgb, var(--ink) 62%, transparent); }
+.look-sheet .sheet {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0;
+  font: 12px/1.4 var(--font);
+}
+.look-sheet .handle { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head b { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.sheet-head .btn { height: 28px; width: 28px; padding: 0; }
+.look-sheet .note { margin: 0; font-size: 10px; }
+.sheet-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sheet-foot small { font-size: 9px; color: var(--dim); }
+.sheet-foot code { color: var(--accent-2); }
+.sheet-foot .btn { flex: none; font-size: 9px; height: 26px; padding: 0 8px; }
+
+.look-cards { display: grid; gap: 14px; }
+.pick-head { display: flex; align-items: baseline; gap: 8px; }
+.pick-head b { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.pick-head small { font-size: 9px; color: var(--dim); }
+.pick .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 6px; }
+.pick[data-kind=theme] .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.look-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px; text-align: left; font: inherit; color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--panel-2); cursor: pointer;
+}
+.look-card:hover { border-color: var(--accent); }
+.look-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; }
+.look-label { font-size: 11px; letter-spacing: .06em; font-weight: 600; }
+.look-card.on .look-label::after { content: ' · on'; font-size: 9px; color: var(--accent-2); letter-spacing: .1em; font-weight: 400; }
+.look-blurb { font-size: 9px; color: var(--dim); line-height: 1.35; }
+
+/* a look's miniature: the shape from its `shape`, the paint from the theme in force */
+.look-mini {
+  --ground: var(--ink); --tint: var(--accent);
+  position: relative; display: block; height: 96px; border-radius: var(--r-xs); overflow: hidden;
+  background: var(--ground); border: 1px solid color-mix(in srgb, var(--tint) 40%, transparent);
+}
+.look-mini > span { position: absolute; display: block; }
+.mini-bar { left: 0; right: 0; top: 0; height: 10px; background: color-mix(in srgb, var(--tint) 14%, var(--ground)); }
+.mini-bar::after { content: ''; position: absolute; left: 6px; top: 3px; width: 4px; height: 4px; border-radius: 1px; background: var(--tint); }
+.mini-panel {
+  left: 8px; right: 8px; top: 18px; height: 50px; border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--tint) 35%, transparent); background: color-mix(in srgb, var(--tint) 8%, var(--ground));
+}
+.mini-panel::after { content: ''; position: absolute; left: 6px; right: 6px; top: 8px; height: 24px; border-radius: 2px; background: #cfc6ad; }
+.mini-pad {
+  left: 0; right: 0; bottom: 0; height: 20px;
+  background: color-mix(in srgb, var(--tint) 10%, var(--ground)); border-top: 1px solid color-mix(in srgb, var(--tint) 30%, transparent);
+}
+.mini-pad::before, .mini-pad::after {
+  content: ''; position: absolute; bottom: 5px; width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--tint) 60%, transparent);
+}
+.mini-pad::before { left: 14px; }
+.mini-pad::after { right: 14px; }
+/* page: the whole page scrolls, two panels, the pad fixed below */
+.look-mini[data-shape=page] .mini-panel { height: 22px; box-shadow: 0 28px 0 0 color-mix(in srgb, var(--tint) 8%, var(--ground)); }
+.look-mini[data-shape=page] .mini-panel::after { top: 5px; height: 10px; width: 36px; right: auto; }
+.look-mini[data-shape=page] .mini-pad { height: 14px; }
+.look-mini[data-shape=page] .mini-pad::before, .look-mini[data-shape=page] .mini-pad::after { width: 6px; height: 6px; bottom: 3px; }
+/* sheet: a mode bar over one panel, the pad as a sheet */
+.look-mini[data-shape=sheet] .mini-panel { top: 22px; height: 46px; border-top: 3px solid var(--tint); }
+/* device: a bezelled screen, the pad moulded into the body */
+.look-mini[data-shape=device] .mini-bar { background: transparent; }
+.look-mini[data-shape=device] .mini-panel {
+  left: 6px; right: 6px; top: 6px; height: 44px; border-radius: var(--r-xs); background: var(--ink-2);
+  border: 4px solid color-mix(in srgb, var(--tint) 12%, var(--ink-2));
+}
+.look-mini[data-shape=device] .mini-panel::after { left: 8px; right: 8px; top: 8px; height: 20px; }
+.look-mini[data-shape=device] .mini-pad { height: 34px; background: transparent; border-top: 0; }
+.look-mini[data-shape=device] .mini-pad::before, .look-mini[data-shape=device] .mini-pad::after {
+  width: 14px; height: 14px; bottom: 9px; border-radius: 4px;
+  background: color-mix(in srgb, var(--tint) 35%, var(--ground)); border-color: var(--panel-end);
+}
+/* dock: the measurement first, keys in rows */
+.look-mini[data-shape=dock] .mini-panel { border: 0; background: transparent; }
+.look-mini[data-shape=dock] .mini-panel::after { left: 0; right: auto; top: 0; width: 44px; height: 16px; background: var(--tint); }
+.look-mini[data-shape=dock] .mini-pad { height: 30px; background: transparent; border-top: 0; }
+.look-mini[data-shape=dock] .mini-pad::before, .look-mini[data-shape=dock] .mini-pad::after { width: 18px; height: 9px; border-radius: 2px; bottom: 4px; }
+.look-mini[data-shape=dock] .mini-pad::before { left: 8px; box-shadow: 22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent), 44px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
+.look-mini[data-shape=dock] .mini-pad::after { right: 8px; box-shadow: -22px 0 0 0 color-mix(in srgb, var(--tint) 30%, transparent); }
+
+/* a theme's miniature: a little page in its five swatch colours - the page (--s0), a panel (--s1),
+   the accent (--s2), the good colour (--s3), the text (--s4) */
+.theme-mini {
+  position: relative; display: block; height: 56px; border-radius: var(--r-xs); overflow: hidden;
+  background: var(--s0); border: 1px solid color-mix(in srgb, var(--s4) 25%, transparent);
+}
+.theme-mini > span { position: absolute; display: block; }
+.theme-mini .mini-bar { left: 0; right: 0; top: 0; height: 9px; background: var(--s1); }
+.theme-mini .mini-dot { left: 5px; top: 3px; width: 3px; height: 3px; border-radius: 1px; background: var(--s2); }
+.theme-mini .mini-head { left: 6px; top: 15px; width: 38%; height: 4px; background: var(--s2); }
+.theme-mini .mini-text { left: 6px; right: 6px; top: 24px; height: 3px; background: var(--s4); opacity: .45; box-shadow: 0 6px 0 var(--s4); }
+.theme-mini .mini-btn { left: 6px; bottom: 6px; width: 22px; height: 9px; border-radius: 2px; background: var(--s2); }
+.theme-mini .mini-ok { left: 32px; bottom: 6px; width: 14px; height: 9px; border-radius: 2px; border: 1px solid var(--s3); }
+
+/* -------------------------------------------------------------- press this -- */
+/* src/prompt.js: where the next press goes. The badge as the player holds it with
+   the asked-for buttons lit and rippling (.badge-art; the SVG's units are the
+   board's millimetres, src/badge-shape.js), the same buttons as glyphs in a line
+   of text (.key-glyph), and a cue on a control of the page itself - a breathing
+   outline and a pointing hand (.cued, .cue-hand). Every page may carry one, so
+   the rules live here. */
+.prompts { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: flex-start; margin: .5rem 0 .2rem; }
+.prompt { margin: 0; display: inline-flex; flex-direction: column; align-items: center; gap: .3rem; width: min(100%, 180px); vertical-align: top; }
+.prompt figcaption { font-size: 11px; color: var(--dim); text-align: center; letter-spacing: .04em; line-height: 1.4; }
+.badge-art { display: block; width: 100%; height: auto; overflow: visible; }
+.badge-art[data-frame=cap] {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 90%, transparent);
+}
+.badge-art .shell { fill: var(--well); stroke: var(--line); stroke-width: .5; }
+.badge-art .hub { fill: var(--panel-2); }
+.badge-art .key .cap { fill: var(--panel-2); stroke: var(--line); stroke-width: .45; transition: fill .12s, stroke .12s; }
+.badge-art .key text { font: 700 3.4px var(--font); fill: var(--dim); text-anchor: middle; dominant-baseline: central; letter-spacing: .02em; pointer-events: none; transition: fill .12s; }
+.badge-art .key text.word { font-size: 2.1px; font-weight: 400; letter-spacing: .08em; }
+.badge-art .key text.tiny { font-size: 1.7px; }
+.badge-art .key[data-key=SL] text, .badge-art .key[data-key=SR] text { font-size: 2.6px; }
+.badge-art .key .glyph { fill: var(--dim); transition: fill .12s; }
+.badge-art .key.on .cap { fill: var(--accent); stroke: var(--accent); filter: drop-shadow(0 0 1.4px var(--glow)); }
+.badge-art .key.on text, .badge-art .key.on .glyph { fill: var(--on-accent); }
+.badge-art .key.on text.word { fill: var(--accent); }
+.badge-art .ring { fill: none; stroke: var(--accent); stroke-width: .6; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.badge-art .key.on .ring, .badge-art .key.tap .ring { animation: badge-ripple 1s ease-out infinite; }
+@keyframes badge-ripple { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(2.1); } }
+/* a hold: a gauge filling round the key over --hold */
+.badge-art .gauge { fill: none; stroke: var(--accent-2); stroke-width: .8; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0; }
+.badge-art .key.hold .gauge { opacity: 1; animation: badge-gauge var(--hold, 2s) linear forwards; }
+@keyframes badge-gauge { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.badge-art .led { fill: var(--accent-2); opacity: .25; transition: opacity .1s; }
+.badge-art.lit .led { opacity: 1; filter: drop-shadow(0 0 1px var(--accent-2)); }
+/* the USB-C at the tip of the stalk, and the plug that slides into it */
+.badge-art .usb { fill: var(--ink-2); stroke: var(--line); stroke-width: .4; }
+.badge-art .plug .body { fill: var(--text); }
+.badge-art .plug .tongue { fill: var(--dim); }
+.badge-art .plug .cable { stroke: var(--text); stroke-width: 1.4; stroke-linecap: round; fill: none; }
+.badge-art .plug { transform: translateY(-12px); transition: transform .7s cubic-bezier(.3, .9, .3, 1); }
+.badge-art.plugged .plug { transform: translateY(0); }
+/* upside down in the hand (the page turn, src/tilt.js): the board turns a half turn,
+   the thumbs' keys keep their names and their places - src/pad.js renames them */
+html[data-flip] .badge-art .phys { transform: rotate(180deg); }
+html[data-flip] .badge-art .phys text { transform-box: fill-box; transform-origin: center; transform: rotate(180deg); }
+/* the Learn panel's badge sits beside the step's words */
+.learn-now .prompts { float: right; width: 160px; margin: 0 0 .5rem 1rem; }
+.learn-now::after { content: ''; display: block; clear: both; }
+html:not([data-look=classic]) .learn-now .prompts { width: 128px; }
+/* the step a page is on, when it marks one */
+.steps li.now { color: var(--text); }
+.steps li.now::marker { color: var(--accent-2); font-weight: 700; }
+
+/* the glyphs: (A), [▲], a START pill, pulsing */
+.key-glyphs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3em; vertical-align: middle; }
+.key-glyphs i { font-style: normal; color: var(--dim); font-size: 10px; }
+.key-glyphs small { color: var(--dim); font-size: 10px; letter-spacing: .04em; }
+.key-glyph {
+  display: inline-grid; place-items: center; min-width: 1.8em; height: 1.8em; padding: 0 .5em; box-sizing: border-box;
+  font: 700 11px/1 var(--font); color: var(--on-accent); background: var(--accent); border: 0; border-radius: 999px;
+  letter-spacing: .04em; animation: glyph-pulse 1.4s ease-out infinite;
+}
+.key-glyph[data-key=UP], .key-glyph[data-key=DOWN], .key-glyph[data-key=LEFT], .key-glyph[data-key=RIGHT], .key-glyph[data-key=DPAD] { border-radius: 4px; padding: 0; width: 1.8em; }
+.key-glyph[data-key=ANY] { background: transparent; color: var(--accent); border: 1px solid var(--accent); font-weight: 400; }
+@keyframes glyph-pulse { 0% { box-shadow: 0 0 0 0 var(--glow); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+
+/* the cue on a control of the page: the outline breathes, the hand nods at it from its corner */
+.cue-anchor { position: relative; }
+.cued { outline: 2px solid var(--accent); outline-offset: 2px; animation: cue-breathe 1.6s ease-in-out infinite; }
+@keyframes cue-breathe { 0%, 100% { outline-color: var(--accent); outline-offset: 2px; } 50% { outline-color: color-mix(in srgb, var(--accent) 30%, transparent); outline-offset: 5px; } }
+.cue-hand {
+  position: absolute; right: -16px; bottom: -20px; width: 30px; height: 30px; z-index: 2;
+  color: var(--accent); pointer-events: none; filter: drop-shadow(0 2px 4px var(--shade));
+  animation: cue-tap 1.3s ease-in-out infinite;
+}
+.cue-hand svg { width: 100%; height: 100%; fill: var(--panel); stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+@keyframes cue-tap {
+  0%, 100% { transform: rotate(-30deg) translate(0, 0); }
+  40%, 55% { transform: rotate(-30deg) translate(-3px, -7px) scale(.94); }
+}
+/* the player who asked for no motion gets the lit keys, the gauge full, nothing moving */
+@media (prefers-reduced-motion: reduce) {
+  .badge-art .ring, .badge-art .gauge, .key-glyph, .cued, .cue-hand { animation: none !important; }
+  .badge-art .plug { transition: none; }
+  .badge-art .key.hold .gauge { stroke-dashoffset: 0; }
+}
+
+/* ------------------------------------------------------- the display face -- */
+/* a theme may set --font-display apart from --font: the brand, the headings and
+   the buttons take it; the data - listings, logs, readouts - stays in --font.
+   Last in the file, after every `font: inherit` that would reset it. */
+.brand b, .panel > h2, .sub, .btn, .tab, .mode, .gate h2, .gate h3, .sheet-head b, .look-label, .pick-head b, .level-card b, .prize b, .share-sheet h2 { font-family: var(--font-display); }

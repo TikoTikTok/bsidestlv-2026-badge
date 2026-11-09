@@ -1,0 +1,238 @@
+// Alice in AI Land - input: the badge, or a keyboard standing in for it.
+//
+// The badge enumerates as a DualShock 4, so in a browser it is a Gamepad with
+// the "standard" mapping. This module turns that - or the keyboard - into a
+// single stream of timestamped button edges, named the way the badge names
+// its buttons:
+//
+//   UP DOWN LEFT RIGHT   A B X Y   SL SR   START SELECT
+//
+// Timing is the whole point of the range, so two things matter here:
+//
+//   1. Poll on a 4 ms timer, not requestAnimationFrame. A frame is 16 ms and
+//      a background tab gets none; a timer keeps sampling.
+//   2. Stamp an edge with the gamepad's own `timestamp` when the browser
+//      provides one - it is the instant the browser read the device, which
+//      is earlier and steadier than the instant this loop noticed.
+//
+// Browsers themselves sample gamepads at ~16 ms, so that is the floor. A
+// press shorter than that can be missed entirely, and the range's levels
+// are tuned so nothing needs to be shorter.
+//
+// The badge is a grip the phone sits in, so when the phone is held the
+// other way up the whole controller is upside down too: the d-pad's UP is
+// at the bottom and the diamond has turned a half turn. The badge cannot
+// know, so the fix is here: while the phone is upside down every gamepad
+// edge is turned through FLIP before it is named - UP<->DOWN, LEFT<->RIGHT,
+// A<->Y, B<->X. Two things say it is: the screen, when the OS rotated the
+// page to a "secondary" orientation (screen.orientation, or the old
+// window.orientation of 180), and gravity (src/tilt.js), when the OS would
+// not rotate a portrait page and src/looks.js has turned the page itself.
+// The hand switch in the looks sheet (localStorage alice.flip) overrides
+// both. Only the gamepad is turned: the keyboard and the on-screen pad are
+// already the right way up. `?flip=1` / `?flip=0` pins it for testing,
+// `pad.flip = 'auto' | true | false` at runtime.
+//
+// Who may play is a policy of this module too. Every edge carries a source
+// - 'pad' for a gamepad, 'key' for the keyboard, 'ui' for an on-screen
+// button or a script's inject() - and a Pad built with `sources` drops any
+// edge from a source not in the set. On the published site that set is
+// {'pad'}: the badge plays, nothing else does. On a dev host (localhost)
+// everything is in, because that is where the pages are driven headless.
+// `muted` is the gate's pause switch on top of that: while the badge is
+// away (src/gate.js) no edge from any source reaches a listener.
+
+import { tilt } from './tilt.js';
+
+export const BUTTONS = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'X', 'Y', 'SL', 'SR', 'START', 'SELECT'];
+
+// The badge announces itself by name. The firmware keeps the DualShock 4's
+// VID/PID (iOS binds by those) but carries its own manufacturer and product
+// strings, and browsers put the product string in Gamepad.id. A stock
+// controller says "Wireless Controller"; so does a badge still on the stock
+// firmware, which is how the gate knows to send one to the flash page.
+export const BADGE_PRODUCT = 'BSidesTLV 2026 Alice Controller';
+export const isBadgeId = (id) => /bsidestlv|alice controller/i.test(id ?? '');
+
+// "standard" gamepad mapping indices -> badge names. The DualShock 4 diamond
+// lands where a Game Boy's would: cross = A, circle = B, square = X,
+// triangle = Y.
+const STANDARD = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'SL', 5: 'SR', 8: 'SELECT', 9: 'START',
+                   12: 'UP', 13: 'DOWN', 14: 'LEFT', 15: 'RIGHT' };
+
+// The same badge a half turn round: what each button is called when the
+// phone, and so the grip, is upside down. The shoulders stay put by request;
+// SL is still under the left hand's reach from where the thumbs now are.
+export const FLIP = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT', A: 'Y', Y: 'A', B: 'X', X: 'B' };
+export const flipButton = (name) => FLIP[name] ?? name;
+
+/** Whether the page is being looked at upside down: a "secondary" orientation (screen.orientation), or window.orientation at 180. */
+export function isUpsideDown({ orientation = globalThis.screen?.orientation, angle = globalThis.orientation } = {}) {
+  if (orientation?.type) return /-secondary$/.test(orientation.type);
+  return angle === 180 || angle === -180;
+}
+
+/**
+ * Whether the badge is upside down when nothing pins it: the hand switch
+ * (alice.flip '0' / '180') if set, else the screen's orientation or gravity.
+ * `t` is the page's Tilt; the default is the shared one.
+ */
+export function autoFlipped(t = tilt) {
+  if (t.manual !== 'auto') return t.manual === '180';
+  return isUpsideDown() || t.upsideDown;
+}
+
+/** The ?flip= override: true / false when pinned, 'auto' otherwise. */
+export function flipFor(search) {
+  const v = new URLSearchParams(search ?? '').get('flip');
+  return v === '1' ? true : v === '0' ? false : 'auto';
+}
+
+// Keyboard stand-in. Arrows or WASD for the d-pad; Z X C V under the left
+// hand for the diamond, Q / E for the shoulders, Enter / Backspace for
+// Start / Select.
+export const KEYS = {
+  ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT',
+  w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT',
+  z: 'A', x: 'B', c: 'X', v: 'Y', q: 'SL', e: 'SR', Enter: 'START', Backspace: 'SELECT',
+};
+
+// Firefox on Linux exposes the DualShock 4 with an empty mapping and the
+// d-pad as a hat on axis 9, in eighths of a turn from -1 (N) to 1 (NW), with
+// 9/7 meaning centred.
+const HAT = [['UP'], ['UP', 'RIGHT'], ['RIGHT'], ['DOWN', 'RIGHT'], ['DOWN'], ['DOWN', 'LEFT'], ['LEFT'], ['UP', 'LEFT']];
+function hatButtons(value) {
+  if (value > 1.1) return [];
+  const i = Math.round((value + 1) * 3.5);
+  return HAT[i] ?? [];
+}
+
+export function readGamepad(gp, flipped = false) {
+  const held = new Set();
+  const turn = flipped ? flipButton : (n) => n;
+  for (const [i, name] of Object.entries(STANDARD)) {
+    const b = gp.buttons[i];
+    if (b && (b.pressed || b.value > 0.5)) held.add(turn(name));
+  }
+  if (gp.mapping !== 'standard' && gp.axes.length > 9) {
+    for (const name of hatButtons(gp.axes[9])) held.add(turn(name));
+  }
+  return held;
+}
+
+/** True for the hosts a checkout is served from (./serve.sh), never for the site. */
+export function isDevHost(hostname) {
+  return hostname === '' || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+/** The edge sources a page accepts: everything on a dev host, the badge alone on the site. */
+export function sourcesFor(dev) {
+  return new Set(dev ? ['pad', 'key', 'ui'] : ['pad']);
+}
+
+export class Pad {
+  constructor({ pollMs = 4, sources = sourcesFor(true), flip = 'auto' } = {}) {
+    this.held = new Set();          // what is down right now, both sources merged
+    this.flip = flip;               // 'auto' follows the screen, gravity and the hand switch; true / false pin it
+    this.listeners = new Set();
+    this.sources = sources;         // edge sources that reach the listeners
+    this.muted = false;             // the gate's pause: true while the badge is away, and nothing plays
+    this.device = null;             // { id, index, mapping, badge } of the gamepad in use
+    this.lastEdgeT = null;
+    this.pollMs = pollMs;
+    this.onAxes = null;             // fn(axes, t): every poll's stick values, for the vault beacon
+    this._padHeld = new Set();
+    this._keyHeld = new Set();
+    this._lastStamp = 0;
+    this._boundKeydown = (e) => this._key(e, true);
+    this._boundKeyup = (e) => this._key(e, false);
+  }
+
+  /** Subscribe to edges: fn({ button, down, t, source }). Returns unsubscribe. */
+  on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+
+  /** True while gamepad buttons are being turned a half turn (the phone is upside down, or flip is pinned). */
+  get flipped() { return this.flip === 'auto' ? autoFlipped() : !!this.flip; }
+
+  /** Whether edges from `source` reach the listeners under this pad's policy. */
+  allows(source) { return this.sources.has(source); }
+
+  /** A synthetic edge from the page itself - an on-screen button, say. False if the policy drops it. */
+  inject(button, down, t = performance.now()) {
+    if (!this.allows('ui') || this.muted) return false;
+    this._emit(button, down, t, 'ui');
+    return true;
+  }
+
+  start() {
+    if (this.allows('key')) {
+      addEventListener('keydown', this._boundKeydown);
+      addEventListener('keyup', this._boundKeyup);
+    }
+    addEventListener('gamepadconnected', () => this._poll());
+    // a turn while a button is held: the next poll releases the old name and presses the new
+    globalThis.screen?.orientation?.addEventListener?.('change', () => this._poll());
+    addEventListener('orientationchange', () => this._poll());
+    tilt.start().on(() => this._poll());
+    const loop = () => { this._poll(); this._timer = setTimeout(loop, this.pollMs); };
+    loop();
+    return this;
+  }
+
+  stop() {
+    clearTimeout(this._timer);
+    removeEventListener('keydown', this._boundKeydown);
+    removeEventListener('keyup', this._boundKeyup);
+  }
+
+  _emit(button, down, t, source) {
+    if (this.muted || !this.allows(source)) return;
+    const was = this.held.has(button);
+    if (down) this.held.add(button); else this.held.delete(button);
+    if (was === down) return;                    // the other source already had it
+    this.lastEdgeT = t;
+    for (const fn of this.listeners) fn({ button, down, t, source });
+  }
+
+  _key(e, down) {
+    const name = KEYS[e.key] ?? KEYS[e.key.toLowerCase?.()];
+    if (!name) return;
+    if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    const t = performance.now();
+    if (down) this._keyHeld.add(name); else this._keyHeld.delete(name);
+    this._emit(name, down, t, 'key');
+  }
+
+  _poll() {
+    const pads = navigator.getGamepads?.() ?? [];
+    let gp = null;
+    for (const p of pads) if (p && p.connected) { gp = p; break; }
+
+    if (!gp) {
+      if (this.device) {
+        this.device = null;
+        const now = performance.now();
+        for (const b of [...this._padHeld]) { this._padHeld.delete(b); this._emit(b, false, now, 'pad'); }
+      }
+      return;
+    }
+    // a new record when the slot or the name changes: a badge that comes back
+    // from a flash in the same slot must not keep the stock firmware's name
+    if (!this.device || this.device.index !== gp.index || this.device.id !== gp.id) {
+      this.device = { id: gp.id, index: gp.index, mapping: gp.mapping, badge: isBadgeId(gp.id) };
+    }
+
+    const now = performance.now();
+    const held = readGamepad(gp, this.flipped);
+    // the browser's own read time, if it looks like one: same clock, recent
+    const stamp = gp.timestamp;
+    const t = (stamp > 0 && stamp <= now && now - stamp < 1000 && stamp !== this._lastStamp) ? stamp : now;
+    if (this.onAxes) this.onAxes(gp.axes, t);
+    let changed = false;
+    for (const b of held) if (!this._padHeld.has(b)) { this._padHeld.add(b); this._emit(b, true, t, 'pad'); changed = true; }
+    for (const b of [...this._padHeld]) if (!held.has(b)) { this._padHeld.delete(b); this._emit(b, false, t, 'pad'); changed = true; }
+    if (changed) this._lastStamp = stamp;
+  }
+}

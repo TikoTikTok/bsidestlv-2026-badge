@@ -1,0 +1,628 @@
+<!doctype html>
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json.
+     data-learn: where the Learn panel sits in the classic look - "side" (beside the board: a column, or a drawer on a narrow window) or "page"; the boot script applies the remembered choice,
+     and drops it on the site (data-learn-host="dev"): the guide is the studio's, which only a checkout shows -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-mode="home" data-learn="side" data-learn-host="dev">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 8 8 15 1 8z' fill='%236fb0f0'/%3E%3C/svg%3E">
+<title>Alice in AI Land — The Level Maker</title>
+<meta name="robots" content="noai, noimageai">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="src/maker.css">
+<script src="src/look-boot.js"></script>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>the level maker · <a href="index.html">the stages</a> · <a href="glitch.html">glitch range</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a></small>
+    </span>
+  </div>
+
+  <div class="controls pad-status">
+    <span id="bridgeChip" class="bridge-chip dev-only" title="the assistant's bridge">◌ no bridge</span>
+    <span id="padDevice" class="pad-device dev-only">keyboard</span>
+    <button type="button" id="turnBtn" class="turn-btn" aria-label="Page turn: auto" aria-haspopup="dialog" aria-expanded="false" aria-controls="turnPop" data-state="auto"></button>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
+  </div>
+</header>
+
+<!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look, and the studio's
+     (dev-only): on the published site the landing is one page, every panel of it "home". The modes are
+     the panels' keys in src/maker.js (goTo), so a tutorial step that names its panel names its mode. -->
+<nav id="modes" class="modes dev-only" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="learn">Learn</button>
+  <button type="button" class="mode" data-mode="edit">Studio</button>
+  <button type="button" class="mode" data-mode="play">Play</button>
+  <button type="button" class="mode" data-mode="export">Send</button>
+  <button type="button" class="mode" data-mode="assistant">Chat</button>
+  <button type="button" class="mode help" data-mode="home" aria-label="the landing: what this page is, the keys">?</button>
+</nav>
+
+<!-- the tutorial's coach line (a checkout only): the current step of the guided build chosen in the Learn panel; src/tutor.js + src/coach.js drive it.
+     In the classic look it sticks under the header (styles.css); "learn" opens the Learn panel: the drawer on a narrow window, the panel itself otherwise. -->
+<div id="coach" class="coach dev-only" hidden>
+  <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
+  <span id="coachSay" class="coach-say"></span>
+  <span class="coach-actions">
+    <button type="button" id="coachSkip" class="btn ghost">skip</button>
+    <button type="button" id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false">learn</button>
+  </span>
+</div>
+
+<main>
+  <!-- The landing: on the published site this is the whole page. On a local checkout
+       (html[data-host=dev], src/look-boot.js) the studio and the run & debug bench below
+       it are shown too; the site never carries them, only this invitation. -->
+  <section class="panel hero" id="hero" data-mode="home">
+    <div class="hero-room"><canvas id="heroCanvas" aria-label="a room painting itself, then Alice walking its solution"></canvas></div>
+    <div class="hero-copy">
+      <h1>Build a room for Alice</h1>
+      <p class="lede">Every stage in this game is a few lines of text: a walled room, some rocks, the buttons they
+        belong on, a lever, a gate, a door. The <b>level maker</b> is a page in this repository that draws it with
+        the game's own art, proves it can be solved, and lets you play it from the keyboard the way the badge
+        would. Make one. Send it in. It ships with the next deploy.</p>
+      <div class="hero-actions">
+        <button type="button" id="aiBtn" class="btn big">Try it now with your favourite AI</button>
+        <a class="btn ghost big" href="#byhand">…or by hand</a>
+      </div>
+      <p class="note site-only">The maker runs from a clone of the repository on your own machine, where the keyboard is
+        allowed to play. This page is only the invitation; the published site plays from the badge alone.</p>
+      <p class="note dev-only">You are on a local checkout: the studio is below (behind <b>Studio</b> in the bar, on a phone). <b>WASD</b> or the arrows move, <b>Z X C V</b> are
+        A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.
+        New here? The line at the top walks you through your first room; <b>?</b> lists every key.</p>
+      <!-- a room that came in a link (?level=): the landing paints it in the hero and says where it plays; src/maker.js fills this in -->
+      <p id="sharedNote" class="note site-only shared-note" hidden></p>
+    </div>
+  </section>
+
+  <section class="panel site-only" data-mode="home">
+    <h2>How it goes</h2>
+    <ol class="steps three">
+      <li><b>Fork, then clone.</b> A fork of your own is where your room lands first: its GitHub Pages site plays it the moment it
+        is merged. Node 20 or newer is all the clone needs, no packages, no build; <code>npm run maker</code> serves the checkout
+        and opens the studio. An assistant opens it in its own browser pane, beside its chat, so you watch the room and answer
+        on the page; by hand, in your browser.</li>
+      <li><b>Draw, check, play.</b> Paint with the pencil, line, rectangle and fill tools, or type the map. <b>Check</b> runs the real solver and says how many
+        moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
+        <b>Surprise me</b> draws a solvable room from a seed when you want a start. With an assistant on the bridge, a welcome banner
+        offers three ways to a first room: <b>Follow the White Rabbit</b> (step by step, you hold the brush), <b>Drink Me</b>
+        (four questions and it paints with you) and <b>Eat Me</b> (the one-bite starter); the assistant follows a written guide,
+        so even a small model can walk you through.</li>
+      <li><b>Send it in.</b> Export writes a stage module, <code>stages/community/&lt;id&gt;.js</code>. Add it to the index, open a pull request;
+        the checks prove it is solvable before anyone has to play it. Or press <b>Open a pull request with your AI</b> in the studio: it hands
+        your assistant the room and the steps. An assistant can do all of this with you: the studio has a bridge it drives.</li>
+    </ol>
+  </section>
+
+  <section class="panel site-only" id="format" data-mode="home">
+    <h2>What a stage is</h2>
+    <div class="format">
+<pre><code>// Stage: "A Small Garden"
+//
+//   #  wall     .  floor    A  Alice    O  rock
+//   b  button   L  lever    G  gate     D  door
+
+export const A_SMALL_GARDEN = {
+  name: 'A Small Garden',
+  theme: 'garden',
+  rows: [
+    '#########',
+    '#A..#..b#',
+    '#.O.G...#',
+    '#...#...#',
+    '#.L.#..D#',
+    '#########',
+  ],
+};</code></pre>
+      <div>
+        <p class="note">Push every rock onto a button and walk Alice to the door. A gate stays shut until she steps on
+          the lever. A rock pushed into a corner is lost, so the order of the shoves is the puzzle. Nothing is scripted:
+          the page proves a room with the same search the site is deployed with, and a room that cannot be solved is
+          refused.</p>
+        <p class="note">A <b>timed</b> room adds a clock and a cast: <code>tickMs: 320</code> and a list of
+          <code>hazards</code>, each walking a loop one cell per tick. The Red Queen also <em>looks</em> ahead, so a straight line of
+          open floor between her and Alice ends the run. Then a plan is a schedule, and standing still is a move.</p>
+        <p class="note">Three dressings: <code>garden</code>, <code>hall</code>, <code>court</code>. Rooms are between 4×4 and 24×24,
+          walled all round.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel site-only" id="byhand" data-mode="home">
+    <h2>By hand</h2>
+<pre><code>git clone <span id="repoClone">https://github.com/bsidestlv/bsidestlv-2026-badge</span>.git
+cd bsidestlv-2026-badge
+npm run maker                                   # serves http://localhost:8080 and opens maker.html
+npm run stage -- stages/community/my-room.js    # what CI will say about it</code></pre>
+    <p class="note">The whole guide, with the format, the rules the checker applies and how a room gets onto the site:
+      <a id="docsLink" href="https://github.com/bsidestlv/bsidestlv-2026-badge/blob/main/software/docs/LEVEL_MAKER.md">software/docs/LEVEL_MAKER.md</a>.</p>
+  </section>
+
+  <!-- ------------------------------------------------------------------ the studio: a local checkout only -- -->
+  <section class="panel dev-only" id="editPanel" data-mode="edit">
+    <h2>The room <span class="armed-mark">● playing</span> <span id="editName" class="tag"></span></h2>
+
+    <!-- The category: a room for the stages page, or a level for one of the glitch range's five games.
+         src/maker.js sets data-category on this panel; .room-only and .glitch-only hide by it (src/maker.css). -->
+    <div class="category" id="categoryBar" role="group" aria-label="what is being made">
+      <label class="field">What are you making
+        <select id="category">
+          <option value="room">A room</option>
+          <option value="glitch">A glitch level</option>
+        </select></label>
+      <label class="field glitch-only">For which range
+        <select id="rangeKind">
+          <option value="watch">The Rabbit's Pocket Watch</option>
+          <option value="glass">The Looking-Glass Glitch</option>
+          <option value="lock">The Caterpillar's Lock</option>
+          <option value="dog">The Dormouse's Watchdog</option>
+          <option value="wall">Humpty Dumpty's Wall</option>
+        </select></label>
+      <p class="note glitch-only">A level for one of the five games on <a href="glitch.html">glitch.html</a>. The fields are the level; the range's own
+        map is drawn beside them with what the rules make of the numbers. <b>Check</b> runs what CI runs on the shipped levels (the budgets, a replay,
+        a hand, the attacker), <b>Try it on the range</b> opens it on the range page as a tab, and the export writes the module with its index line.</p>
+    </div>
+
+    <div class="studio-bar room-only" role="toolbar" aria-label="the studio's tools">
+      <div class="tools" id="tools" aria-label="tool">
+        <button type="button" class="tool on" data-tool="pencil" title="Pencil: one cell, or drag (P)"><i>✎</i>pencil</button>
+        <button type="button" class="tool" data-tool="line" title="Line: drag from one end to the other (I)"><i>╱</i>line</button>
+        <button type="button" class="tool" data-tool="rect" title="Rectangle: drag a corner to the other; hold Shift to fill it (R)"><i>▭</i>rect</button>
+        <button type="button" class="tool" data-tool="fill" title="Fill: every cell joined to this one that is the same (F)"><i>◍</i>fill</button>
+        <button type="button" class="tool" data-tool="pick" title="Pick: take the brush under the pointer (K)"><i>⌖</i>pick</button>
+      </div>
+      <div class="tools" id="symmetry" aria-label="symmetry">
+        <button type="button" class="tool on" data-sym="none" title="Paint one cell at a time">no mirror</button>
+        <button type="button" class="tool" data-sym="h" title="Every stroke is mirrored left to right (M)">mirror ↔</button>
+        <button type="button" class="tool" data-sym="v" title="Every stroke is mirrored top to bottom">mirror ↕</button>
+        <button type="button" class="tool" data-sym="both" title="Mirrored both ways">both</button>
+      </div>
+      <div class="tools" aria-label="transform">
+        <button type="button" class="tool" id="flipH" title="Flip the room left to right">flip ↔</button>
+        <button type="button" class="tool" id="flipV" title="Flip the room top to bottom">flip ↕</button>
+        <button type="button" class="tool" id="rotateBtn" title="Turn the room a quarter clockwise">turn ↻</button>
+        <span class="shift" aria-label="move the inside of the room">
+          <button type="button" class="tool" data-shift="-1,0" title="Move everything one cell left">◀</button>
+          <button type="button" class="tool" data-shift="0,-1" title="Move everything one cell up">▲</button>
+          <button type="button" class="tool" data-shift="0,1" title="Move everything one cell down">▼</button>
+          <button type="button" class="tool" data-shift="1,0" title="Move everything one cell right">▶</button>
+        </span>
+      </div>
+      <div class="tools" aria-label="history">
+        <button type="button" class="tool" id="undoEdit" title="Undo (Ctrl+Z)">↶ undo</button>
+        <button type="button" class="tool" id="redoEdit" title="Redo (Ctrl+Y)">↷ redo</button>
+      </div>
+      <label class="zoom" title="How big a cell is drawn">zoom <input id="zoom" type="range" min="24" max="80" step="8" value="48"></label>
+      <button type="button" class="tool" id="keysBtn" title="Every key the studio knows (?)">?</button>
+    </div>
+
+    <div class="maker">
+      <div class="maker-board room-only">
+        <div class="palette" id="palette" aria-label="brush"></div>
+        <div class="stage-wrap board-wrap"><canvas id="board"></canvas><div id="boardCursor" class="board-cursor" aria-live="polite"></div></div>
+        <div class="overlays" id="overlays" aria-label="what the board shows over the room">
+          <label><input type="checkbox" data-overlay="grid" checked> grid</label>
+          <label><input type="checkbox" data-overlay="coords"> coordinates</label>
+          <label><input type="checkbox" data-overlay="stuck" checked> stuck corners</label>
+          <label><input type="checkbox" data-overlay="reach"> Alice's reach</label>
+          <label><input type="checkbox" data-overlay="path" checked> the solution</label>
+          <label><input type="checkbox" data-overlay="sight"> the cast's sight</label>
+        </div>
+        <p class="note">Click or drag to paint with the brush; right-click paints floor. Alice and the door are single, so painting
+          one moves it. With a hazard selected, clicks lay its route instead, point by point, straight lines only; the loop closes itself.
+          Shaded cells are where a rock is lost for good.</p>
+      </div>
+
+      <!-- ------------------------------------------------- a glitch level: the range's map, the numbers, one form per range -- -->
+      <div class="maker-range glitch-only" id="rangeStudio">
+        <div class="range-preview">
+          <div class="stage-wrap board-wrap range-map-wrap" id="rangeMapWrap"><canvas id="rangeMap" aria-label="the range's map, the same for every level of it"></canvas></div>
+          <p class="note" id="rangeMapNote"></p>
+          <dl id="rangeFacts" class="range-facts" aria-label="what the rules make of the level"></dl>
+          <ul id="rangeLint" class="lint"></ul>
+        </div>
+        <div class="range-forms" id="rangeForms">
+          <div class="range-form" data-range="watch">
+            <div class="field-row">
+              <label class="field">Presses in the tune <input type="number" data-field="length" min="2" max="32"></label>
+              <label class="field">Window <input type="number" data-field="windowMs" min="50" max="20000" step="10"> <small>ms, first press to last</small></label>
+            </div>
+            <fieldset class="pool" data-field="pool"><legend>The buttons the tune is made of</legend>
+              <label><input type="checkbox" value="UP"> ▲</label><label><input type="checkbox" value="DOWN"> ▼</label>
+              <label><input type="checkbox" value="LEFT"> ◀</label><label><input type="checkbox" value="RIGHT"> ▶</label>
+              <label><input type="checkbox" value="A"> A</label><label><input type="checkbox" value="B"> B</label>
+              <label><input type="checkbox" value="X"> X</label><label><input type="checkbox" value="Y"> Y</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand (4–6 presses a second); off, for a take replayed faster</label>
+            <p class="note">The tune is fixed per level (its id seeds it), so a take recorded once keeps working. The window shrinks a level at a time
+              until only a replayed take is fast enough; the host samples the badge every 16 ms, so a press needs 34 ms to be seen.</p>
+          </div>
+          <div class="range-form" data-range="glass">
+            <div class="field-row">
+              <label class="field">Tick <input type="number" data-field="lineMs" min="5" max="2000" step="5"> <small>ms a line</small></label>
+              <label class="field">Pulse at most <input type="number" data-field="pulseMaxLines" min="1" max="10"> <small>lines, or a brown-out</small></label>
+            </div>
+            <label class="field grow">The guard's routine, one line a line <textarea data-field="listing" rows="14" spellcheck="false" autocomplete="off"></textarea></label>
+            <pre class="legend">label:        a label, one tick        ! line   the target check
+... goto x    a taken branch           * line   crashes the guard if hit
+delay(n)      holds n ticks            ret      end</pre>
+            <p class="note">Exactly one <code>!</code> line, every goto to a label that exists, and every goto taken in the honest run. The good ending calls
+              <code>alice_jump</code>, the honest one <code>alice_bounce</code>; the check's neighbours must be harmless, and at least one line must crash.
+              A tick of 80 ms or more is a hand level: a hand lands within about ±40 ms.</p>
+            <label class="check"><input type="checkbox" data-field="hidden"> hide the listing: the player sees only its shape</label>
+          </div>
+          <div class="range-form" data-range="lock">
+            <div class="field-row">
+              <label class="field">Symbols in the password <input type="number" data-field="length" min="2" max="12"></label>
+              <label class="field">Tick <input type="number" data-field="tickMs" min="10" max="2000" step="10"> <small>ms a comparison</small></label>
+            </div>
+            <div class="field-row">
+              <label class="field">Jitter <input type="number" data-field="jitterTicks" min="0" max="3" step="0.1"> <small>ticks, sigma</small></label>
+              <label class="field">Order
+                <select data-field="order">
+                  <option value="prefix">first to last</option>
+                  <option value="secret">an order of his own</option>
+                </select></label>
+            </div>
+            <fieldset class="pool" data-field="pool"><legend>The symbols of the password</legend>
+              <label><input type="checkbox" value="UP"> ▲</label><label><input type="checkbox" value="DOWN"> ▼</label>
+              <label><input type="checkbox" value="LEFT"> ◀</label><label><input type="checkbox" value="RIGHT"> ▶</label>
+              <label><input type="checkbox" value="A"> A</label><label><input type="checkbox" value="B"> B</label>
+              <label><input type="checkbox" value="X"> X</label><label><input type="checkbox" value="Y"> Y</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand: the attacker types at most 150 presses</label>
+            <p class="note">The door compares one symbol a tick and stops at the first mismatch, so its answer time is the leak. Jitter makes one
+              reading ambiguous (the badge's repeat takes the median); a secret order hides which symbol was wrong, not how many were right.</p>
+          </div>
+          <div class="range-form" data-range="dog">
+            <div class="field-row">
+              <label class="field">The nudge
+                <select data-field="button">
+                  <option value="UP">▲ UP</option><option value="DOWN">▼ DOWN</option><option value="LEFT">◀ LEFT</option><option value="RIGHT">▶ RIGHT</option>
+                  <option value="A">A</option><option value="B">B</option><option value="X">X</option><option value="Y">Y</option>
+                </select></label>
+              <label class="field">Nudges to win <input type="number" data-field="kicks" min="1" max="64"></label>
+            </div>
+            <div class="field-row">
+              <label class="field">Window opens <input type="number" data-field="openMs" min="1" max="20000" step="10"> <small>ms after the last</small></label>
+              <label class="field">Bites at <input type="number" data-field="timeoutMs" min="2" max="20000" step="10"> <small>ms after the last</small></label>
+            </div>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand: a window 80 ms or wider, six a second or fewer</label>
+            <p class="note">Every nudge must land inside the window measured from the last (or from START, for the first). Two presses of a hand are each
+              ±40 ms off, so a hand needs 80 ms of window; the badge plays a take sped up until the gaps fit, and the first gap is the fire's offset.</p>
+          </div>
+          <div class="range-form" data-range="wall">
+            <div class="field-row">
+              <label class="field">Buffer <input type="number" data-field="size" min="1" max="11"> <small>symbols</small></label>
+              <label class="field">Gap <input type="number" data-field="gapMs" min="20" max="10000" step="10"> <small>ms a symbol</small></label>
+            </div>
+            <div class="field-row">
+              <label class="field">open_wall @
+                <select data-field="address" data-slot="0">
+                  <option value="UP">▲ UP</option><option value="DOWN">▼ DOWN</option><option value="LEFT">◀ LEFT</option><option value="RIGHT">▶ RIGHT</option>
+                  <option value="A">A</option><option value="B">B</option><option value="X">X</option><option value="Y">Y</option>
+                </select></label>
+              <label class="field">and
+                <select data-field="address" data-slot="1">
+                  <option value="UP">▲ UP</option><option value="DOWN">▼ DOWN</option><option value="LEFT">◀ LEFT</option><option value="RIGHT">▶ RIGHT</option>
+                  <option value="A">A</option><option value="B">B</option><option value="X">X</option><option value="Y">Y</option>
+                </select></label>
+            </div>
+            <fieldset class="pool" data-field="pool"><legend>The symbols a name is typed in</legend>
+              <label><input type="checkbox" value="UP"> ▲</label><label><input type="checkbox" value="DOWN"> ▼</label>
+              <label><input type="checkbox" value="LEFT"> ◀</label><label><input type="checkbox" value="RIGHT"> ▶</label>
+              <label><input type="checkbox" value="A"> A</label><label><input type="checkbox" value="B"> B</label>
+              <label><input type="checkbox" value="X"> X</label><label><input type="checkbox" value="Y"> Y</label>
+            </fieldset>
+            <label class="check"><input type="checkbox" data-field="canary"> a canary between the name and lr (which symbol is per seed)</label>
+            <label class="check"><input type="checkbox" data-field="hidden"> hide the size: the listing shows name[?]</label>
+            <label class="check"><input type="checkbox" data-field="hand"> meant for a hand: six symbols a second or fewer</label>
+            <label class="field grow">Humpty's listing <textarea data-field="listing" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
+            <div class="stage-bar tight"><button type="button" id="wallListingBtn" class="btn ghost">Write the listing from the fields</button></div>
+            <p class="note">The frame is <code>name[size] [canary] lr[2]</code>, one symbol a slot. The listing must show <code>name[size]</code> (or
+              <code>name[?]</code> when hidden) and a line <code>open_wall: @ …</code> with the address, as a firmware image would.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="maker-side">
+        <label class="field">Name <input id="name" type="text" maxlength="48" spellcheck="false"></label>
+        <label class="field glitch-only">Short name, for the tab <input id="rangeShort" type="text" maxlength="16" spellcheck="false" placeholder="one word"></label>
+        <div class="field-row room-only">
+          <label class="field">Width <input id="width" type="number" min="4" max="24"></label>
+          <label class="field">Height <input id="height" type="number" min="4" max="24"></label>
+          <label class="field">Dressing
+            <select id="theme">
+              <option value="garden">the garden</option>
+              <option value="hall">the Queen's hall</option>
+              <option value="court">the court</option>
+            </select></label>
+        </div>
+        <div class="field-row room-only">
+          <label class="field">Clock
+            <select id="kind">
+              <option value="tea">untimed</option>
+              <option value="chase">timed</option>
+            </select></label>
+          <label class="field" id="tickField">Tick <input id="tickMs" type="number" min="100" max="2000" step="20"> <small>ms</small></label>
+        </div>
+        <div id="hazards" class="hazards room-only"></div>
+        <div class="stage-bar tight room-only"><button type="button" id="addHazard" class="btn ghost">Add a hazard</button></div>
+        <label class="field grow room-only">The map <textarea id="ascii" rows="10" spellcheck="false" autocomplete="off"></textarea></label>
+        <label class="field">Blurb, one line for the room's card <input id="blurb" type="text" maxlength="400" spellcheck="false" placeholder="what the room is about"></label>
+        <label class="field room-only">The lesson, one step a line: <code>event: what to say</code>
+          <textarea id="lesson" rows="4" spellcheck="false" autocomplete="off" placeholder="move: Move Alice with the d-pad.&#10;push: Walk into the rock. It slides one cell."></textarea></label>
+        <p class="note room-only">The stages page shows the lesson under the room and ticks it off as the player does what it says.
+          Events: <code>move push lever button blocked undo reset</code> for any room, <code>start wait tick caught restart</code>
+          for a timed one, <code>win</code> for the door.</p>
+        <ul id="lint" class="lint room-only"></ul>
+
+        <details class="drawer room-only" id="startersDrawer">
+          <summary>Start from…</summary>
+          <div class="starters" id="starters"></div>
+        </details>
+        <details class="drawer glitch-only" id="rangeStartersDrawer" open>
+          <summary>Start from… the shipped levels</summary>
+          <div class="starters" id="rangeStarters"></div>
+        </details>
+        <details class="drawer room-only" id="surpriseDrawer">
+          <summary>Surprise me</summary>
+          <div class="knobs">
+            <label>width <input id="genW" type="number" min="5" max="24" value="11"></label>
+            <label>height <input id="genH" type="number" min="5" max="24" value="8"></label>
+            <label>rocks <input id="genRocks" type="number" min="1" max="6" value="2"></label>
+            <label>walls <input id="genWalls" type="range" min="0" max="30" value="12"></label>
+            <label><input id="genGate" type="checkbox"> a gate</label>
+            <label><input id="genTimed" type="checkbox"> timed</label>
+            <label>seed <input id="genSeed" type="number" min="0" placeholder="random"></label>
+            <label>par ≥ <input id="genPar" type="number" min="1" max="400" value="12"></label>
+          </div>
+          <div class="stage-bar tight"><button type="button" id="genBtn" class="btn">Draw one</button><span id="genStatus" class="status"></span></div>
+        </details>
+        <details class="drawer" id="shelfDrawer" open>
+          <summary>My shelf <span id="shelfCount" class="count"></span></summary>
+          <div class="stage-bar tight"><button type="button" id="shelfSave" class="btn ghost">Keep this room</button><span id="shelfStatus" class="status"></span></div>
+          <ul id="shelf" class="shelf"></ul>
+        </details>
+      </div>
+    </div>
+    <div class="stage-bar">
+      <button type="button" id="checkBtn" class="btn">Check</button>
+      <button type="button" id="playBtn" class="btn room-only">Run &amp; debug</button>
+      <button type="button" id="tryRange" class="btn glitch-only" title="Open glitch.html with this level as a tab of its range">Try it on the range</button>
+      <button type="button" id="newBtn" class="btn ghost">New</button>
+      <button type="button" id="openBtn" class="btn ghost" aria-haspopup="dialog" aria-controls="openDialog" title="A stage, a community level, one from the shelf, or a link">Open…</button>
+      <label>Load <select id="load"><option value="">a shipped stage…</option></select></label>
+      <label title="Check again on its own after every edit"><input id="autoCheck" type="checkbox"> auto-check</label>
+      <button type="button" id="pngBtn" class="btn ghost room-only" title="Save the board as a picture">Save a picture</button>
+      <span id="report" class="status"></span>
+    </div>
+    <div id="verdict" class="verdict" hidden></div>
+  </section>
+
+  <!-- Run & debug. In the classic look it is not a panel of its own (class rig, styles.css): while a room is played
+       src/maker.js moves its body (#rig) into the editor, where the board was, and arms the editor - so the room, the badge,
+       the controls and the log are on the screen the room was painted on and nothing scrolls away from it; Back to the
+       editor / Esc bring the body back. In the phone looks it is the Play mode, one screen: the room above the badge above
+       the log. -->
+  <section class="panel rig dev-only" id="playPanel" data-mode="play">
+    <h2>Run &amp; debug <span class="armed-mark">● armed</span></h2>
+    <div id="rig" class="rig-body">
+      <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
+      <div class="run">
+        <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
+        <div class="run-side">
+          <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
+          <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, a real
+            badge on USB, or an assistant over the bridge. The log is every edge and what the room made of it.</p>
+        </div>
+      </div>
+      <div class="stage-bar">
+        <button type="button" id="editBtn" class="btn ghost">Back to the editor</button>
+        <button type="button" id="resetBtn" class="btn ghost">Reset</button>
+        <button type="button" id="undoBtn" class="btn ghost">Undo</button>
+        <button type="button" id="solveBtn" class="btn">Play the solution</button>
+        <span id="runStatus" class="status"></span>
+      </div>
+      <ol id="runLog" class="log bench" reversed></ol>
+    </div>
+  </section>
+
+  <section class="panel dev-only" id="exportPanel" data-mode="export">
+    <h2>Send it in</h2>
+    <div class="export">
+      <div>
+        <label class="field">Your name or handle, for the file's header <input id="author" type="text" maxlength="48" spellcheck="false"></label>
+        <p class="note">The module goes in <code>stages/community/</code> as <code id="fileName">untitled.js</code>, plus one line in
+          <code>stages/community/index.json</code>. <code>npm run stage -- stages/community/<span id="fileName2">untitled</span>.js</code>
+          says what CI will say; then open a pull request. Or share a link: it carries the whole room in its address, and opens it
+          where it plays - on this checkout, or on the published site for anyone.</p>
+        <div class="stage-bar">
+          <button type="button" id="copyModule" class="btn">Copy the module</button>
+          <button type="button" id="downloadModule" class="btn ghost">Download</button>
+          <button type="button" id="shareBtn" class="btn ghost">Share a link</button>
+          <button type="button" id="prBtn" class="btn ghost">Open a pull request with your AI</button>
+          <span id="exportStatus" class="status"></span>
+        </div>
+        <label class="field">Import a module (paste its source) <textarea id="importText" rows="4" spellcheck="false" placeholder="export const MY_ROOM = { name: '…', rows: [ … ] };"></textarea></label>
+        <div class="stage-bar"><button type="button" id="importBtn" class="btn ghost">Import</button><span id="importStatus" class="status"></span></div>
+      </div>
+      <pre class="module"><code id="moduleOut"></code></pre>
+    </div>
+  </section>
+
+  <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens.
+       In the classic look it is class dock (styles.css): the foot of the guide's column on a wide window, the bottom right
+       corner of a narrow one, folded to its heading until an assistant says hello or the guide asks (html[data-dock-open],
+       openDock in src/maker.js); the heading toggles it, #chatNew counts what came in while it was folded. In the phone
+       looks it is the Chat mode. -->
+  <section class="panel dock dev-only" id="assistantPanel" data-mode="assistant">
+    <h2>The assistant <span id="bridgeState" class="tag">not connected</span>
+      <span id="chatNew" class="dock-new" hidden></span>
+      <button type="button" id="chatFold" class="dock-fold" aria-expanded="false" aria-controls="chatLog" aria-label="open the chat" title="open the chat">▴</button></h2>
+    <p class="note" id="bridgeNote">With <code>npm run maker</code> serving this page, an assistant on this machine can see the room, paint it,
+      prove it, play it and answer you here. Hand it the prompt under the hero (it says how to connect: the MCP tools in
+      <code>.mcp.json</code>, or <code>curl</code> on <code id="bridgeUrl">/__maker/</code>); everything it does shows on the board and in this log.</p>
+    <ol id="chatLog" class="log bench chat" reversed></ol>
+    <div class="stage-bar">
+      <input id="chatText" class="chat-text" type="text" maxlength="2000" placeholder="say something to the assistant…" autocomplete="off">
+      <button type="button" id="chatSend" class="btn">Send</button>
+      <button type="button" id="aiBtn2" class="btn ghost">The prompt</button>
+    </div>
+  </section>
+
+  <!-- The guide. In the classic look on a checkout it sits beside the board (html[data-learn=side], styles.css - every page's):
+       a column at the right of a wide window, a drawer over the right edge of a narrow one (the coach line's "learn" opens it,
+       the × closes it); "unpin" puts it back in the page, last. In the phone looks it is the Learn mode. src/coach.js wires the buttons. -->
+  <section class="panel side dev-only" id="learnPanel" data-mode="learn">
+    <h2><span id="learnTitle">Painting the Roses</span> <span id="learnProgress" class="armed-mark"></span>
+      <button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="Beside the board, or in the page">unpin</button>
+      <button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×</button></h2>
+    <p class="note">Guided builds, one step at a time: pick one below. Each leads to a finished room, and each step watches
+      what you do and ticks itself off; the line at the top of the page says what comes next wherever you are. Progress
+      is kept per build, so switch whenever you like. Skip what you like, it costs nothing.</p>
+    <!-- one card per entry of MAKER_TUTORIALS (src/tutor.js), drawn by src/maker.js: button.learn-pick[data-id], the chosen one .on -->
+    <div id="learnPick" class="learn-picks"></div>
+    <div id="learnCoach" class="learn-now"></div>
+    <ol id="learnSteps" class="learn-steps"></ol>
+    <div class="stage-bar">
+      <button id="learnSkip" class="btn ghost">Skip this step</button>
+      <button id="learnRestart" class="btn ghost">Start over</button>
+      <span id="learnStatus" class="status"></span>
+    </div>
+  </section>
+</main>
+
+<!-- The invitation: the prompt a visitor hands to an assistant, with a copy button and two
+     front doors that take the text in their address. The prompt sends the assistant to the
+     repository, which is readable; nothing on this site is meant to be read by one. -->
+<dialog id="aiDialog" class="ai" data-kind="invite">
+  <h2 id="aiTitle">Hand this to your assistant</h2>
+  <p class="note" id="aiNote">Copy the prompt into Claude Code, Codex, Cursor, Copilot, Gemini or whatever runs commands on your machine.
+    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, open this
+    page in its own browser pane (Claude Code's, Cursor's, VS Code's Simple Browser; your browser only when it has none), connect,
+    and then follow the White Rabbit's guide: a welcome banner lets you pick step by step, the fast lane or the one-bite starter,
+    and from there every step is on the page - the line, the why, the buttons - while the assistant paints and narrates.</p>
+  <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
+  <div class="stage-bar">
+    <button type="button" id="aiCopy" class="btn">Copy</button>
+    <a id="aiClaude" class="btn ghost" target="_blank" rel="noopener">Open in Claude</a>
+    <a id="aiChatGPT" class="btn ghost" target="_blank" rel="noopener">Open in ChatGPT</a>
+    <button type="button" id="aiClose" class="btn ghost">Close</button>
+    <span id="aiStatus" class="status"></span>
+  </div>
+</dialog>
+
+<!-- Every key the studio knows -->
+<dialog id="keysDialog" class="ai keys-dialog">
+  <h2>The keys</h2>
+  <div class="keys-grid">
+    <div><h3>Brushes</h3><p><kbd>1</kbd>–<kbd>8</kbd> wall, floor, Alice, rock, button, lever, gate, door</p></div>
+    <div><h3>Tools</h3><p><kbd>P</kbd> pencil <kbd>I</kbd> line <kbd>R</kbd> rectangle (<kbd>Shift</kbd> fills) <kbd>F</kbd> fill <kbd>K</kbd> pick</p></div>
+    <div><h3>Mirror</h3><p><kbd>M</kbd> cycles none, ↔, ↕, both</p></div>
+    <div><h3>History</h3><p><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo <kbd>Ctrl</kbd>+<kbd>Y</kbd> redo</p></div>
+    <div><h3>Room</h3><p><kbd>Ctrl</kbd>+<kbd>Enter</kbd> check <kbd>Ctrl</kbd>+<kbd>S</kbd> keep on the shelf <kbd>G</kbd> toggle the grid</p></div>
+    <div><h3>Play</h3><p><kbd>W A S D</kbd> or the arrows move, <kbd>Z X C V</kbd> are A B X Y, <kbd>Enter</kbd> START, <kbd>Space</kbd> waits a tick, <kbd>R</kbd> resets, <kbd>Backspace</kbd> undoes, <kbd>Esc</kbd> back to the editor</p></div>
+  </div>
+  <div class="stage-bar"><button type="button" id="keysClose" class="btn ghost">Close</button></div>
+</dialog>
+
+<!-- The Share dialog (a checkout only; #shareBtn in Send it in opens it): the level as one link.
+     Nothing is uploaded - the whole level travels in the address (?level=, src/level.js shareUrl),
+     so the link opens it wherever it is pasted; the page in front of the token says where. The
+     person picks where it opens (play it: the page the badge plays it on, the default; edit it: the
+     studio of a checkout, the landing on the published site), at which address (this checkout, or
+     the published site, for anyone), what goes in and how the link reads; the level's JSON is shown
+     and can be edited, and the link follows the edit. src/maker.js fills the words in. -->
+<dialog id="shareDialog" class="ai share dev-only" aria-labelledby="shareTitle">
+  <h2 id="shareTitle">Share this room</h2>
+  <p class="note">One link carries the whole <span id="shareWhat">room in its address - the map, its clock and cast, and whatever you tick below</span>.
+    Nothing is uploaded, so it works in a chat, a bookmark, or for an assistant that can only open a URL. <b>Play it</b> is the
+    page the badge plays it on; <b>edit it</b> is the studio of a checkout. A link at this checkout's address opens only for
+    whoever runs it - pick <b>the published site</b> for anyone else.</p>
+  <div class="share-grid">
+    <fieldset class="share-where">
+      <legend>opens on</legend>
+      <label title="index.html: a card in Rooms, played with the badge"><input type="radio" name="shareWhere" value="play" checked> <b>play it</b> — <span id="sharePlayPage">the stages page</span></label>
+      <label title="maker.html: the studio of a checkout loads it; the published landing shows it in its hero"><input type="radio" name="shareWhere" value="studio"> <b>edit it</b> — the studio</label>
+      <label class="share-sub" title="adds play=1: the studio opens the room in Run &amp; debug straight away"><input type="checkbox" id="sharePlay"> …straight into Run &amp; debug</label>
+    </fieldset>
+    <fieldset class="share-at">
+      <legend>at which address</legend>
+      <label title="this page's address: only someone running this checkout can open the link"><input type="radio" name="shareAt" value="here" checked> this checkout (<span id="shareHere">localhost</span>)</label>
+      <label title="the site this page belongs to, where anyone opens the link and the badge plays the room"><input type="radio" name="shareAt" value="site"> the published site</label>
+      <input id="shareSite" type="text" inputmode="url" spellcheck="false" aria-label="the published site's address" title="the site's address: your fork's page, or the official site; remembered">
+    </fieldset>
+    <fieldset class="share-parts">
+      <legend>what goes in</legend>
+      <label title="the room's own tutorial, shown under it on the stages page"><input type="checkbox" data-part="lesson" checked> the lesson</label>
+      <label title="the one line beside the room's card"><input type="checkbox" data-part="blurb" checked> the blurb</label>
+      <label title="garden, hall or court; left out, the room is dressed as the garden"><input type="checkbox" data-part="theme" checked> the dressing</label>
+    </fieldset>
+    <fieldset class="share-format">
+      <legend>the link reads as</legend>
+      <label title="base64url of the room: short, safe in any chat"><input type="radio" name="shareFormat" value="b64" checked> compact</label>
+      <label title="the room's JSON, URL-encoded: readable once decoded, longer"><input type="radio" name="shareFormat" value="json"> readable JSON</label>
+    </fieldset>
+  </div>
+  <label class="field share-link">The link
+    <span class="share-row">
+      <input id="shareUrl" type="text" readonly spellcheck="false" aria-label="the share link">
+      <button type="button" id="shareCopy" class="btn">Copy</button>
+      <a id="shareOpen" class="btn ghost" target="_blank" rel="noopener" title="open the link in a new tab">open ↗</a>
+    </span>
+  </label>
+  <p id="shareStatus" class="status" aria-live="polite"></p>
+  <label class="field">The room, as the link carries it <small>(edit it: the link follows, until the parts above change)</small>
+    <textarea id="shareJson" rows="8" spellcheck="false" aria-label="the room's JSON"></textarea></label>
+  <div class="stage-bar"><button type="button" id="shareClose" class="btn ghost">Close</button></div>
+</dialog>
+
+<!-- The welcome: an assistant has said hello on the bridge, and the person picks how to build a first
+     room with it. The cards are src/guide.js GUIDE_MODES (the page draws them); the pick goes to the
+     bridge, where the assistant reads the White Rabbit's guide step by step. A checkout only. -->
+<dialog id="guideDialog" class="ai guide dev-only" aria-labelledby="guideTitle">
+  <h2 id="guideTitle">Your assistant is here</h2>
+  <p class="note" id="guideNote">Pick a way to build your first room together. Whichever you choose, you can change your mind,
+    ask for help, or hand any step to the assistant.</p>
+  <div id="guidePicks" class="guide-picks" role="group" aria-label="how to build the first room"></div>
+  <p class="guide-else"><small>Not a first room?</small> <button type="button" id="guideOpen" class="btn ghost" aria-haspopup="dialog" aria-controls="openDialog">Open an existing level…</button>
+    <small>a stage, one of the community's, one from your shelf, or a link someone sent - and carry it on together.</small></p>
+  <div class="stage-bar">
+    <button type="button" id="guideLater" class="btn ghost">I'll look around first</button>
+    <span id="guideStatus" class="status">You can bring this back any time: type "guide" to the assistant, or it can open it.</span>
+  </div>
+</dialog>
+
+<!-- Open a level: what to work on when it is not a new one. A new room or a new level of a range; a copy of a shipped stage;
+     one of the community's levels; one from the shelf; or a share link pasted in (?level=, src/level.js decodeShare), the same
+     link the stages page and the Share dialog make. Open… in the stage bar, the welcome banner, ?open=1 and a first visit
+     show it. A checkout only. -->
+<dialog id="openDialog" class="ai open-level dev-only" aria-labelledby="openTitle">
+  <h2 id="openTitle">What will you work on?</h2>
+  <p class="note">Start something new, or carry on a level that is already there: a copy of a stage, one of the community's,
+    one from your shelf, or a level someone shared with you in a link. Whatever you pick replaces what is on the board.</p>
+  <div class="open-grid">
+    <section class="open-group" data-group="new"><h3>New</h3><div class="open-list" id="openNew"></div></section>
+    <section class="open-group" data-group="stages"><h3>The stages</h3><div class="open-list" id="openStages"></div></section>
+    <section class="open-group" data-group="community"><h3>The community's</h3><div class="open-list" id="openCommunity"></div></section>
+    <section class="open-group" data-group="shelf"><h3>My shelf</h3><div class="open-list" id="openShelf"></div></section>
+  </div>
+  <label class="field">A link someone sent <span class="share-row">
+    <input id="openLink" type="text" placeholder="paste a share link, or its level= token" spellcheck="false" autocomplete="off">
+    <button type="button" id="openLinkBtn" class="btn">Open it</button></span></label>
+  <div class="stage-bar">
+    <button type="button" id="openClose" class="btn ghost">Keep what is on the board</button>
+    <span id="openStatus" class="status"></span>
+  </div>
+</dialog>
+
+<script type="module" src="src/maker.js"></script>
+</body>
+</html>

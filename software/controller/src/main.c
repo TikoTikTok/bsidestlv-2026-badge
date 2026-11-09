@@ -26,15 +26,33 @@
  *   GPIO23 -> START
  *   GPIO24 -> SELECT
  *   GPIO8  -> status LED (active-high)
+ *
+ * Between the buttons and the USB report sits the quick-glitch layer
+ * (glitch.c): SELECT is a shift key that records a take of button presses
+ * and replays it, scaled and delayed, on command. See glitch.h.
+ *
+ * Holding SELECT + START for two seconds reboots into the RP2040's UF2
+ * bootloader (the RPI-RP2 drive), so new firmware goes on over USB without
+ * reaching the BootSel button. software/tools/flash-badge.py does the copy.
+ *
+ * The badge also carries the game's stage key (vault.c): the last flash
+ * sector holds it, HID feature report 0xF1 reads and writes it, and holding
+ * SELECT + Y spells it out on the stick axes for browsers without WebHID.
  */
 
 #include <string.h>
 
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
+#include "pico/unique_id.h"
+#include "hardware/flash.h"
+#include "hardware/sync.h"
 #include "tusb.h"
 
 #include "usb_descriptors.h"
 #include "ds4.h"
+#include "glitch.h"
+#include "vault.h"
 
 //--------------------------------------------------------------------+
 // Pin configuration
@@ -67,6 +85,153 @@ static inline bool button_pressed(uint8_t pin)
   return !gpio_get(pin);
 }
 
+// Every button as one glitch_t mask, read in a single pass.
+static uint16_t read_buttons(void)
+{
+  uint16_t m = 0;
+  if (button_pressed(PIN_UP))     m |= GLITCH_BTN_UP;
+  if (button_pressed(PIN_DOWN))   m |= GLITCH_BTN_DOWN;
+  if (button_pressed(PIN_LEFT))   m |= GLITCH_BTN_LEFT;
+  if (button_pressed(PIN_RIGHT))  m |= GLITCH_BTN_RIGHT;
+  if (button_pressed(PIN_A))      m |= GLITCH_BTN_A;
+  if (button_pressed(PIN_B))      m |= GLITCH_BTN_B;
+  if (button_pressed(PIN_X))      m |= GLITCH_BTN_X;
+  if (button_pressed(PIN_Y))      m |= GLITCH_BTN_Y;
+  if (button_pressed(PIN_SL))     m |= GLITCH_BTN_SL;
+  if (button_pressed(PIN_SR))     m |= GLITCH_BTN_SR;
+  if (button_pressed(PIN_START))  m |= GLITCH_BTN_START;
+  if (button_pressed(PIN_SELECT)) m |= GLITCH_BTN_SELECT;
+  return m;
+}
+
+static inline uint32_t now_ms(void)
+{
+  return to_ms_since_boot(get_absolute_time());
+}
+
+//--------------------------------------------------------------------+
+// Reboot to the UF2 bootloader
+//--------------------------------------------------------------------+
+
+// Hold SELECT + START for two seconds and the badge reboots into the RP2040
+// ROM bootloader, which mounts as the RPI-RP2 drive: copy a UF2 onto it and
+// the board comes back running it. That is what BootSel + Reset do, without
+// having to reach either button. Under SELECT nothing reaches the host
+// anyway and START is not a quick-glitch command, so the chord is free.
+#define BOOTSEL_CHORD    (GLITCH_BTN_SELECT | GLITCH_BTN_START)
+#define BOOTSEL_HOLD_MS  2000u
+
+static void bootsel_task(uint16_t physical)
+{
+  static bool     holding = false;
+  static uint32_t since_ms = 0;
+
+  if ( (physical & BOOTSEL_CHORD) != BOOTSEL_CHORD ) { holding = false; return; }
+  if ( !holding ) { holding = true; since_ms = now_ms(); return; }
+  if ( now_ms() - since_ms < BOOTSEL_HOLD_MS ) return;
+
+  gpio_put(PIN_LED, 0);
+  reset_usb_boot(0, 0);   // does not return
+}
+
+//--------------------------------------------------------------------+
+// The vault
+//--------------------------------------------------------------------+
+
+// The record lives in the last sector of the flash the board is built for.
+// The image is ~45 KB at the start of a 2 MB (pico) layout and the badge's
+// own chip is 16 MB, so the sector is never touched by a UF2 and survives
+// reflashing: a provisioned badge stays provisioned across firmware updates.
+#define VAULT_FLASH_OFFSET  (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+
+static vault_t vault;
+
+// A flash write is deferred to the main loop: the SET report arrives inside
+// a control transfer, and erasing a sector (tens of ms, interrupts off) in
+// the callback would stall the transfer's status stage past what some hosts
+// wait for. The loop writes once the transfer has completed.
+static vault_set_t vault_pending = VAULT_SET_IGNORED;
+
+static void vault_setup(void)
+{
+  pico_unique_board_id_t id;
+  pico_get_unique_board_id(&id);
+  vault_init(&vault, id.id);
+  vault_load(&vault, (const uint8_t *) (XIP_BASE + VAULT_FLASH_OFFSET), VAULT_RECORD_LEN);
+}
+
+static void vault_task(void)
+{
+  if ( vault_pending != VAULT_SET_STORE && vault_pending != VAULT_SET_ERASE ) return;
+  const vault_set_t op = vault_pending;
+  vault_pending = VAULT_SET_IGNORED;
+
+  uint8_t page[FLASH_PAGE_SIZE];
+  memset(page, 0xFF, sizeof(page));
+  if ( op == VAULT_SET_STORE ) vault_record(&vault, page, sizeof(page));
+
+  const uint32_t ints = save_and_disable_interrupts();
+  flash_range_erase(VAULT_FLASH_OFFSET, FLASH_SECTOR_SIZE);
+  if ( op == VAULT_SET_STORE ) flash_range_program(VAULT_FLASH_OFFSET, page, sizeof(page));
+  restore_interrupts(ints);
+}
+
+// GET feature report 0xF1: the vault, and whether SELECT is down right now
+// so a provisioning page can tell the user to hold it.
+uint16_t app_vault_get_report(uint8_t *buffer, uint16_t reqlen)
+{
+  uint8_t report[VAULT_REPORT_LEN];
+  const bool select_held = read_buttons() & GLITCH_BTN_SELECT;
+  vault_report(&vault, select_held, report, sizeof(report));
+  const uint16_t len = reqlen < sizeof(report) ? reqlen : (uint16_t) sizeof(report);
+  memcpy(buffer, report, len);
+  return len;
+}
+
+// SET feature report 0xF1: store or erase, gated by physical SELECT.
+void app_vault_set_report(uint8_t const *buffer, uint16_t bufsize)
+{
+  const bool select_held = read_buttons() & GLITCH_BTN_SELECT;
+  const vault_set_t r = vault_handle_set(&vault, buffer, bufsize, select_held);
+  if ( r == VAULT_SET_STORE || r == VAULT_SET_ERASE ) vault_pending = r;
+}
+
+// The beacon: while SELECT + Y is held the stick axes carry the vault. The
+// engine swallows Y under SELECT (it is no command) and the hold counts as
+// used, so no stray SELECT tap reaches the host afterwards.
+#define BEACON_CHORD  (GLITCH_BTN_SELECT | GLITCH_BTN_Y)
+
+static bool     beacon_on = false;
+static uint32_t beacon_since_ms = 0;
+
+static void beacon_task(uint16_t physical)
+{
+  const bool chord = (physical & BEACON_CHORD) == BEACON_CHORD;
+  if ( chord && !beacon_on ) beacon_since_ms = now_ms();
+  beacon_on = chord;
+}
+
+//--------------------------------------------------------------------+
+// Quick glitch
+//--------------------------------------------------------------------+
+
+static glitch_t glitch;
+
+// What the host should see. The engine runs every loop iteration, far faster
+// than reports go out, so a replayed press shorter than one report interval
+// would fall between two reports and vanish. Instead every button that was
+// down at any moment since the last report is latched into the next one: a
+// 300 us pulse still shows up as one report's worth of "pressed".
+static uint16_t latched_buttons = 0;
+
+static void glitch_task(void)
+{
+  uint16_t physical = read_buttons();
+  bootsel_task(physical);
+  beacon_task(physical);
+  latched_buttons |= glitch_update(&glitch, time_us_32(), physical);
+}
+
 //--------------------------------------------------------------------+
 // Status LED
 //--------------------------------------------------------------------+
@@ -75,15 +240,11 @@ static inline bool button_pressed(uint8_t pin)
 enum {
   BLINK_NOT_MOUNTED = 250,
   BLINK_SUSPENDED   = 1000,
+  BLINK_RECORDING   = 100,   // quick glitch: a take is being recorded
 };
 
 // 0 means "don't blink, let the application drive the LED directly".
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
-
-static inline uint32_t now_ms(void)
-{
-  return to_ms_since_boot(get_absolute_time());
-}
 
 static void board_setup(void)
 {
@@ -146,30 +307,39 @@ static uint8_t compute_hat(bool up, bool down, bool left, bool right)
   return DS4_HAT_NONE;
 }
 
-static void build_report(ds4_input_report_t *report, uint8_t counter, uint16_t timestamp)
+static void build_report(ds4_input_report_t *report, uint16_t buttons,
+                         uint8_t counter, uint16_t timestamp)
 {
   memset(report, 0, sizeof(*report));
 
-  // No analog sticks on this board: report both centred and both triggers released.
+  // No analog sticks on this board: report both centred and both triggers
+  // released - unless the beacon is spelling the vault out on them.
   report->lx = report->ly = DS4_STICK_CENTER;
   report->rx = report->ry = DS4_STICK_CENTER;
+  if ( beacon_on )
+  {
+    uint8_t axes[4];
+    vault_beacon_axes(&vault, now_ms() - beacon_since_ms, axes);
+    report->lx = axes[0]; report->ly = axes[1];
+    report->rx = axes[2]; report->ry = axes[3];
+  }
 
   report->buttons0 = compute_hat(
-      button_pressed(PIN_UP),
-      button_pressed(PIN_DOWN),
-      button_pressed(PIN_LEFT),
-      button_pressed(PIN_RIGHT));
+      buttons & GLITCH_BTN_UP,
+      buttons & GLITCH_BTN_DOWN,
+      buttons & GLITCH_BTN_LEFT,
+      buttons & GLITCH_BTN_RIGHT);
 
   // Game Boy face buttons map onto the DualShock diamond in the same positions.
-  if (button_pressed(PIN_A))      report->buttons0 |= DS4_BTN_CROSS;
-  if (button_pressed(PIN_B))      report->buttons0 |= DS4_BTN_CIRCLE;
-  if (button_pressed(PIN_X))      report->buttons0 |= DS4_BTN_SQUARE;
-  if (button_pressed(PIN_Y))      report->buttons0 |= DS4_BTN_TRIANGLE;
+  if (buttons & GLITCH_BTN_A)      report->buttons0 |= DS4_BTN_CROSS;
+  if (buttons & GLITCH_BTN_B)      report->buttons0 |= DS4_BTN_CIRCLE;
+  if (buttons & GLITCH_BTN_X)      report->buttons0 |= DS4_BTN_SQUARE;
+  if (buttons & GLITCH_BTN_Y)      report->buttons0 |= DS4_BTN_TRIANGLE;
 
-  if (button_pressed(PIN_SL))     report->buttons1 |= DS4_BTN_L1;
-  if (button_pressed(PIN_SR))     report->buttons1 |= DS4_BTN_R1;
-  if (button_pressed(PIN_START))  report->buttons1 |= DS4_BTN_OPTIONS;
-  if (button_pressed(PIN_SELECT)) report->buttons1 |= DS4_BTN_SHARE;
+  if (buttons & GLITCH_BTN_SL)     report->buttons1 |= DS4_BTN_L1;
+  if (buttons & GLITCH_BTN_SR)     report->buttons1 |= DS4_BTN_R1;
+  if (buttons & GLITCH_BTN_START)  report->buttons1 |= DS4_BTN_OPTIONS;
+  if (buttons & GLITCH_BTN_SELECT) report->buttons1 |= DS4_BTN_SHARE;
 
   // The low two bits of buttons2 are PS and touchpad-click; the counter lives
   // in the upper six and must advance on every report.
@@ -180,41 +350,47 @@ static void build_report(ds4_input_report_t *report, uint8_t counter, uint16_t t
   report->touch_count = 0;
 }
 
-// Poll buttons and stream a report to the host. Unlike a generic HID gamepad
-// we send on every interval rather than only on change: the real controller
-// streams continuously, and the report counter has to keep moving for drivers
-// that use it to detect a stalled device.
+// Stream a report to the host. Unlike a generic HID gamepad we send on every
+// interval rather than only on change: the real controller streams
+// continuously, and the report counter has to keep moving for drivers that
+// use it to detect a stalled device.
+//
+// The interval is 1 ms, the fastest a full-speed interrupt endpoint goes,
+// because the glitch offset is set in 1 ms steps and a 5 ms report clock
+// would round it to the nearest 5.
 static void hid_task(void)
 {
-  const uint32_t poll_interval_ms = 5;
   static uint32_t last_poll_ms = 0;
   static uint8_t counter = 0;
   static uint16_t timestamp = 0;
 
-  if ( now_ms() - last_poll_ms < poll_interval_ms ) return;
-  last_poll_ms = now_ms();
+  if ( now_ms() - last_poll_ms < DS4_REPORT_INTERVAL_MS ) return;
 
-  ds4_input_report_t report;
-  build_report(&report, counter, timestamp);
-
-  // Wake the host if we are suspended and the user presses something.
+  // Wake the host if we are suspended and the user presses something. The
+  // latch is left alone so the press is still in the first report after.
   if ( tud_suspended() )
   {
-    if ( (report.buttons0 & 0xF0) || report.buttons1 ||
-         (report.buttons0 & 0x0F) != DS4_HAT_NONE )
-    {
-      tud_remote_wakeup();
-    }
+    if ( latched_buttons ) tud_remote_wakeup();
     return;
   }
 
+  // Not ready means the previous report is still in flight; keep latching
+  // into the next one rather than dropping what was pressed meanwhile.
   if ( !tud_hid_ready() ) return;
+  last_poll_ms = now_ms();
+
+  // take the latch; whatever is down right now seeds the next one
+  uint16_t buttons = latched_buttons;
+  latched_buttons = glitch_update(&glitch, time_us_32(), read_buttons());
+
+  ds4_input_report_t report;
+  build_report(&report, buttons, counter, timestamp);
 
   if ( tud_hid_report(DS4_REPORT_ID_INPUT, &report, sizeof(report)) )
   {
     counter = (uint8_t) ((counter + 1) & 0x3F);
-    // 5.33 us ticks, so a 5 ms interval advances the stamp by ~938.
-    timestamp = (uint16_t) (timestamp + 938);
+    // the stamp counts 5.33 us (16/3 us) ticks: 187.5 per millisecond
+    timestamp = (uint16_t) (timestamp + (DS4_REPORT_INTERVAL_MS * 1000u * 3u) / 16u);
   }
 }
 
@@ -224,10 +400,20 @@ static void hid_task(void)
 
 static void led_task(void)
 {
+  // The quick-glitch layer owns the LED while it is doing something: a fast
+  // blink while recording, solid while a replay is running.
+  if ( glitch.mode == GLITCH_FIRING )
+  {
+    gpio_put(PIN_LED, 1);
+    return;
+  }
+  const uint32_t interval_ms = glitch.mode == GLITCH_RECORDING ? BLINK_RECORDING
+                                                                : blink_interval_ms;
+
   // When mounted (blink_interval_ms == 0) light the LED while any input is
   // active, giving immediate tactile feedback. Otherwise blink to signal the
   // current USB state.
-  if ( blink_interval_ms == 0 )
+  if ( interval_ms == 0 )
   {
     bool any = false;
 
@@ -243,7 +429,7 @@ static void led_task(void)
   static uint32_t last_toggle_ms = 0;
   static bool led_on = false;
 
-  if ( now_ms() - last_toggle_ms < blink_interval_ms ) return;
+  if ( now_ms() - last_toggle_ms < interval_ms ) return;
   last_toggle_ms = now_ms();
 
   led_on = !led_on;
@@ -257,13 +443,17 @@ static void led_task(void)
 int main(void)
 {
   board_setup();
+  glitch_init(&glitch);
+  vault_setup();
 
   tud_init(BOARD_TUD_RHPORT);
 
   while (1)
   {
-    tud_task();   // service the USB device stack
-    hid_task();   // read buttons and send reports
-    led_task();   // status / activity LED
+    tud_task();      // service the USB device stack
+    vault_task();    // a deferred key write, if a SET report asked for one
+    glitch_task();   // read buttons through the record / replay layer
+    hid_task();      // send what the layer produced
+    led_task();      // status / activity LED
   }
 }

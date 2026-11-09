@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "alice-maker": {
+      "command": "node",
+      "args": ["software/tools/maker-mcp.mjs"],
+      "env": { "MAKER_URL": "http://localhost:8080" }
+    }
+  }
+}

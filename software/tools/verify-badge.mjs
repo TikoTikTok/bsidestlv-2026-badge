@@ -1,0 +1,631 @@
+// Proves the badge gate works without a badge: src/vault.js reads and writes
+// the vault of a model of the firmware (fake-badge.mjs) over the WebHID
+// surface and decodes its stick-axis beacon at browser sampling rates, the
+// wire formats match the firmware's host test (test_vault.c) byte for byte,
+// src/seal.js round-trips a stage under a badge key and refuses the wrong
+// one, src/pad.js only lets the badge in outside a dev host, src/gate.js
+// knows when the badge has gone (the watch behind the reconnect dialog), and
+// the picture of the badge the pages point with (src/prompt.js) is the board's
+// (src/badge-shape.js, generated) with its timeline in order.
+//
+//   node software/tools/verify-badge.mjs
+
+import { parseVaultReport, buildSetReport, BeaconDecoder, beaconAxes, beaconFrame, crc32,
+         CMD, STATE, REPORT_ID, REPORT_LEN, BEACON, hex, unhex } from '../../src/vault.js';
+import { seal, unseal, isSealed } from '../../src/seal.js';
+import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT, BUTTONS, FLIP, flipButton, isUpsideDown, flipFor, readGamepad, autoFlipped } from '../../src/pad.js';
+import { Tilt, tilt, upVector, deviceAngle, pageTurn, screenTurn, FLIP_AT, BACK_AT, FLAT } from '../../src/tilt.js';
+import { BadgeWatch } from '../../src/gate.js';
+import { expandBeat, schedule, frameBox, TIMING, KEYWORDS, PIVOT } from '../../src/prompt.js';
+import { OUTLINE, KEYS, USB, LED, CAP, BOX } from '../../src/badge-shape.js';
+import { FakeBadge } from './fake-badge.mjs';
+import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+let failed = 0;
+const fail = (msg) => { failed++; console.error(`  FAIL ${msg}`); };
+const ok = (cond, msg) => { if (!cond) fail(msg); };
+const throws = (fn, re, msg) => {
+  try { fn(); fail(`${msg}: did not throw`); }
+  catch (e) { if (!re.test(e.message)) fail(`${msg}: threw "${e.message}"`); }
+};
+const rejects = async (p, re, msg) => {
+  try { await p; fail(`${msg}: did not reject`); }
+  catch (e) { if (!re.test(e.message)) fail(`${msg}: rejected with "${e.message}"`); }
+};
+const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+// the key and serial test_vault.c uses, so both tests can pin the same bytes
+const KEY = Uint8Array.from({ length: 32 }, (_, i) => (i * 7 + 3) & 0xFF);
+const SERIAL = Uint8Array.from([0xE6, 0x60, 0x58, 0x38, 0x83, 0x4B, 0x5A, 0x2E]);
+
+// ------------------------------------------------------------ formats ----
+
+console.log('vault: wire formats');
+ok(crc32(new TextEncoder().encode('123456789')) === 0xCBF43926, 'crc32 check value');
+ok(crc32(new Uint8Array(0)) === 0, 'crc32 of nothing');
+ok(hex(unhex('00ff10')) === '00ff10', 'hex round trip');
+throws(() => unhex('abc'), /odd/, 'odd hex');
+
+{
+  const blank = new FakeBadge({ serial: SERIAL });
+  const r = parseVaultReport(await blank.receiveFeatureReport(REPORT_ID));
+  ok(r.version === 1 && !r.provisioned && r.key === null && r.label === '', 'blank badge parses as unprovisioned');
+  ok(r.serialHex === 'e66058 38834b5a2e'.replace(' ', ''), `serial ${r.serialHex}`);
+  ok(!r.selectHeld && !r.writeDenied && !r.writeOk, 'blank state flags');
+
+  // a plain DualShock 4 answers 0xF1 with zeros: not a badge
+  const zeros = new DataView(new Uint8Array(REPORT_LEN + 1).fill(0).buffer);
+  zeros.setUint8(0, REPORT_ID);
+  throws(() => parseVaultReport(zeros), /not a badge/, 'a real controller is refused');
+  throws(() => parseVaultReport(new Uint8Array(10)), /expected 63/, 'short report refused');
+
+  const set = buildSetReport(CMD.STORE, KEY, 'bsidestlv26');
+  ok(set.length === REPORT_LEN && String.fromCharCode(...set.subarray(0, 5)) === 'ALICE' && set[5] === CMD.STORE, 'SET header');
+  ok(same(set.subarray(6, 38), KEY) && String.fromCharCode(...set.subarray(38, 49)) === 'bsidestlv26', 'SET body');
+  throws(() => buildSetReport(CMD.STORE, new Uint8Array(32), 'x'), /zero/, 'zero key refused by the page too');
+  throws(() => buildSetReport(CMD.STORE, new Uint8Array(16), 'x'), /32 bytes/, 'short key refused');
+  throws(() => buildSetReport(CMD.STORE, KEY, 'a label that is too long'), /at most 15/, 'long label refused');
+  throws(() => buildSetReport(7), /unknown/, 'unknown command refused');
+  ok(buildSetReport(CMD.ERASE)[5] === CMD.ERASE, 'ERASE builds');
+}
+
+// ------------------------------------------------------- write policy ----
+
+console.log('vault: provisioning over WebHID');
+{
+  const badge = new FakeBadge({ serial: SERIAL });
+  await badge.sendFeatureReport(REPORT_ID, buildSetReport(CMD.STORE, KEY, 'first'));
+  let r = parseVaultReport(await badge.receiveFeatureReport(REPORT_ID));
+  ok(r.provisioned && same(r.key, KEY) && r.label === 'first' && r.writeOk, 'first key stored without the chord');
+
+  const other = Uint8Array.from({ length: 32 }, (_, i) => 0xA0 + i);
+  await badge.sendFeatureReport(REPORT_ID, buildSetReport(CMD.STORE, other, 'second'));
+  r = parseVaultReport(await badge.receiveFeatureReport(REPORT_ID));
+  ok(same(r.key, KEY) && r.writeDenied && !r.writeOk, 'a re-key without SELECT is denied and reported');
+
+  badge.selectHeld = true;
+  r = parseVaultReport(await badge.receiveFeatureReport(REPORT_ID));
+  ok(r.selectHeld, 'the chord shows in the state');
+  await badge.sendFeatureReport(REPORT_ID, buildSetReport(CMD.STORE, other, 'second'));
+  r = parseVaultReport(await badge.receiveFeatureReport(REPORT_ID));
+  ok(same(r.key, other) && r.label === 'second' && r.writeOk, 're-key with SELECT held');
+
+  badge.selectHeld = false;
+  await badge.sendFeatureReport(REPORT_ID, buildSetReport(CMD.ERASE));
+  ok(badge.provisioned, 'erase without SELECT is denied');
+  badge.selectHeld = true;
+  await badge.sendFeatureReport(REPORT_ID, buildSetReport(CMD.ERASE));
+  r = parseVaultReport(await badge.receiveFeatureReport(REPORT_ID));
+  ok(!r.provisioned && r.key === null && r.writeOk, 'erase with SELECT held');
+  ok(badge.writes.length === 3, `three flash writes (${badge.writes.length})`);
+}
+
+// -------------------------------------------------------------- beacon ----
+
+console.log('vault: the beacon');
+{
+  const badge = new FakeBadge({ serial: SERIAL, key: KEY, label: 'beacon' });
+  const frame = badge.frame();
+  ok(frame.length === BEACON.FRAME_BYTES && frame[0] === 1 && frame[1] === STATE.PROVISIONED, 'frame header');
+  ok(same(frame.subarray(2, 10), SERIAL) && same(frame.subarray(10, 42), KEY), 'frame body');
+
+  // the symbols test_vault.c pins, so the C encoder and this one agree
+  ok(same(beaconAxes(frame, 0), [0x30, BEACON.level(0), BEACON.level(1), BEACON.level(0)]), 'symbol 0 as in test_vault.c');
+  ok(same(beaconAxes(frame, 50), [0xD0, BEACON.level(1), BEACON.level(14), BEACON.level(6)]), 'symbol 1 as in test_vault.c');
+  ok(same(beaconAxes(frame, 31 * 50), [0x80, 0x80, 0x80, 0x80]), 'the gap');
+  ok(beaconAxes(frame, BEACON.PERIOD_MS)[0] === 0x30, 'repeats');
+
+  // decode what a browser would hand the page, sampled at 60 Hz from any phase
+  for (let phase = 0; phase < 50; phase += 7.3) {
+    const dec = new BeaconDecoder();
+    badge.chord(true, 1000);
+    let got = null;
+    for (let t = 1000 + phase; t < 1000 + 2 * BEACON.PERIOD_MS + 100 && !got; t += 1000 / 60) got = dec.sample(badge.gamepad(t).axes);
+    ok(got && same(got.key, KEY) && got.serialHex === hex(SERIAL) && got.provisioned && got.source === 'beacon',
+       `60 Hz, phase ${phase.toFixed(1)} ms decodes`);
+    badge.chord(false, 5000);
+  }
+  // slow and fast samplers, and the 4 ms poll pad.js uses
+  for (const stepMs of [1000 / 30, 4, 1]) {
+    const dec = new BeaconDecoder();
+    badge.chord(true, 0);
+    let got = null;
+    for (let t = 3; t < 2 * BEACON.PERIOD_MS + 100 && !got; t += stepMs) got = dec.sample(badge.gamepad(t).axes);
+    ok(got && same(got.key, KEY), `${(1000 / stepMs).toFixed(0)} Hz decodes`);
+    badge.chord(false, 9999);
+  }
+  // nothing to decode from a plain pad: centred sticks never open a frame
+  {
+    const dec = new BeaconDecoder();
+    badge.chord(false, 0);
+    for (let t = 0; t < 3000; t += 16) ok(dec.sample(badge.gamepad(t).axes) === null, 'centred sticks are silence');
+    ok(dec.progress === 0 && !dec.active, 'no frame in progress');
+  }
+  // a corrupted symbol fails the CRC and the decoder goes on to the next frame
+  {
+    const dec = new BeaconDecoder();
+    badge.chord(true, 0);
+    let got = null, n = 0;
+    for (let t = 2; t < 3 * BEACON.PERIOD_MS && !got; t += 16, n++) {
+      const axes = badge.gamepad(t).axes;
+      if (t > 600 && t < 700) axes[2] = axes[2] > 0 ? axes[2] - 0.13 : axes[2] + 0.13;   // one nibble off by a level
+      got = dec.sample(axes);
+    }
+    ok(got && same(got.key, KEY) && dec.bad >= 1 && dec.frames === 1, `a damaged frame is dropped (${dec.bad} bad), the next one lands`);
+  }
+  // an unprovisioned badge beacons its serial and no key
+  {
+    const blank = new FakeBadge({ serial: SERIAL });
+    const dec = new BeaconDecoder();
+    blank.chord(true, 0);
+    let got = null;
+    for (let t = 0; t < 2 * BEACON.PERIOD_MS && !got; t += 16) got = dec.sample(blank.gamepad(t).axes);
+    ok(got && !got.provisioned && got.key === null && got.serialHex === hex(SERIAL), 'blank badge beacons without a key');
+  }
+  // the progress bar moves
+  {
+    const dec = new BeaconDecoder();
+    badge.chord(true, 0);
+    for (let t = 0; t < 800; t += 16) dec.sample(badge.gamepad(t).axes);
+    ok(dec.active && dec.progress > 0.4 && dec.progress < 0.6, `progress mid-frame ${dec.progress.toFixed(2)}`);
+  }
+}
+
+// ------------------------------------------------------- sealed stages ----
+
+console.log('seal: a stage under the badge key');
+{
+  const { QUEENS_GAUNTLET } = await import('../../stages/queens-gauntlet.js');
+  const blob = await seal(QUEENS_GAUNTLET, KEY, 'queens-gauntlet');
+  ok(isSealed(blob) && blob.id === 'queens-gauntlet' && blob.kdf === 'HKDF-SHA256', 'sealed blob shape');
+  ok(/^[0-9a-f]{32}$/.test(blob.salt) && /^[0-9a-f]{24}$/.test(blob.iv), 'salt and iv');
+  ok(!JSON.stringify(blob).includes('#########'), 'the map is not in the clear');
+
+  const back = await unseal(blob, KEY);
+  ok(JSON.stringify(back) === JSON.stringify(QUEENS_GAUNTLET), 'round trip');
+
+  const wrong = Uint8Array.from(KEY); wrong[3] ^= 1;
+  await rejects(unseal(blob, wrong), /does not open/, 'wrong key');
+  await rejects(unseal(blob, null), /needs the key/, 'no key');
+  const tampered = { ...blob, ct: blob.ct.slice(0, 10) + (blob.ct[10] === 'A' ? 'B' : 'A') + blob.ct.slice(11) };
+  await rejects(unseal(tampered, KEY), /does not open/, 'tampered ciphertext');
+  await rejects(unseal({ ...blob, id: 'tea-party' }, KEY), /does not open/, 'renamed stage');
+  await rejects(unseal({ sealed: 2 }, KEY), /not a sealed/, 'unknown format');
+  await rejects(seal({}, KEY, 'Bad Id'), /stage id/, 'id rules');
+  await rejects(seal({}, new Uint8Array(16), 'x'), /32 bytes/, 'key length');
+
+  // two seals of the same stage differ (fresh salt and iv) and both open
+  const again = await seal(QUEENS_GAUNTLET, KEY, 'queens-gauntlet');
+  ok(again.ct !== blob.ct && again.salt !== blob.salt, 'fresh salt and iv per seal');
+  ok(JSON.stringify(await unseal(again, KEY)) === JSON.stringify(QUEENS_GAUNTLET), 'second seal opens');
+}
+
+// --------------------------------------------------------- input policy ----
+
+console.log('pad: who may play');
+{
+  // the badge is known by its name, in every browser's spelling of Gamepad.id
+  ok(BADGE_PRODUCT.length <= 32, 'the product string fits the firmware\'s 32-character descriptor buffer');
+  ok(isBadgeId(new FakeBadge().gamepad(0).id), 'the fake badge announces itself');
+  for (const id of [`${BADGE_PRODUCT} (STANDARD GAMEPAD Vendor: 054c Product: 09cc)`, `054c-09cc-${BADGE_PRODUCT}`, BADGE_PRODUCT])
+    ok(isBadgeId(id), `badge id recognised: ${id}`);
+  for (const id of ['Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)', '054c-09cc-Wireless Controller', 'Xbox 360 Controller (XInput STANDARD GAMEPAD)', undefined])
+    ok(!isBadgeId(id), `not a badge: ${id}`);
+  ok(isDevHost('localhost') && isDevHost('127.0.0.1') && isDevHost('[::1]') && isDevHost(''), 'dev hosts');
+  ok(!isDevHost('tikotiktok.github.io') && !isDevHost('bsidestlv.github.io') && !isDevHost('localhost.evil.example'), 'the site is not dev');
+  ok(same([...sourcesFor(true)].sort(), ['key', 'pad', 'ui']), 'dev: every source');
+  ok(same([...sourcesFor(false)], ['pad']), 'site: the badge only');
+
+  const seen = [];
+  const pad = new Pad({ sources: sourcesFor(false) });
+  pad.on(e => seen.push(e));
+  ok(pad.inject('A', true) === false && seen.length === 0, 'inject refused on the site');
+  pad._emit('A', true, 1, 'key');
+  ok(seen.length === 0 && !pad.held.has('A'), 'keyboard edge dropped on the site');
+  pad._emit('A', true, 2, 'pad');
+  ok(seen.length === 1 && seen[0].source === 'pad' && pad.held.has('A'), 'badge edge passes');
+
+  const dev = new Pad({ sources: sourcesFor(true) });
+  const got = [];
+  dev.on(e => got.push(e));
+  ok(dev.inject('B', true, 3) === true && got.length === 1 && got[0].source === 'ui', 'inject works in dev');
+
+  // the gate's pause: while the badge is away no source reaches a listener
+  pad.muted = true;
+  pad._emit('B', true, 4, 'pad');
+  ok(seen.length === 1 && !pad.held.has('B'), 'a badge edge is dropped while muted');
+  dev.muted = true;
+  ok(dev.inject('X', true, 5) === false && got.length === 1, 'inject says no while muted, even in dev');
+  pad.muted = false;
+  pad._emit('B', true, 6, 'pad');
+  ok(seen.length === 2 && pad.held.has('B'), 'and passes again after');
+}
+
+// ------------------------------------------------- the phone upside down ----
+
+console.log('pad: the phone (and so the badge) upside down');
+{
+  // a half turn is its own inverse, and it only moves the d-pad and the diamond
+  ok(Object.keys(FLIP).every(b => FLIP[FLIP[b]] === b), 'FLIP is an involution');
+  ok(same(Object.keys(FLIP).sort(), ['A', 'B', 'DOWN', 'LEFT', 'RIGHT', 'UP', 'X', 'Y']), 'FLIP turns the d-pad and the diamond only');
+  ok(BUTTONS.filter(b => !(b in FLIP)).every(b => flipButton(b) === b), 'SL, SR, START, SELECT stay where they are');
+  ok(flipButton('UP') === 'DOWN' && flipButton('LEFT') === 'RIGHT' && flipButton('A') === 'Y' && flipButton('B') === 'X', 'UP<->DOWN, LEFT<->RIGHT, A<->Y, B<->X');
+
+  // what the screen says
+  for (const type of ['portrait-secondary', 'landscape-secondary'])
+    ok(isUpsideDown({ orientation: { type } }), `${type} is upside down`);
+  for (const type of ['portrait-primary', 'landscape-primary'])
+    ok(!isUpsideDown({ orientation: { type } }), `${type} is not`);
+  ok(isUpsideDown({ orientation: undefined, angle: 180 }) && isUpsideDown({ orientation: {}, angle: -180 }), 'window.orientation 180 when screen.orientation is missing');
+  ok(!isUpsideDown({ orientation: undefined, angle: 0 }) && !isUpsideDown({ orientation: undefined, angle: 90 }) && !isUpsideDown({ orientation: undefined, angle: undefined }), '0 / 90 / unknown are not');
+  ok(flipFor('?flip=1') === true && flipFor('?flip=0') === false && flipFor('?look=bench') === 'auto' && flipFor('') === 'auto', '?flip= pins, otherwise auto');
+
+  // a standard-mapping gamepad with cross (0) and d-pad UP (12) down, SL (4) too
+  const gp = { mapping: 'standard', axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: [0, 4, 12].includes(i), value: 0 })) };
+  ok(same([...readGamepad(gp)].sort(), ['A', 'SL', 'UP']), 'the right way up: A, SL, UP');
+  ok(same([...readGamepad(gp, true)].sort(), ['DOWN', 'SL', 'Y']), 'upside down: the same presses read DOWN, SL, Y');
+  // the hat (Firefox raw mapping) turns too: north reads DOWN
+  const raw = { mapping: '', axes: [0, 0, 0, 0, 0, 0, 0, 0, 0, -1], buttons: [] };
+  ok(same([...readGamepad(raw)], ['UP']) && same([...readGamepad(raw, true)], ['DOWN']), 'the hat turns with it');
+
+  // through a Pad: only gamepad edges turn; the keyboard and inject() are the right way up already
+  const upside = new Pad({ sources: sourcesFor(true), flip: true });
+  const got = [];
+  upside.on(e => got.push(e.button));
+  ok(upside.flipped === true, 'flip pinned on');
+  upside.inject('A', true, 1);
+  upside._emit('UP', true, 2, 'key');
+  ok(same(got, ['A', 'UP']), 'inject and keyboard edges are not turned');
+  ok(new Pad({ flip: false }).flipped === false && new Pad().flip === 'auto', 'pinned off, and auto is the default');
+  const auto = new Pad();
+  ok(auto.flipped === false, 'auto on a host with no screen.orientation: the right way up');
+  const screenWas = globalThis.screen;
+  globalThis.screen = { orientation: { type: 'landscape-secondary' } };
+  ok(auto.flipped === true, 'auto follows screen.orientation');
+  globalThis.screen = screenWas;
+
+  // turned while a button is held: the next poll lets go of the old name and presses the new
+  const gp2 = { id: BADGE_PRODUCT, index: 0, connected: true, mapping: 'standard', timestamp: 0, axes: [0, 0, 0, 0],
+                buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === 12, value: 0 })) };
+  const navWas = globalThis.navigator;
+  Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [gp2] }, configurable: true });
+  const live = new Pad({ flip: false });
+  const edges = [];
+  live.on(e => edges.push(`${e.button}${e.down ? '+' : '-'}`));
+  live._poll();
+  live.flip = true;
+  live._poll();
+  live._poll();
+  ok(same(edges, ['UP+', 'DOWN+', 'UP-']) && live.held.has('DOWN') && !live.held.has('UP'), 'held UP becomes a press of DOWN and a release of UP in the same poll');
+  Object.defineProperty(globalThis, 'navigator', { value: navWas, configurable: true });
+}
+
+// ------------------------------------------------ gravity, when the OS will not turn ----
+
+console.log('tilt: the phone upside down by gravity');
+{
+  const near = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+  // the device's up from deviceorientation: upright, upside down, flat, on either side
+  let u = upVector(90, 0);  ok(near(u.x, 0) && near(u.y, 1) && near(u.z, 0), 'beta 90: up is +y (upright)');
+  u = upVector(-90, 0);     ok(near(u.x, 0) && near(u.y, -1), 'beta -90: up is -y (upside down)');
+  u = upVector(0, 0);       ok(near(u.x, 0) && near(u.y, 0) && near(u.z, 1), 'flat, screen up: up is +z');
+  u = upVector(0, 90);      ok(near(u.x, -1) && near(u.y, 0), 'gamma 90: up is -x (lying on its right side)');
+  u = upVector(0, -90);     ok(near(u.x, 1), 'gamma -90: up is +x');
+  u = upVector(90, 89);     ok(near(u.y, 1) && Math.abs(u.x) < 0.02, 'at vertical gamma hardly matters: no gimbal trouble');
+
+  // the phone's own angle from upright, whatever the OS did with the page
+  ok(deviceAngle(0, 1) === 0, 'upright: 0');
+  ok(deviceAngle(0, -1) === 180, 'upside down: 180');
+  ok(deviceAngle(1, 0) === 90 && deviceAngle(-1, 0) === -90, 'on its side: +-90 (top to the left is +)');
+  ok(deviceAngle(0, 0.1) === null && deviceAngle(0.2, 0.2) === null, `lying flat (|up| in the plane < ${FLAT}): no opinion`);
+  ok(deviceAngle(NaN, 1) === null && deviceAngle(0, undefined) === null, 'no reading: no opinion');
+  ok(deviceAngle(0.01, -1) > 170 && deviceAngle(-0.01, -1) < -170, 'either side of 180 stays near 180');
+  ok(screenTurn({ orientation: { angle: 90 }, angle: 0 }) === 90, 'screen.orientation.angle first');
+  ok(screenTurn({ orientation: undefined, angle: -90 }) === -90 && screenTurn({ orientation: {}, angle: undefined }) === 0, 'then window.orientation, else 0');
+
+  // the turn the page needs: a half turn, less what the OS already did
+  ok(pageTurn(false, 0) === 0 && pageTurn(false, 90) === 0, 'the right way up: no turn, whatever the OS did');
+  ok(pageTurn(true, 0) === 180, 'upside down, the OS did nothing: a half turn');
+  ok(pageTurn(true, 90) === 90, 'upside down, the OS went to landscape (angle 90) on the way round and stopped: a quarter turn on');
+  ok(pageTurn(true, 270) === 270 && pageTurn(true, -90) === 270, 'the other landscape, as angle 270 or window.orientation -90: a quarter turn back');
+  ok(pageTurn(true, 180) === 0, 'portrait-secondary (the OS turned it all the way): nothing left to do');
+  ok(pageTurn(true, undefined) === 180 && pageTurn(true, NaN) === 180, 'no word from the OS counts as no turn by it');
+
+  // hysteresis, on the phone's own angle: over FLIP_AT to turn, under BACK_AT to come back, nothing in between or flat
+  const t = new Tilt();
+  const deg = (a) => [Math.sin(a * Math.PI / 180), Math.cos(a * Math.PI / 180)];   // up at angle a from upright
+  ok(FLIP_AT === 150 && BACK_AT === 30, 'the thresholds');
+  ok(t.feed(...deg(0), 0) === false && t.feed(...deg(100), 0) === false && t.feed(...deg(149), 0) === false, 'tilted short of 150: still upright');
+  ok(t.feed(...deg(150), 0) === true && t.upsideDown && t.turn === 180, 'past 150: upside down, the page needs a half turn');
+  ok(t.feed(...deg(100), 0) === true && t.feed(...deg(31), 0) === true, 'back to 31: still upside down (hysteresis)');
+  ok(t.feed(0, 0.05, 0) === true && t.angle === null, 'lying flat keeps the state');
+  ok(t.feed(...deg(30), 0) === false && t.turn === 0, 'under 30: upright again, no turn');
+  ok(t.feed(...deg(-160), 0) === true && t.feed(...deg(-20), 0) === false, 'the other way round works the same');
+  ok(t.orientation(-90, 0, 0) === true && t.orientation(90, 0, 0) === false, 'from beta / gamma');
+  // the OS's own turn changes what the page needs, not what the phone is doing
+  ok(t.orientation(-90, 0, 90) === true && t.turn === 90 && t.screen === 90, 'upside down with the page in landscape (angle 90): a quarter turn finishes the job');
+  ok(t.orientation(-90, 0, 270) === true && t.turn === 270, 'the other landscape: three quarters');
+  ok(t.orientation(-90, 0, -90) === true && t.turn === 270, 'as window.orientation -90: the same');
+  ok(t.orientation(-90, 0, 180) === true && t.turn === 0, 'the OS turned the page all the way: upside down, and nothing left for the page');
+  ok(t.orientation(90, 0, 180) === false && t.turn === 0, 'held upright: not upside down, whatever the OS says');
+  ok(t.orientation(null, 0, 0) === false && t.readings === 17, 'a reading without beta is ignored');
+  let told = 0;
+  t.on(() => told++);
+  t.orientation(-90, 0, 0); t.orientation(-90, 0, 0); t.orientation(90, 0, 0);
+  ok(told === 2, 'listeners hear a change, not every reading');
+  t.orientation(-90, 0, 0); told = 0;
+  t.orientation(-90, 0, 90);
+  ok(told === 1 && t.turn === 90, 'and the OS turning the page between readings, since the page needs a different turn now');
+
+  // the OS turning the page reads the state again: upside down only if the phone still is past FLIP_AT
+  t.feed(...deg(100), 90);
+  ok(t.upsideDown && t.turn === 90, 'held at 100 on the way back, the page still in landscape: upside down by hysteresis, a quarter turn');
+  told = 0;
+  ok(t.screenChanged(0) === false && t.turn === 0 && told === 1, 'the OS going back to portrait with the phone at 100: upright now, no turn (no half turn in the moment before BACK_AT)');
+  t.feed(...deg(160), 90);
+  ok(t.screenChanged(180) === true && t.turn === 0, 'the OS turning the page all the way with the phone at 160: still upside down, nothing left for the page');
+  ok(t.screenChanged(90) === true && t.turn === 90, 'and back to landscape at 160: a quarter turn again');
+  told = 0;
+  ok(t.screenChanged(90) === true && told === 0, 'the same angle again: nothing to tell');
+  t.feed(0, 0.05, 90);
+  ok(t.screenChanged(0) === true && t.turn === 180, 'lying flat (no reading to go by) keeps the state, the turn follows the OS');
+
+  // the hand switch: auto follows the sensors, 0 / 180 override them
+  t.feed(...deg(0), 0);
+  ok(t.manual === 'auto' && t.turned === false && t.turn === 0, 'auto, upright: not turned');
+  t.orientation(-90, 0, 0);
+  ok(t.turned === true && t.turn === 180, 'auto, upside down: turned');
+  t.manual = '0';
+  ok(t.turned === false && t.turn === 0 && t.upsideDown === true, 'no: never turned, the sensors still read');
+  t.manual = '180';
+  ok(t.turned === true && t.turn === 180, 'yes: always turned');
+  t.orientation(90, 0, 0);
+  ok(t.turned === true && t.turn === 180 && !t.upsideDown, 'yes, held upright: still turned');
+  t.orientation(90, 0, 90);
+  ok(t.turned === true && t.turn === 90, 'yes, with the page in landscape: by a quarter, as the sensors would');
+  t.manual = 'bogus';
+  ok(t.manual === 'auto' && t.turned === false && t.turn === 0, 'anything else is auto');
+  ok(!t.needsPermission, 'nothing to ask on a host without DeviceOrientationEvent.requestPermission');
+
+  // through the pad: auto flips on the screen's say-so or gravity's, and the hand switch wins
+  const padTilt = new Tilt();
+  ok(autoFlipped(padTilt) === false, 'upright, no turn: not flipped');
+  padTilt.orientation(-90, 0, 0);
+  ok(autoFlipped(padTilt) === true, 'gravity says upside down: flipped');
+  padTilt.orientation(-90, 0, 90);
+  ok(autoFlipped(padTilt) === true, 'upside down with the page in landscape: flipped all the same');
+  padTilt.manual = '0';
+  ok(autoFlipped(padTilt) === false, 'the hand switch says no: not flipped');
+  padTilt.orientation(90, 0, 0);
+  padTilt.manual = '180';
+  ok(autoFlipped(padTilt) === true, 'the hand switch says yes: flipped though upright');
+  padTilt.manual = 'auto';
+  const screenWas2 = globalThis.screen;
+  globalThis.screen = { orientation: { type: 'portrait-secondary', angle: 180 } };
+  ok(autoFlipped(padTilt) === true, 'the OS turned the page: flipped by the screen alone');
+  padTilt.orientation(-90, 0);                       // the reading takes the screen's turn from screen.orientation
+  ok(padTilt.upsideDown === true && padTilt.turn === 0 && autoFlipped(padTilt) === true, 'and gravity agrees: upside down, nothing for the page, the pad turns');
+  globalThis.screen = screenWas2;
+  // the shared tilt is what a Pad reads
+  const shared = new Pad();
+  tilt.orientation(-90, 0, 0);
+  ok(shared.flipped === true, 'a pad follows the shared tilt');
+  tilt.orientation(90, 0, 0);
+  ok(shared.flipped === false, 'and back');
+  ok(new Pad({ flip: false }).flipped === false, 'a pinned flip ignores it');
+}
+
+// ------------------------------------------- the page turn, on a page ----
+// src/tilt.js on its own, with a document, a window and a screen to listen
+// on: the page turns from the first reading after load, with no pad, gate or
+// badge, by what the OS left undone, and the hand switch overrides what the
+// sensors say. A fresh copy of the module is loaded per case (the query
+// string defeats the module cache) so its load-time start runs against the fakes.
+
+console.log('page turn: listening from load, the OS\'s own turn, the switch, the iOS prompt');
+{
+  const fresh = (tag) => import(`../../src/tilt.js?${tag}`);
+  const page = () => {
+    const listeners = {};
+    globalThis.document = { documentElement: { dataset: {} } };
+    globalThis.addEventListener = (type, fn) => (listeners[type] ??= []).push(fn);
+    const orientation = { angle: 0, type: 'portrait-primary', addEventListener: (type, fn) => (listeners[`screen:${type}`] ??= []).push(fn) };
+    globalThis.screen = { orientation };
+    const send = (beta, gamma) => { for (const fn of listeners.deviceorientation ?? []) fn({ beta, gamma }); };
+    const turnScreen = (angle) => {   // the OS turns the page: the angle moves, then its change event
+      orientation.angle = angle;
+      orientation.type = { 0: 'portrait-primary', 90: 'landscape-primary', 180: 'portrait-secondary', 270: 'landscape-secondary' }[angle];
+      for (const fn of listeners['screen:change'] ?? []) fn({});
+    };
+    return { listeners, send, turnScreen, html: globalThis.document.documentElement };
+  };
+  const leave = () => { delete globalThis.document; delete globalThis.addEventListener; delete globalThis.DeviceOrientationEvent; delete globalThis.screen; };
+
+  // Android, or any browser that needs no asking: the listener is on before any module asks for it
+  let p = page();
+  let m = await fresh('page');
+  ok((p.listeners.deviceorientation ?? []).length === 1, 'the module listens to deviceorientation as soon as it loads');
+  ok((p.listeners['screen:change'] ?? []).length === 1 && (p.listeners.orientationchange ?? []).length === 1, 'and to the OS turning the page');
+  ok(p.html.dataset.flip === undefined, 'upright until a reading says otherwise');
+  m.tilt.start();
+  ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'a reading of upside down turns the page: data-flip="180"');
+  p.send(-22.6, -20.3);   // 140 deg from upright, leaning
+  ok(Math.round(Math.abs(m.tilt.angle)) === 140 && p.html.dataset.flip === '180', 'still turned at 140 deg from upright (hysteresis)');
+  p.send(90, 0);
+  ok(p.html.dataset.flip === undefined, 'upright again: the attribute goes');
+  p.send(0, 0);
+  ok(p.html.dataset.flip === undefined && m.tilt.angle === null, 'lying flat: no opinion, nothing changes');
+  // the OS took the page to landscape on the way round (an iPhone, a Samsung) and stopped there: a quarter turn finishes the job
+  p.turnScreen(90);
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '90', 'upside down with the page in landscape (angle 90): data-flip="90"');
+  p.turnScreen(270);
+  ok(p.html.dataset.flip === '270', 'the OS switching to the other landscape: data-flip="270" at once, no reading needed');
+  p.turnScreen(180);
+  ok(p.html.dataset.flip === undefined && m.tilt.upsideDown, 'the OS turning the page all the way itself: nothing left, the attribute goes');
+  p.turnScreen(0);
+  ok(p.html.dataset.flip === '180', 'portrait again under an upside-down phone: a half turn');
+  p.turnScreen(90);
+  p.send(-22.6, -20.3);   // 140, on the way back
+  ok(p.html.dataset.flip === '90', 'coming back round at 140 with the page in landscape: still a quarter turn (hysteresis)');
+  p.turnScreen(0);
+  ok(p.html.dataset.flip === undefined && !m.tilt.upsideDown, 'the OS going back to portrait at 140: the state is read again, upright, no turn - no half turn flashes while the phone comes round');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'upside down once more');
+  // the hand switch: '180' turns an upright page, '0' holds an upside-down one, 'auto' hands back to the sensors
+  p.send(90, 0);
+  m.tilt.manual = '180';
+  ok(p.html.dataset.flip === '180' && m.tilt.turned === true, 'the switch on yes turns the page though the phone is upright');
+  p.turnScreen(90);
+  ok(p.html.dataset.flip === '90', 'yes, with the page in landscape: a quarter turn, as the sensors would');
+  p.turnScreen(0);
+  m.tilt.manual = '0';
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === undefined && m.tilt.upsideDown === true, 'the switch on no keeps the page still though the phone is upside down');
+  m.tilt.manual = 'auto';
+  ok(p.html.dataset.flip === '180', 'back on auto the sensors have it again');
+  ok(m.tilt.needsPermission === false, 'nothing to ask where there is no requestPermission');
+  leave();
+
+  // a browser with requestPermission that answers 'granted' without a tap (Chrome on Android): readings come with no tap
+  const settle = () => new Promise(r => setTimeout(r, 0));
+  p = page();
+  let asked = 0;
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { asked++; return 'granted'; } };
+  m = await fresh('chrome-granted');
+  await settle();
+  ok(p.listeners.deviceorientation.length === 1, 'the listener is on from load even where there is a prompt (harmless until granted)');
+  ok(asked === 1 && m.tilt.permission === 'granted' && m.tilt.needsPermission === false, 'the load-time probe asked once and was granted: no tap needed');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'the page turns with no tap');
+  ok(await m.tilt.request() === true && asked === 1, 'a later tap has nothing left to ask');
+  leave();
+
+  // iOS: the probe rejects outside a gesture; a tap asks for real
+  p = page();
+  let gesture = false;
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { if (!gesture) throw new Error('not from a gesture'); return 'granted'; } };
+  m = await fresh('ios-granted');
+  await settle();
+  ok(p.listeners.deviceorientation.length === 1 && m.tilt.permission === null && m.tilt.needsPermission === true, 'iOS: listening, but the probe outside a gesture leaves the question open');
+  m.tilt.start();
+  ok(p.listeners.deviceorientation.length === 1, 'start() again adds no second listener');
+  gesture = true;
+  ok(await m.tilt.request() === true && m.tilt.permission === 'granted' && m.tilt.needsPermission === false, 'request() from a tap: granted');
+  p.send(-90, 0);
+  ok(p.html.dataset.flip === '180', 'the page turns on iOS once granted');
+  leave();
+
+  // a 'denied' without a gesture (desktop Chrome, no sensor) is not the player's answer; a tap's refusal is
+  p = page();
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => 'denied' };
+  m = await fresh('denied');
+  await settle();
+  ok(m.tilt.permission === null && m.tilt.needsPermission === true, 'a probe answered denied leaves the question open for a tap');
+  ok(await m.tilt.request() === false && m.tilt.permission === 'denied', 'request() refused from a tap: says so');
+  m.tilt.manual = '180';
+  ok(p.html.dataset.flip === '180', 'the switch still turns the page without the sensors');
+  leave();
+
+  p = page();
+  globalThis.DeviceOrientationEvent = { requestPermission: async () => { throw new Error('not from a gesture'); } };
+  m = await fresh('throws');
+  ok(await m.tilt.request() === false && m.tilt.permission === 'denied', 'a tap\'s prompt that throws counts as refused');
+  leave();
+}
+
+// ---------------------------------------------------------- the watch ----
+
+console.log('gate: when the badge has gone');
+{
+  const badge = { id: `${BADGE_PRODUCT} (STANDARD GAMEPAD Vendor: 054c Product: 09cc)`, index: 0, mapping: 'standard', badge: true };
+  const ds4 = { id: 'Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09cc)', index: 0, mapping: 'standard', badge: false };
+  const w = new BadgeWatch({ graceMs: 300 });
+  ok(w.sample(null, 0) === null && w.sample(null, 5000) === null && !w.seen,
+     'no gamepad before the badge ever showed is not a loss (a WebHID pass lists none until a press)');
+  ok(w.sample(badge, 5100) === null && w.seen, 'the badge shows on the gamepad side: armed');
+  ok(w.sample(null, 5200) === null && w.sample(null, 5400) === null, 'a blink shorter than the grace is not a loss');
+  ok(w.sample(badge, 5450) === null && w.goneAt === null, 'back inside the grace: nothing happened');
+  ok(w.sample(null, 5500) === null && w.sample(null, 5799) === null && w.sample(null, 5800) === 'lost', 'gone for the grace: lost');
+  ok(w.sample(null, 6000) === null && w.sample(null, 9000) === null, 'said once, then quiet until the badge is seen again');
+  ok(w.sample(badge, 9100) === null && w.sample(ds4, 9200) === null && w.sample(ds4, 9500) === 'lost',
+     'another controller standing in for the badge is a loss too');
+  w.sample(badge, 9600);
+  w.reset();
+  ok(!w.seen && w.sample(null, 20000) === null, 'reset disarms: a resume over WebHID waits for the badge to show again');
+  ok(new BadgeWatch().graceMs === 300, 'the default grace');
+}
+
+// ------------------------------------------------------- press this ----
+// src/prompt.js draws the badge from src/badge-shape.js, which
+// gen-badge-art.mjs writes from the board; here the file is proven in step
+// with the board (where the board is: the obfuscation check runs this file
+// against a copy of the site alone), the layout is the player's, and the
+// prompt's timeline is as the page promises.
+
+console.log('prompt: the badge as the player holds it, and the timeline');
+{
+  const here = dirname(fileURLToPath(import.meta.url));
+  const gen = resolve(here, 'gen-badge-art.mjs'), pcb = resolve(here, '../../hardware/badge/PhoneController.kicad_pcb');
+  if (existsSync(gen) && existsSync(pcb)) {
+    const r = spawnSync(process.execPath, [gen, '--check'], { encoding: 'utf8' });
+    ok(r.status === 0, `src/badge-shape.js in step with the board: ${(r.stderr || r.stdout).trim()}`);
+  } else console.log('  (no board here: the generated shape is taken as it is)');
+  for (const b of BUTTONS) ok(KEYS[b], `shape: ${b} has a place on the board`);
+  ok(KEYS.BOOT && KEYS.RESET && KEYS.BOOT.x < KEYS.LEFT.x, 'shape: BootSel and reset are the tiny buttons at the cap\'s left edge');
+  ok(KEYS.LEFT.x < KEYS.UP.x && KEYS.UP.x < KEYS.RIGHT.x && KEYS.UP.y < KEYS.DOWN.y && KEYS.UP.x === KEYS.DOWN.x, 'shape: the d-pad reads LEFT, UP over DOWN, RIGHT');
+  ok(KEYS.Y.x < KEYS.X.x && KEYS.X.x < KEYS.A.x && KEYS.X.y < KEYS.B.y && KEYS.X.x === KEYS.B.x, 'shape: the diamond is X up, A right, B down, Y left');
+  ok(KEYS.RIGHT.x < KEYS.Y.x, 'shape: the d-pad is under the left thumb, the diamond under the right');
+  ok(KEYS.START.x < KEYS.SELECT.x && KEYS.START.y > KEYS.B.y && KEYS.START.y === KEYS.SELECT.y, 'shape: START left of SELECT, in a row below the thumbs');
+  ok(KEYS.SR.x < KEYS.SL.x && KEYS.SR.y < KEYS.UP.y && KEYS.SR.y === KEYS.SL.y, 'shape: the shoulders are at the top, SR on the left and SL on the right - the board\'s nets, which the firmware follows');
+  ok(USB.y < KEYS.SR.y && Math.abs(USB.x - (KEYS.SL.x + KEYS.SR.x) / 2) < 4, 'shape: the stalk, and so the plug, points up from the middle');
+  ok(LED.x > KEYS.RIGHT.x && LED.x < KEYS.Y.x, 'shape: the LED sits between the thumbs');
+  ok(/^M-?\d/.test(OUTLINE) && OUTLINE.endsWith('Z') && (OUTLINE.match(/L/g) ?? []).length > 150, 'shape: the outline is one closed path of a few hundred points');
+  ok(BOX.x0 < CAP.x0 && BOX.x1 > CAP.x1 && BOX.y0 < CAP.y0 && BOX.y1 > CAP.y1, 'shape: the cap lies inside the outline\'s box');
+  ok(Math.abs(PIVOT.x - (KEYS.UP.x + KEYS.X.x) / 2) < 0.1 && Math.abs(PIVOT.y - KEYS.LEFT.y) < 0.1, 'prompt: the board turns about the point between the thumbs');
+
+  ok(expandBeat('ANY').length === BUTTONS.length && KEYWORDS.ANY.every(b => BUTTONS.includes(b)), 'expandBeat: ANY is every pad button');
+  ok(expandBeat('DPAD').join() === 'UP,DOWN,LEFT,RIGHT', 'expandBeat: DPAD is the four directions');
+  ok(expandBeat(['SELECT', 'START']).join() === 'SELECT,START' && expandBeat('BOOT')[0] === 'BOOT' && expandBeat(['DPAD', 'A']).length === 5, 'expandBeat: chords, the tiny buttons, a keyword inside a chord');
+  throws(() => expandBeat('L2'), /no such button/, 'expandBeat: a button the badge has not got');
+  throws(() => schedule({ beats: [] }), /at least one/, 'schedule: an empty prompt');
+
+  const s = schedule({ beats: [['SELECT', 'START']], hold: 2000 });
+  const ons = s.events.filter(e => e.on);
+  ok(ons.length === 2 && ons[0].on.join() === 'SELECT' && ons[1].on.join() === 'START' && ons[1].at - ons[0].at === TIMING.shift, 'schedule: in a chord SELECT goes down first, the shift key');
+  ok(ons[1].hold === 2000 && !ons[0].hold, 'schedule: the hold is on the last beat\'s keys');
+  const off = s.events.find(e => e.off);
+  ok(off && off.off.join() === 'SELECT,START' && off.at === ons[1].at + 2000 + TIMING.settle, 'schedule: both let go after the hold');
+  ok(s.period > off.at && s.events.every((e, i) => !i || e.at >= s.events[i - 1].at), 'schedule: sorted by time, the loop ends after the release');
+  ok(s.events.filter(e => e.untap).length === 2 && s.events.every(e => !e.untap || e.at === s.events.find(o => o.on?.join() === e.untap.join()).at + TIMING.ripple), 'schedule: every tap\'s ripple is taken off a second later');
+
+  const any = schedule({ beats: ['ANY'] });
+  const lit = any.events.flatMap(e => e.on ?? []);
+  ok(new Set(lit).size === BUTTONS.length && any.events.find(e => e.off)?.off.length === BUTTONS.length, 'schedule: ANY lights every button and lets every button go');
+  ok(any.events.filter(e => e.on).every((e, i, a) => !i || e.at === a[i - 1].at + TIMING.wave), 'schedule: the wave is one button every tick');
+
+  const p = schedule({ beats: ['BOOT', ['SELECT', 'START']], hold: 2000, plug: true });
+  const pin = p.events.find(e => e.plug === true), pout = p.events.find(e => e.plug === false);
+  ok(pin && pout && pin.at < pout.at && pout.off?.join() === 'BOOT', 'schedule: the plug goes in while BootSel is held and comes out when it is let go');
+  ok(pout.at === p.events.find(e => e.on?.[0] === 'BOOT').at + TIMING.settle + TIMING.plugIn + TIMING.plugHold, 'schedule: BootSel is held through the plug\'s travel and a moment after');
+  ok(p.events.find(e => e.on?.[0] === 'SELECT').at > pout.at && p.events.find(e => e.hold)?.on.join() === 'START', 'schedule: the second way follows the first, with its hold');
+  ok(!schedule({ beats: [['SELECT', 'START']], plug: true }).events.some(e => 'plug' in e), 'schedule: no plug without a BOOT beat');
+
+  const two = schedule({ beats: ['START', 'X'] });
+  const t2 = two.events.filter(e => e.on);
+  ok(t2.length === 2 && t2[0].on[0] === 'START' && t2[1].on[0] === 'X' && t2[1].at === t2[0].at + TIMING.tap + TIMING.gap, 'schedule: beats in order, a tap and a gap between');
+  ok(two.period === t2[1].at + TIMING.tap + TIMING.rest, 'schedule: the loop rests after the last beat');
+
+  const cap = frameBox('cap'), full = frameBox('full');
+  ok(cap.x1 - cap.x0 < full.x1 - full.x0 && cap.y1 - cap.y0 < full.y1 - full.y0, 'frameBox: the cap is the smaller frame');
+  ok(cap.x0 < KEYS.BOOT.x && cap.x1 > KEYS.A.x && cap.y0 < KEYS.SL.y && cap.y1 > KEYS.START.y, 'frameBox: the cap frame holds every button');
+  ok(frameBox('full', { plug: true }).y0 < full.y0 && frameBox('cap', { plug: true }).y0 < USB.y, 'frameBox: room above the stalk for the plug');
+}
+
+if (failed) { console.error(`verify-badge: ${failed} failure(s)`); process.exit(1); }
+console.log('verify-badge: the vault, the beacon, sealed stages, the input policy, the badge watch and the badge\'s picture all check out');

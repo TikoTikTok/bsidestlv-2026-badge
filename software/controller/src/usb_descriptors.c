@@ -3,13 +3,17 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 #include "ds4.h"
+#include "vault.h"
 
 //--------------------------------------------------------------------+
 // Device Descriptor
 //--------------------------------------------------------------------+
 // Mirrors a wired DualShock 4 (CUH-ZCT2U). iOS binds controllers by
 // VID/PID, so these values are what make an iPhone attach a real
-// GameController profile instead of ignoring the device.
+// GameController profile instead of ignoring the device. The strings
+// are the badge's own (see below): binding goes by the numbers, and the
+// name is how a browser - and the challenge site - tells a badge from a
+// real controller, or from a badge still running the stock firmware.
 tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -308,7 +312,7 @@ uint8_t const desc_configuration[] =
 
   // Interface number, string index, protocol, report descriptor len, EP Out, EP In, size, polling interval (ms)
   TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report),
-                           EPNUM_HID_OUT, EPNUM_HID_IN, CFG_TUD_HID_EP_BUFSIZE, 5)
+                           EPNUM_HID_OUT, EPNUM_HID_IN, CFG_TUD_HID_EP_BUFSIZE, DS4_REPORT_INTERVAL_MS)
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -325,8 +329,8 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 },      // 0: supported language is English (0x0409)
-  "Sony Interactive Entertainment",   // 1: Manufacturer
-  "Wireless Controller",              // 2: Product
+  "BSidesTLV",                        // 1: Manufacturer
+  "BSidesTLV 2026 Alice Controller",  // 2: Product - browsers put this in Gamepad.id; src/pad.js looks for it
 };
 
 static uint16_t _desc_str[32 + 1];
@@ -408,17 +412,27 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id,
 
   if ( report_id == DS4_FEATURE_CALIB ) return ds4_calibration(buffer, reqlen);
 
+  // Report 0xF1 is one of the vendor reports the real controller declares;
+  // on this badge it carries the vault (vault.h), read by src/vault.js.
+  if ( report_id == VAULT_REPORT_ID ) return app_vault_get_report(buffer, reqlen);
+
   // Everything else: a zero-filled reply of the requested length. The stack
   // has already placed the report ID byte ahead of `buffer`.
   memset(buffer, 0, reqlen);
   return reqlen;
 }
 
-// Rumble / lightbar / bluetooth pairing writes. Nothing to drive here.
+// Rumble / lightbar / bluetooth pairing writes: nothing to drive here. The
+// one write that means something is feature report 0xF1, provisioning the
+// vault - gated by physical SELECT in main.c.
 void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id,
                            hid_report_type_t report_type,
                            uint8_t const *buffer, uint16_t bufsize)
 {
-  (void) instance; (void) report_id; (void) report_type;
-  (void) buffer; (void) bufsize;
+  (void) instance;
+
+  if ( report_type == HID_REPORT_TYPE_FEATURE && report_id == VAULT_REPORT_ID )
+  {
+    app_vault_set_report(buffer, bufsize);
+  }
 }

@@ -1,0 +1,34 @@
+# Builds the badge firmware and runs the quick-glitch engine's host tests.
+#
+# Two jobs because they answer two different questions: "does the logic do
+# what glitch.h says" needs nothing but a C compiler and runs in seconds;
+# "does it still link into a UF2" needs the Pico SDK and the ARM toolchain,
+# which live in build-uf2.yml (pages.yml builds the same way).
+name: Firmware
+
+on:
+  push:
+    paths:
+      - 'software/controller/**'
+      - '.github/workflows/firmware.yml'
+      - '.github/workflows/build-uf2.yml'
+  pull_request:
+    paths:
+      - 'software/controller/**'
+      - '.github/workflows/firmware.yml'
+      - '.github/workflows/build-uf2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine-tests:
+    name: quick-glitch engine (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make -C software/controller/test
+
+  uf2:
+    uses: ./.github/workflows/build-uf2.yml

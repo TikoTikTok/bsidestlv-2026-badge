@@ -1,0 +1,96 @@
+// Alice in AI Land - the page's end of the assistant's bridge.
+//
+// `npm run maker` (software/tools/maker-server.mjs) mounts a bridge under
+// /__maker/ next to the site; an assistant on this machine drives the studio
+// through it (curl, or the MCP tools in software/tools/maker-mcp.mjs). This
+// module is what the page does about it: it listens on the bridge's event
+// stream for commands { id, op, args }, runs each through the handlers the
+// page gives it, answers, mirrors the room back after every change, and
+// carries the chat both ways - and the guide's lines: the person's pick on
+// the welcome banner goes up (guide), a step of the page's tutorial done goes
+// up as an event in the inbox (post with a kind), and the way already picked
+// on the bridge comes down with the hello (self.guide), so a page that
+// (re)attaches mid-walk takes it up instead of asking again. Where the page is
+// served without the bridge (serve.sh, any other static server, the site)
+// the first probe says so and nothing else happens: the studio works alone.
+//
+//   const bridge = connectBridge(ops, { onHello, onState });
+//   bridge.state({ level, lint, report, game, tutorial });   // after every change
+//   bridge.post('text the person typed');                    // the chat, outbound
+//   bridge.post('✓ A rock', { kind: 'tutorial', data });     // an event the assistant reads in the inbox
+//   bridge.guide('fast');                                    // the pick on the welcome banner
+//   bridge.answer('Cosy', 1);                                // a button of the guide's step card pressed
+//   bridge.help(1);                                          // "Do it for me" on that card: the bridge runs the step's help plan
+
+export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onState = () => {}, onCommand = () => {} } = {}) {
+  const self = { available: null, connected: false, agents: [], guideMode: null, post, state, guide: pickGuide, answer, help, close };
+  let source = null, lastState = null, stateTimer = 0;
+
+  async function probe() {
+    try {
+      const r = await fetch(base, { cache: 'no-store' });
+      const s = r.ok ? await r.json() : null;
+      self.available = !!s?.bridge;
+    } catch { self.available = false; }
+    onState(self);
+    if (self.available) listen();
+  }
+
+  function listen() {
+    source = new EventSource(`${base}events`);
+    source.onopen = () => { self.connected = true; onState(self); if (lastState) send(lastState); };
+    source.onerror = () => { self.connected = false; onState(self); };
+    source.onmessage = async (e) => {
+      let cmd;
+      try { cmd = JSON.parse(e.data); } catch { return; }
+      if (cmd.op === 'hello') { self.agents = cmd.args?.agents ?? []; self.guideMode = cmd.args?.guide ?? null; if (cmd.args?.name) onHello(cmd.args.name); onState(self); return; }
+      onCommand(cmd);
+      let body;
+      try {
+        const fn = ops[cmd.op];
+        if (!fn) throw new Error(`the page has no op '${cmd.op}'`);
+        body = { id: cmd.id, result: (await fn(cmd.args ?? {})) ?? null };
+      } catch (err) { body = { id: cmd.id, error: err?.message ?? String(err) }; }
+      // the mirror goes up before the answer, so what the assistant reads next is what it just did
+      if (stateTimer) { clearTimeout(stateTimer); stateTimer = 0; await send(lastState); }
+      if (cmd.id !== undefined) fetch(`${base}reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+    };
+  }
+
+  const send = (s) => fetch(`${base}state`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(s) }).catch(() => {});
+  /** The room as the page sees it now; batched, so a drag is one report. */
+  function state(s) {
+    lastState = s;
+    if (!self.available) return;
+    clearTimeout(stateTimer);
+    stateTimer = setTimeout(() => send(lastState), 150);
+  }
+  /** A line to the assistant's inbox: the chat (kind 'chat', the default) or an event of the page's (kind 'tutorial'). */
+  async function post(text, { kind, data } = {}) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}post`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, kind, data }) });
+    return r.ok ? r.json() : null;
+  }
+  /** The person picked a way on the welcome banner: the bridge keeps it and tells the assistant. */
+  async function pickGuide(mode) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, from: 'page' }) });
+    return r.ok ? r.json() : null;
+  }
+  /** The person pressed one of the guide's buttons on the page: the bridge applies it as the answer to step `at` (and does the step's work). */
+  async function answer(text, at) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer: text, at, from: 'page', run: true }) });
+    return r.ok ? r.json() : null;
+  }
+  /** "Do it for me" pressed on step `at`'s card: the bridge runs the step's help plan through this page and tells the assistant. */
+  async function help(at) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ help: true, run: true, at, from: 'page' }) });
+    return r.ok ? r.json() : null;
+  }
+  function close() { source?.close(); source = null; self.connected = false; }
+
+  probe();
+  return self;
+}

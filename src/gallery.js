@@ -1,631 +1,470 @@
-// Alice in AI Land - asset sheet.
+// Alice in AI Land - the stages page.
 //
-// Everything on this page comes from the supplied art: five 8-way walk cycles
-// under assets/characters/ and the item set under assets/items/. Nothing is
-// generated or drawn in code.
+// One player and a list of levels. The player is src/room.js: whichever
+// level is open - A Mad Tea Party and The Queen's Gauntlet (stages/, through
+// src/seal.js so a sealed copy takes over the moment one is published), the
+// community's rooms (stages/community/, the ones the index lists as rooms),
+// or a room that came in a link (?level=, the maker's Share dialog) - played
+// by the rules it is: untimed (src/puzzle.js: B undoes) or timed (src/
+// chase.js: a clock from the first press, Y waits a tick). The badge drives
+// it; on a dev host the keyboard too. The list is the explorer: a card per
+// level with a picture of the room, what it is made of and what you have
+// won in it; pick one and it opens. src/progress.js remembers the play on
+// this device and hands out the prizes; a worker (src/check-worker.js) works
+// out every level's par in the background, once, so a card can say it and a
+// win under it can count. The tutorial (src/tutor.js, src/coach.js) watches
+// it all. Everything drawn comes from assets/ through src/scene.js.
 
-import { parse, step, solve, isGoal } from './puzzle.js';
-import { parse as parseChase, step as chaseStep, solve as solveChase,
-         isGoal as isChaseGoal, hazardCells, hazardAt, seenBy } from './chase.js';
-import { TEA_PARTY } from '../stages/tea-party.js';
-import { QUEENS_GAUNTLET } from '../stages/queens-gauntlet.js';
+import { parse as parseTea } from './puzzle.js';
+import { parse as parseChase } from './chase.js';
+import { TILE, THEMES, loadScene, drawRoom } from './scene.js';
+import { Pad, flipFor } from './pad.js';
+import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
+import { loadStage } from './seal.js';
+import { initLooks } from './looks.js';
+import { Tutor, STAGES_TUTORIAL } from './tutor.js';
+import { mountCoach, tutorStore } from './coach.js';
+import { mountRoom } from './room.js';
+import { decodeShare, lint, kindOf, isGlitch, shareUrl, shareInfo, analyse, difficulty } from './level.js';
+import { Progress, ACHIEVEMENTS, levelKey, factsOf, factsLine, localStore } from './progress.js';
 
 const $ = (sel) => document.querySelector(sel);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
 
-const state = { zoom: 2, animate: true, backdrop: 'checker' };
+// ------------------------------------------------------------------ input ----
 
-const WALK_CHARACTERS = [
-  { id: 'alice2',   label: 'Alice' },
-  { id: 'rabbit',   label: 'White Rabbit' },
-  { id: 'hatter',   label: 'Mad Hatter' },
-  { id: 'queen',    label: 'Red Queen' },
-  { id: 'cheshire', label: 'Cheshire Cat' },
+// The badge is the controller. On the site it is the only one (src/gate.js
+// asks for it before anything plays); on a dev host the keyboard works too.
+const mode = gateMode();
+const pad = new Pad({ sources: gateSources(mode), flip: flipFor(location.search) }).start();
+window.__pad = pad;
+
+// While the badge is away the gate mutes the pad and the page holds still: the
+// open level's clock and a solver's playback check `paused` through the player.
+const hooks = {};
+const gatePromise = openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
+
+// the look picker and the mode bar (src/looks.js), up before the gate so a
+// phone can pick its look while the badge is still being asked for
+const looksReady = initLooks();
+
+// The tutorial, A Caucus Race: every edge and everything the open level does
+// is fed to it. The coach is mounted once the levels exist (end of the file).
+const tutor = new Tutor(STAGES_TUTORIAL, tutorStore('alice.tutor.stages'));
+let coach = null;
+const tutorFeed = (ev) => coach?.feed(ev);
+pad.on(({ button, down, source }) => tutorFeed({ kind: 'edge', button, down, source }));
+
+const scene = await loadScene();
+
+const badge = await gatePromise;
+const [TEA_PARTY, QUEENS_GAUNTLET] = await Promise.all([loadStage('tea-party', badge?.key), loadStage('queens-gauntlet', badge?.key)])
+  .catch((e) => { showRefusal(`a stage would not open: ${e.message}`); throw e; });
+
+const looks = await looksReady;
+const phone = () => looks.look.id !== 'classic';
+/** Put a panel on screen: the phone looks' mode, the classic page's scroll. */
+const show = (panel) => { if (phone()) looks.setMode(panel); else $(`#${panel}Panel`).scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
+// -------------------------------------------------------------- the levels ----
+// The catalogue: every level the page plays, as { id, name, author, group,
+// kind, level, key, map, par, label, sealed }. group is 'stages' (the two
+// shipped), 'community' (the index's rooms) or 'shared' (the one from a
+// link, at most one). The community's modules are loaded up front, so
+// opening is instant and every card has its picture.
+
+const levels = [];
+let current = null;
+let parWorker = null;      // src/check-worker.js, below; null when a worker cannot be made
+const byId = (id) => levels.find(l => l.id === id) ?? null;
+const KIND_OF_ID = { 'tea-party': 'tea', 'queens-gauntlet': 'chase' };   // the shipped stages' events keep their old kinds for the tutorial
+const WORD = { tea: 'untimed', chase: 'timed' };
+
+function entryOf(id, level, { author, group, sealed = false }) {
+  const kind = kindOf(level);
+  return { id, name: level.name, author, group, kind, level, key: levelKey(level), sealed,
+           map: kind === 'tea' ? parseTea(level.rows) : parseChase(level), par: null, label: null };
+}
+levels.push(entryOf('tea-party', TEA_PARTY, { author: 'the stages', group: 'stages' }),
+            entryOf('queens-gauntlet', QUEENS_GAUNTLET, { author: 'the stages', group: 'stages' }));
+
+// which ids are published sealed (stages/sealed.json, stages/community/sealed.json): an event stage stays on the badge, so no Share
+const sealedIds = async (base) => { try { return new Set((await (await fetch(`${base}sealed.json`, { cache: 'no-cache' })).json()).sealed ?? []); } catch { return new Set(); } };
+const [sealedStages, sealedRooms] = await Promise.all([sealedIds('stages/'), sealedIds('stages/community/')]);
+for (const l of levels) l.sealed = sealedStages.has(l.id);
+
+// the community's rooms: every entry of the index that is a room (kind tea / chase); the glitch levels are glitch.html's
+let listed = [];
+try {
+  const m = await (await fetch('stages/community/index.json', { cache: 'no-cache' })).json();
+  listed = m.stages ?? [];
+} catch { /* no index: the group says so */ }
+const failed = [];
+await Promise.all(listed.filter(s => !s.kind || s.kind === 'tea' || s.kind === 'chase').map(async (s) => {
+  try {
+    const level = await loadStage(s.id, badge?.key, { base: 'stages/community/' });
+    levels.push(entryOf(s.id, level, { author: s.author ?? 'the community', group: 'community', sealed: sealedRooms.has(s.id) }));
+  } catch (e) { failed.push({ ...s, error: e.message }); }
+}));
+// in the index's order
+levels.sort((a, b) => (a.group === b.group ? listed.findIndex(s => s.id === a.id) - listed.findIndex(s => s.id === b.id) : a.group === 'stages' ? -1 : 1));
+
+// -------------------------------------------------------------- progress ----
+
+const progress = new Progress(localStore());
+const catalogue = () => progress.catalogue(levels.map(l => ({ id: l.id, key: l.key, group: l.group, kind: l.kind, par: l.par })));
+catalogue();
+
+// ------------------------------------------------------------- the player ----
+
+const room = mountRoom({
+  canvas: $('#room'), scene, pad, armed: () => true,
+  status: $('#roomStatus'), lesson: $('#roomLesson'),
+  keys: { undo: $('#roomKeyUndo'), wait: $('#roomKeyWait'), reset: $('#roomKeyReset') },
+  keyboard: () => pad.allows('key'),
+  feed(ev) {
+    // the progress first (a win is recorded before the prize line), then the tutorial, which knows the two stages by their old kinds
+    if (current) {
+      progress.feed(ev, { id: current.id, key: current.key, group: current.group, kind: current.kind, par: current.par });
+      if (ev.what === 'win') { renderFacts(); markCards(); }
+    }
+    tutorFeed(KIND_OF_ID[ev.id] ? { ...ev, kind: KIND_OF_ID[ev.id] } : ev);
+    if (tutor.done) progress.tutorialDone();
+  },
+});
+
+/** Opens a level by id: the player, the strip, the cards. `show` puts the Play panel on screen; `remember` writes ?room= in the address. */
+function open(id, { tell = true, show: bring = false, remember = false } = {}) {
+  const entry = byId(id);
+  if (!entry) throw new Error(`no level '${id}'`);
+  current = entry;
+  progress.begin();
+  room.load(entry.level, { id: entry.id, tell, par: entry.par });
+  $('#levelName').textContent = entry.name;
+  $('#levelBy').textContent = entry.group === 'shared' ? 'shared in a link' : entry.group === 'stages' ? 'one of the stages' : `by ${entry.author}`;
+  $('#roomBlurb').textContent = entry.level.blurb ?? '';
+  $('#roomBlurb').hidden = !entry.level.blurb;
+  $('#roomUndo').hidden = entry.kind !== 'tea';
+  $('#roomReset').textContent = entry.kind === 'tea' ? 'Reset' : 'Restart';
+  $('#shareBtn').hidden = entry.sealed;   // an event stage stays on the badge
+  renderFacts();
+  markCards();
+  // the address follows a pick, so a reload comes back here; a room from a link keeps its link
+  if (remember && entry.group !== 'shared') {
+    const q = new URLSearchParams(location.search);
+    q.delete('level'); q.set('room', entry.id);
+    history.replaceState(null, '', `${location.pathname}?${q}${location.hash}`);
+  }
+  if (bring) show('play');
+  return entry;
+}
+
+// the facts strip: the rules, the size, what is in the room, the par and your best
+function renderFacts() {
+  const host = $('#levelFacts');
+  host.replaceChildren();
+  if (!current) return;
+  const put = (label, value, cls = '') => { const s = el('span', cls); s.append(el('small', '', label), el('b', '', value)); host.append(s); };
+  const f = factsOf(current.level);
+  const line = factsLine(f);
+  put('rules', line[0]);
+  put('room', line[1]);
+  put('in it', line.slice(2).join(' · '));
+  const unit = current.kind === 'tea' ? 'moves' : 'ticks';
+  if (current.par) put('par', `${current.par} ${unit}${current.label ? ` · ${current.label}` : ''}`);
+  else put('par', parWorker ? 'working it out…' : 'unknown', 'dim');
+  const rec = progress.record(current.key);
+  if (rec?.wins) {
+    const star = current.par && rec.best !== null && rec.best <= current.par;
+    put('your best', `${rec.best} ${unit}${star ? ' ★ par' : ''} · won ${rec.wins}×${rec.clean ? ' · no undo' : ''}`, 'win');
+  } else put('your best', 'not yet won', 'dim');
+}
+
+// ------------------------------------------------------------ the explorer ----
+// A card per level, grouped; the picture is the room itself drawn small.
+
+const GROUPS = [
+  ['stages', 'The stages', 'The two rooms the challenge opens with.'],
+  ['community', "The community's rooms", 'Made with the level maker and sent in; every one proved solvable before it shipped.'],
+  ['shared', 'Shared with you', 'A room that came in a link. It is not on the page for anyone else.'],
 ];
+const groupsHost = $('#levelGroups');
+const cards = new Map();   // id -> the card
 
-const loadImage = async (src) => {
-  const img = new Image();
-  img.src = src;
-  await img.decode();
-  return img;
-};
-
-/** One character: manifest + every frame, keyed by direction. */
-async function loadCharacter({ id, label }) {
-  const dir = `assets/characters/${id}`;
-  const meta = await (await fetch(`${dir}/${id}.json`)).json();
-  const images = {};
-  await Promise.all(Object.entries(meta.directions).flatMap(([d, files]) =>
-    files.map(async (file, i) => { (images[d] ||= [])[i] = await loadImage(`${dir}/${file}`); })));
-  return { id, label, meta, images };
+function thumb(entry) {
+  const { map } = entry;
+  const size = Math.max(3, Math.floor(Math.min(132 / map.w, 84 / map.h)));
+  const c = el('canvas', 'thumb');
+  c.width = map.w * size; c.height = map.h * size;
+  c.setAttribute('aria-hidden', 'true');
+  drawRoom(c.getContext('2d'), scene, map, map.start, THEMES[entry.level.theme] ?? (entry.kind === 'chase' ? THEMES.hall : THEMES.garden), { size });
+  return c;
 }
-
-/** A folder of single-image assets plus its manifest (items, tiles). */
-async function loadSet(folder, manifestKey) {
-  const meta = await (await fetch(`assets/${folder}/${folder}.json`)).json();
-  const list = meta[manifestKey];
-  const images = {};
-  await Promise.all(list.map(async (it) => {
-    images[it.name] = await loadImage(`assets/${folder}/${it.file}`);
-  }));
-  return { meta, list, images };
+function card(entry) {
+  const b = el('button', `level-card${entry.group === 'shared' ? ' shared' : ''}`);
+  b.type = 'button'; b.dataset.id = entry.id;
+  const f = factsOf(entry.level);
+  b.append(thumb(entry), el('b', '', entry.name),
+           el('small', '', `${WORD[entry.kind]} · ${f.w}×${f.h} · ${entry.author}`),
+           el('span', 'level-par'), el('span', 'level-mark'));
+  b.addEventListener('click', () => open(entry.id, { show: true, remember: true }));
+  cards.set(entry.id, b);
+  return b;
 }
-
-const [characters, items, tiles] = await Promise.all([
-  Promise.all(WALK_CHARACTERS.map(loadCharacter)),
-  loadSet('items', 'items'),
-  loadSet('tiles', 'tiles'),
-]);
-const byId = Object.fromEntries(characters.map(c => [c.id, c]));
-
-// --------------------------------------------------------------- controls ----
-
-$('#zoom').addEventListener('input', (e) => {
-  state.zoom = +e.target.value;
-  $('#zoomOut').textContent = `${state.zoom}×`;
-  drawItems(); drawTiles();
-});
-$('#animate').addEventListener('change', (e) => { state.animate = e.target.checked; });
-$('#backdrop').addEventListener('change', (e) => {
-  state.backdrop = e.target.value;
-  document.querySelectorAll('.swatchbox').forEach(el => { el.className = `swatchbox ${state.backdrop}`; });
-});
-
-// ------------------------------------------------------------------ items ----
-
-/** Renders one asset set into a grid with category filters. */
-function assetGrid(set, gridSel, filterSel) {
-  const gridEl = $(gridSel);
-  let filter = 'all';
-
-  const filters = $(filterSel);
-  for (const name of ['all', ...new Set(set.list.map(i => i.category))]) {
-    const b = document.createElement('button');
-    b.className = 'tab' + (name === 'all' ? ' on' : '');
-    b.textContent = name;
-    b.addEventListener('click', () => {
-      filter = name;
-      [...filters.children].forEach(c => c.classList.toggle('on', c === b));
-      draw();
-    });
-    filters.append(b);
+function renderGroups() {
+  groupsHost.replaceChildren();
+  cards.clear();
+  for (const [group, title, note] of GROUPS) {
+    const mine = levels.filter(l => l.group === group);
+    if (!mine.length && group !== 'community') continue;
+    const sec = el('section', 'level-group'); sec.dataset.group = group;
+    sec.append(el('h3', 'sub', title), el('p', 'note', note));
+    const grid = el('div', 'levels');
+    for (const l of mine) grid.append(card(l));
+    for (const f of failed) if (group === 'community') { const c = el('div', 'level-card off'); c.append(el('b', '', f.name ?? f.id), el('small', '', `could not open: ${f.error}`)); grid.append(c); }
+    if (!mine.length) grid.append(el('p', 'note', 'No rooms yet. The level maker is where the first one is made.'));
+    sec.append(grid);
+    groupsHost.append(sec);
   }
-
-  function draw() {
-  gridEl.textContent = '';
-  const size = set.meta.size;
-  for (const item of set.list) {
-    if (filter !== 'all' && item.category !== filter) continue;
-    const cell = document.createElement('figure');
-    cell.className = 'item';
-    const box = document.createElement('div');
-    box.className = `swatchbox ${state.backdrop}`;
-    const canvas = document.createElement('canvas');
-    canvas.width = size * state.zoom;
-    canvas.height = size * state.zoom;
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(set.images[item.name], 0, 0, canvas.width, canvas.height);
-    box.append(canvas);
-    const cap = document.createElement('figcaption');
-    cap.textContent = item.name;
-    cap.title = 'click to copy';
-    cap.addEventListener('click', () => {
-      navigator.clipboard?.writeText(item.name);
-      const old = cap.textContent;
-      cap.textContent = 'copied ✓';
-      cap.classList.add('copied');
-      setTimeout(() => { cap.textContent = old; cap.classList.remove('copied'); }, 900);
-    });
-    cell.append(box, cap);
-    gridEl.append(cell);
-  }
-  }
-
-  draw();
-  return draw;
+  markCards();
 }
+/** What the cards say of the play: the open one, the won ones, the par. */
+function markCards() {
+  for (const [id, b] of cards) {
+    const entry = byId(id);
+    const rec = progress.record(entry.key);
+    const unit = entry.kind === 'tea' ? 'moves' : 'ticks';
+    b.classList.toggle('on', current?.id === id);
+    b.classList.toggle('won', !!rec?.wins);
+    b.classList.toggle('star', !!(rec?.wins && entry.par && rec.best !== null && rec.best <= entry.par));
+    b.querySelector('.level-par').textContent = entry.par ? `par ${entry.par}` : '';
+    b.querySelector('.level-mark').textContent = rec?.wins ? `✓ ${rec.best} ${unit}` : '';
+    b.setAttribute('aria-pressed', String(current?.id === id));
+  }
+  const s = progress.summary();
+  $('#progressLine').textContent = `${s.won} of ${s.of} won · ${s.prizes} of ${s.prizesOf} prizes`;
+}
+renderGroups();
 
-const drawItems = assetGrid(items, '#items', '#itemFilters');
-const drawTiles = assetGrid(tiles, '#tiles', '#tileFilters');
+// the prizes: every one, won or not, with how it is won
+function renderPrizes() {
+  const host = $('#prizes');
+  host.replaceChildren();
+  for (const a of ACHIEVEMENTS) {
+    const when = progress.state.prizes[a.id];
+    const d = el('div', `prize${when ? ' on' : ''}`); d.dataset.id = a.id;
+    d.append(el('span', 'icon', a.icon), el('b', '', a.title), el('small', '', a.say));
+    if (when) { const date = new Date(when); d.append(el('em', '', Number.isNaN(date.getTime()) ? 'won' : `won ${date.toLocaleDateString()}`)); }
+    host.append(d);
+  }
+}
+renderPrizes();
 
-// ------------------------------------------------------- walk cycle panel ----
-
-const LABEL = ['stand', 'step 1', 'stand', 'step 2'];
-const LAYOUT = ['NW', 'N', 'NE', 'W', null, 'E', 'SW', 'S', 'SE'];
-const compass = $('#compass');
-const hero = $('#heroCanvas');
-const heroCtx = hero.getContext('2d');
-
-let active = characters[0];
-let facing = 'S';
-let cells = [];
-
-const tabEls = characters.map((c) => {
-  const b = document.createElement('button');
-  b.className = 'tab';
-  b.textContent = c.label;
-  b.addEventListener('click', () => setCharacter(c));
-  $('#walkTabs').append(b);
-  return { c, b };
+// a prize won: a line for a moment - one after another when several land at once - and everything that shows the play redrawn
+const toasts = [];
+let toastTimer = null;
+function toast(text) {
+  toasts.push(text);
+  if (toastTimer) return;
+  const next = () => {
+    const t = $('#toast');
+    if (!toasts.length) { t.hidden = true; toastTimer = null; return; }
+    t.textContent = toasts.shift();
+    t.hidden = false;
+    toastTimer = setTimeout(next, 3200);
+  };
+  next();
+}
+progress.on(({ unlocked, reset }) => {
+  if (unlocked.length) toast(`${unlocked.length === 1 ? 'A prize' : 'Prizes'}: ${unlocked.map(a => `${a.icon} ${a.title}`).join(' · ')}`);
+  if (reset) toast('Progress forgotten');
+  renderPrizes(); markCards(); renderFacts();
+});
+$('#progressReset').addEventListener('click', () => {
+  if (!confirm('Forget every win and prize on this device?')) return;
+  progress.reset();
+  $('#progressStatus').textContent = 'forgotten'; $('#progressStatus').className = 'status';
 });
 
-function buildCompass() {
-  const { frameWidth: FW, frameHeight: FH } = active.meta;
-  compass.textContent = '';
-  cells = [];
-  for (const dir of LAYOUT) {
-    const el = document.createElement('div');
-    if (!dir) { el.className = 'cell spacer'; compass.append(el); continue; }
-    el.className = 'cell';
-    const canvas = document.createElement('canvas');
-    canvas.width = FW * 2; canvas.height = FH * 2;
-    el.append(canvas, Object.assign(document.createElement('b'), { textContent: dir }));
-    el.addEventListener('click', () => setDir(dir));
-    compass.append(el);
-    cells.push({ dir, el, ctx: canvas.getContext('2d') });
-  }
-  hero.width = FW * 4; hero.height = FH * 4;
+// ------------------------------------------------------------------ the par ----
+// The solver's answer for every level, in a worker so the page stays live,
+// once per device (localStorage alice.levels.par, by the level's key). The
+// tea party is the long one (~31k states). A card says the par once known,
+// the strip adds the difficulty word, and a best already under it is a prize.
+
+const PAR_KEY = 'alice.levels.par';
+const parCache = (() => { try { return JSON.parse(localStorage.getItem(PAR_KEY) ?? '{}') || {}; } catch { return {}; } })();
+try { parWorker = new Worker(new URL('./check-worker.js', import.meta.url), { type: 'module' }); } catch { parWorker = null; }
+const parWaiting = new Map();
+let parSeq = 0;
+function parKnown(entry, { par, label }) {
+  entry.par = par; entry.label = label;
+  if (current === entry) room.setPar(par);
+  catalogue();
+  progress.parKnown(entry.key, par);
+  markCards(); if (current === entry) renderFacts();
 }
-
-function setDir(d) {
-  facing = d;
-  $('#heroDir').textContent = d;
-  for (const c of cells) c.el.classList.toggle('on', c.dir === d);
+function askPar(entry) {
+  const hit = parCache[entry.key];
+  if (hit?.par) { parKnown(entry, hit); return; }
+  if (!parWorker) return;
+  const id = ++parSeq;
+  parWaiting.set(id, (report) => {
+    if (!report?.ok || !report.par) return;
+    const a = analyse(entry.level, report);
+    const d = difficulty(report, a?.pushes ?? 0);
+    parCache[entry.key] = { par: report.par, label: d?.label ?? null };
+    try { localStorage.setItem(PAR_KEY, JSON.stringify(parCache)); } catch { /* storage may be off */ }
+    parKnown(entry, parCache[entry.key]);
+  });
+  parWorker.postMessage({ id, level: entry.level });
 }
-
-function setCharacter(c) {
-  active = c;
-  for (const t of tabEls) t.b.classList.toggle('on', t.c === c);
-  buildCompass();
-  setDir(facing);
+if (parWorker) {
+  parWorker.onmessage = (e) => { const done = parWaiting.get(e.data.id); parWaiting.delete(e.data.id); done?.(e.data.report); };
+  parWorker.onerror = () => { parWorker = null; renderFacts(); };
 }
+// the small rooms first, so the tea party's search does not hold the others up
+for (const l of [...levels].sort((a, b) => a.map.w * a.map.h * (a.map.start.rocks.length + 1) - b.map.w * b.map.h * (b.map.start.rocks.length + 1))) askPar(l);
 
-// ?walk=<id> opens straight on a character
-const wanted = new URLSearchParams(location.search).get('walk');
-setCharacter(characters.find(c => c.id === wanted) ?? characters[0]);
-
-const held = new Set();
-const KEYS = { ArrowUp: 'N', ArrowDown: 'S', ArrowLeft: 'W', ArrowRight: 'E',
-               w: 'N', s: 'S', a: 'W', d: 'E' };
-addEventListener('keydown', (e) => {
-  const k = KEYS[e.key];
-  if (!k) return;
-  e.preventDefault();
-  held.add(k);
-  const ns = held.has('N') ? 'N' : held.has('S') ? 'S' : '';
-  const ew = held.has('E') ? 'E' : held.has('W') ? 'W' : '';
-  if (ns + ew) setDir(ns + ew);
-});
-addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k) held.delete(k); });
-
-let period = 160;
-$('#walkSpeed').addEventListener('input', (e) => {
-  period = +e.target.value;
-  $('#walkSpeedOut').textContent = `${period}ms`;
-});
-const playing = () => $('#walkPlay').checked && state.animate;
-
-// ------------------------------------------------------------------ stage ----
-
-// ----------------------------------------------------------------- themes ----
-// A stage picks its look from a theme: each map character maps to a list of
-// tiles, and which one a cell gets is a hash of its coordinates. Deterministic,
-// so the room looks hand-dressed but never shuffles between frames.
-
-const hash2 = (x, y) => {
-  let h = (x * 73856093) ^ (y * 19349663);
-  h = (h ^ (h >>> 13)) * 1274126177;
-  return Math.abs(h ^ (h >>> 16));
-};
-const pick = (list, x, y) => list[hash2(x, y) % list.length];
-
-const THEMES = {
-  // the tea party is a walled garden
-  garden: {
-    '#': ['hedge_daisies', 'hedge_wide', 'hedge_daisies', 'hedge_roses',
-          'hedge_wide', 'hedge_daisies', 'pillar_rose', 'hedge_daisies'],
-    '.': ['floor_grass_clover', 'floor_grass_roses', 'floor_grass_flowers',
-          'floor_grass_clover', 'floor_grass_flowers', 'floor_dirt_patch'],
-    A: ['floor_grass_clover'],
-    O: ['floor_dirt_patch'],
-    b: ['floor_checker_framed'],
-    L: ['floor_dirt_cross'],
-    G: ['floor_dirt_cross'],
-    D: ['floor_carpet_heart'],
-    gateClosed: 'hedge_post_left',
-  },
-  // the gauntlet is the Queen's hall
-  hall: {
-    // mostly plain: a banner every few cells reads as decoration, a banner on
-    // every cell reads as noise and stops the wall looking like a wall
-    '#': ['wall_blue', 'wall_blue', 'wall_blue', 'wall_blue', 'wall_blue',
-          'wall_blue', 'pillar_blue', 'wall_blue', 'wall_blue',
-          'wall_blue_banner_white', 'wall_blue', 'wall_blue_banner_red'],
-    '.': ['floor_marble_plain', 'floor_marble_veined', 'floor_marble_plain',
-          'floor_marble_cracked'],
-    A: ['floor_marble_plain'],
-    O: ['floor_marble_veined'],
-    b: ['floor_checker_blue'],
-    L: ['floor_marble_heart'],
-    G: ['floor_carpet_heart'],
-    D: ['floor_carpet_heart'],
-    gateClosed: 'hedge_rail',
-  },
-};
-
+// ---------------------------------------------------------------- shared ----
 /**
- * Every cell gets a floor first, then whatever stands on it. Some wall pieces -
- * pillars, posts, rails - are narrower than a cell, and without a floor beneath
- * them the gap is just background showing through.
+ * A room that came in a link - ?level=<token>, src/level.js decodeShare; the
+ * maker's Share dialog and this page's write one - as a card of its own,
+ * "Shared with you", opened and played like any level, its blurb and lesson
+ * with it; the par is worked out like the others'. A link that is not a room
+ * is said so in the status and nothing else changes - a glitch level's token
+ * is the range page's, and the status carries the link there. Returns the
+ * room, or null.
  */
-function drawCell(ctx, theme, ch, x, y, size) {
-  const px = x * size, py = y * size;
-  const floorList = theme[ch] && ch !== '#' ? theme[ch] : theme['.'];
-  ctx.drawImage(tiles.images[pick(floorList, x, y)], px, py, size, size);
-  if (ch === '#') ctx.drawImage(tiles.images[pick(theme['#'], x, y)], px, py, size, size);
-}
-
-// ------------------------------------------------------------------ stage ----
-// The playable puzzle. Rules and solver live in src/puzzle.js, so the Solve
-// button runs the same search that tools/verify-stage.mjs uses to prove the
-// stage ships - it is a solver, not a recording.
-
-const TILE = 48;
-const map = parse(TEA_PARTY.rows);
-const stage = $('#stage');
-const sctx = stage.getContext('2d');
-stage.width = map.w * TILE;
-stage.height = map.h * TILE;
-
-const TEA_THEME = THEMES.garden;
-
-let board = map.start;   // the puzzle state; `state` above is the page UI
-let aliceFacing = 'S';
-let stepsTaken = 0;
-let solution = null;       // moves queued for playback
-let playbackAt = 0;
-let playTimer = null;
-let playSpeed = 120;
-
-const statusEl = $('#stageStatus');
-const setStatus = (text, kind = '') => {
-  statusEl.textContent = text;
-  statusEl.className = `status ${kind}`;
+const say = (text, kind = '', link = null) => {
+  const s = $('#roomStatus'); s.textContent = text; s.className = `status ${kind}`.trim();
+  if (link) s.append(Object.assign(el('a'), { href: link.href, textContent: link.text }));
 };
-
-function buttonsPressed() { return board.rocks.filter(r => map.buttons.has(r)).length; }
-
-function refreshStatus() {
-  if (isGoal(map, board)) setStatus(`solved in ${stepsTaken} moves`, 'win');
-  else if (solution) setStatus(`playing solution — move ${playbackAt} of ${solution.length}`, 'busy');
-  else setStatus(`${buttonsPressed()} of ${map.buttons.size} buttons held · ${stepsTaken} moves`);
+function openShared(token) {
+  let level;
+  try {
+    level = decodeShare(token);
+    if (!isGlitch(level)) { const problems = lint(level); if (problems.length) throw new Error(problems.join('; ')); }
+  } catch (e) { say(`the shared room could not be opened: ${e.message}`, 'hot'); return null; }
+  if (isGlitch(level)) { say(`the link carries a glitch level, "${level.name}", not a room: `, 'hot', { href: `glitch.html?level=${encodeURIComponent(token)}`, text: 'play it on the range page' }); return null; }
+  const old = levels.findIndex(l => l.group === 'shared');
+  if (old >= 0) levels.splice(old, 1);
+  const entry = entryOf('shared', level, { author: 'a link', group: 'shared' });
+  levels.push(entry);
+  catalogue();
+  renderGroups();
+  askPar(entry);
+  open('shared', { tell: false, show: true });
+  return level;
 }
 
-function applyMove(dir) {
-  const next = step(map, board, dir);
-  aliceFacing = dir;
-  if (!next) return false;
-  board = next;
-  stepsTaken++;
-  refreshStatus();
-  return true;
+// ------------------------------------------------------------------ share ----
+// The open level as one link, two doors: played here, or carried on in the
+// level maker. The same tokens the maker writes (src/level.js shareUrl).
+
+{
+  const dialog = $('#shareDialog');
+  const base = (page) => new URL(page, location.href).href;
+  function fill() {
+    if (!current) return;
+    const play = shareUrl(base('index.html'), current.level), edit = shareUrl(base('maker.html'), current.level);
+    $('#sharePlayUrl').value = play; $('#sharePlayOpen').href = play;
+    $('#shareEditUrl').value = edit; $('#shareEditOpen').href = edit;
+    const info = shareInfo(edit);
+    const bits = [`${current.name}`, `${info.chars} characters`];
+    if (current.level.lesson?.length) bits.push(`a lesson of ${current.level.lesson.length}`);
+    $('#shareStatus').textContent = [...bits, ...info.warnings].join(' · ');
+    $('#shareStatus').className = `status${info.warnings.length ? ' hot' : ''}`;
+  }
+  const copy = (btn, input) => async () => {
+    try { await navigator.clipboard.writeText(input.value); btn.textContent = 'Copied ✓'; }
+    catch { input.focus(); input.select(); btn.textContent = 'Select all, then copy'; }
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+  };
+  $('#shareBtn').addEventListener('click', () => { fill(); dialog.showModal(); });
+  $('#sharePlayCopy').addEventListener('click', copy($('#sharePlayCopy'), $('#sharePlayUrl')));
+  $('#shareEditCopy').addEventListener('click', copy($('#shareEditCopy'), $('#shareEditUrl')));
+  for (const id of ['sharePlayUrl', 'shareEditUrl']) $(`#${id}`).addEventListener('focus', (e) => e.target.select());
+  $('#shareClose').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
 }
 
-/** Playback runs on its own clock, not the render loop - one move per tick,
- *  whatever the frame rate is doing. */
-function startPlayback(moves) {
-  stopPlayback();
-  solution = moves;
-  playbackAt = 0;
-  playTimer = setInterval(() => {
-    if (playbackAt >= solution.length) { stopPlayback(); return; }
-    applyMove(solution[playbackAt++]);
-  }, playSpeed);
-  refreshStatus();
-}
+// ---------------------------------------------------------------- buttons ----
 
-function stopPlayback() {
-  if (playTimer) clearInterval(playTimer);
-  playTimer = null;
-  solution = null;
-  $('#solveBtn').disabled = false;
-  refreshStatus();
-}
+$('#roomReset').addEventListener('click', () => room.reset());
+$('#roomUndo').addEventListener('click', () => room.undo());
+$('#roomSolve').addEventListener('click', () => room.solve());
 
-function resetStage() {
-  stopPlayback();
-  board = map.start;
-  aliceFacing = 'S';
-  stepsTaken = 0;
-  playbackAt = 0;
-  refreshStatus();
-}
+// The gate's pause (site only): the badge went, so the world stands still -
+// a timed room's cast does not move while nobody can move Alice, a solver's
+// playback holds its place. The status says why, and is redrawn when the
+// badge is back.
+hooks.pause = (why) => room.pause(why);
+hooks.resume = () => room.resume();
 
-function drawStage(now) {
-  sctx.imageSmoothingEnabled = false;
-  sctx.clearRect(0, 0, stage.width, stage.height);
-
-  const allHeld = buttonsPressed() === map.buttons.size;
-
-  map.rows.forEach((row, y) => [...row].forEach((ch, x) => {
-    const i = y * map.w + x;
-    const px = x * TILE, py = y * TILE;
-
-    drawCell(sctx, TEA_THEME, ch, x, y, TILE);
-
-    if (map.gates.has(i) && !board.lever)
-      sctx.drawImage(tiles.images[TEA_THEME.gateClosed], px, py, TILE, TILE);
-    if (map.levers.has(i))
-      sctx.drawImage(tiles.images[board.lever ? 'lever_down' : 'lever_up'], px, py, TILE, TILE);
-    if (map.buttons.has(i)) {
-      const pressed = board.rocks.includes(i);
-      sctx.drawImage(tiles.images[pressed ? 'button_heart_down' : 'button_heart_up'], px, py, TILE, TILE);
-    }
-    if (i === map.door)
-      sctx.drawImage(tiles.images[allHeld ? 'door_heart_open' : 'door_heart_closed'], px, py, TILE, TILE);
-  }));
-
-  for (const rock of board.rocks)
-    sctx.drawImage(items.images.rock_pair,
-                   (rock % map.w) * TILE, ((rock / map.w) | 0) * TILE, TILE, TILE);
-
-  // Alice: her walk frames step while a solution is playing, otherwise she stands
-  const aliceChar = byId.alice2;
-  const aliceCycle = aliceChar.meta.cycle ?? [0, 1, 0, 2];
-  const aliceBeat = solution ? Math.floor(now / playSpeed) % aliceCycle.length : 0;
-  const aliceFrame = aliceChar.images[aliceFacing][aliceCycle[aliceBeat]];
-  sctx.drawImage(aliceFrame, (board.alice % map.w) * TILE, ((board.alice / map.w) | 0) * TILE, TILE, TILE);
-
-}
-
-const KEY_DIRS = { ArrowUp: 'N', ArrowDown: 'S', ArrowLeft: 'W', ArrowRight: 'E',
-                   w: 'N', s: 'S', a: 'W', d: 'E' };
-addEventListener('keydown', (e) => {
-  if (e.key === 'r' || e.key === 'R') { resetStage(); return; }
-  const dir = KEY_DIRS[e.key];
-  if (!dir || solution) return;
-  e.preventDefault();
-  applyMove(dir);
+// --------------------------------------------------------------- the coach ----
+// The tutorial: a step the player asked for - the first on load, a skip, a
+// click on the checklist, start over - opens the stage it is about (chapter
+// one the tea party, chapter two the gauntlet; chapter three asks the player
+// to pick one of the community's rooms, so it shows the list instead) and,
+// on a phone, the panel. A step that completed itself leaves the player in
+// whatever room they are in: the next line says where to go. Mounted once
+// the levels exist, since its first step opens one.
+open('tea-party', { tell: false });
+const STAGE_OF = { tea: 'tea-party', chase: 'queens-gauntlet' };
+coach = mountCoach(tutor, {
+  looks,
+  chapters: { 1: 'Chapter one · a mad tea party', 2: "Chapter two · the queen's gauntlet", 3: "Chapter three · the community's rooms" },
+  finish: {
+    title: 'A prize for everyone',
+    say: 'The rooms are yours. The range is next door, the level maker too.',
+    note: (skipped) => 'You have been through every room' +
+      (skipped ? ` (${skipped} step${skipped === 1 ? '' : 's'} skipped)` : '') +
+      '. Start over any time, cross to the glitch range, where the badge does the pressing, or make a room of your own in the level maker.',
+  },
+  prepare(step, { show: bring = false, why = 'step' } = {}) {
+    if (!step?.stage) return;
+    const want = STAGE_OF[step.stage];
+    if (why !== 'step' && want && current?.id !== want && byId(want)) open(want, { tell: false });
+    if (!bring) return;
+    // the step's level when it is the open one, else the list to pick it from
+    const there = want ? current?.id === want : current?.group !== 'stages';
+    show(there ? 'play' : 'levels');
+  },
 });
 
-$('#resetBtn').addEventListener('click', resetStage);
-$('#playSpeed').addEventListener('input', (e) => {
-  playSpeed = +e.target.value;
-  $('#playSpeedOut').textContent = `${playSpeed}ms`;
-  if (solution) startPlayback(solution.slice(playbackAt));   // re-time mid-run
-});
-
-$('#solveBtn').addEventListener('click', () => {
-  $('#solveBtn').disabled = true;
-  setStatus('searching…', 'busy');
-  // let the status paint before the search blocks the thread
-  setTimeout(() => {
-    const from = { ...board };
-    const t0 = performance.now();
-    const { moves, explored } = solve({ ...map, start: from });
-    const ms = Math.round(performance.now() - t0);
-    if (!moves) {
-      setStatus(`no solution from here (${explored} states, ${ms}ms) — press Reset`);
-      $('#solveBtn').disabled = false;
-      return;
-    }
-    console.log(`[stage] solved in ${moves.length} moves, ${explored} states, ${ms}ms`);
-    startPlayback(moves);
-  }, 30);
-});
-
-resetStage();
-
-// ?autosolve=tea kicks the solver on load - handy for a screenshot or smoke test
-if (new URLSearchParams(location.search).get('autosolve') === 'tea') {
-  setTimeout(() => $('#solveBtn').click(), 400);
-}
-
-// ------------------------------------------------------------------- loop ----
-
-let beat = 0, last = performance.now();
-function tick(now) {
-  const cycle = active.meta.cycle ?? [0, 1, 0, 2];
-  if (playing() && now - last >= period) { beat = (beat + 1) % cycle.length; last = now; }
-  if (!playing()) beat = 0;
-
-  const frame = cycle[beat];
-  const { frameWidth: FW, frameHeight: FH } = active.meta;
-  $('#heroFrame').textContent = LABEL[beat % LABEL.length];
-
-  for (const c of cells) {
-    c.ctx.imageSmoothingEnabled = false;
-    c.ctx.clearRect(0, 0, FW * 2, FH * 2);
-    c.ctx.drawImage(active.images[c.dir][frame], 0, 0, FW * 2, FH * 2);
-  }
-  heroCtx.imageSmoothingEnabled = false;
-  heroCtx.clearRect(0, 0, FW * 4, FH * 4);
-  heroCtx.drawImage(active.images[facing][frame], 0, 0, FW * 4, FH * 4);
-
-  drawStage(now);
-  drawChase(now);
-  requestAnimationFrame(tick);
-}
-
-// ---------------------------------------------------- stage: timed room ----
-// The Queen's Gauntlet. The world advances on its own clock whether or not the
-// player does anything, so this stage is a dexterity test as much as a puzzle:
-// 64 correct inputs, each inside one tick, and being seen ends the run.
-
-const chaseMap = parseChase(QUEENS_GAUNTLET);
-const chase = $('#chase');
-const cctx = chase.getContext('2d');
-chase.width = chaseMap.w * TILE;
-chase.height = chaseMap.h * TILE;
-
-const CHASE_THEME = THEMES.hall;
-const HAZARD_CHARACTER = { queen: 'queen', cheshire: 'cheshire', rabbit: 'rabbit' };
-
-let chaseState = chaseMap.start;
-let chaseFacing = 'S';
-let chaseTicks = 0;
-let chaseDead = false;
-let chasePlan = null;
-let chasePlanAt = 0;
-let chaseTimer = null;
-let chaseTickMs = chaseMap.tickMs;
-let queued = null;          // the input this tick, if the player gave one
-
-const chaseStatus = $('#chaseStatus');
-function setChaseStatus() {
-  if (chaseDead) {
-    chaseStatus.textContent = `caught on tick ${chaseTicks} — press R`;
-    chaseStatus.className = 'status hot';
-  } else if (isChaseGoal(chaseMap, chaseState)) {
-    chaseStatus.textContent = `out in ${chaseTicks} ticks (par 64)`;
-    chaseStatus.className = 'status win';
-  } else {
-    const held = chaseState.rocks.filter(r => chaseMap.buttons.has(r)).length;
-    chaseStatus.textContent =
-      `tick ${chaseTicks} · ${held}/${chaseMap.buttons.size} buttons${chasePlan ? ' · solving' : ''}`;
-    chaseStatus.className = `status${chasePlan ? ' busy' : ''}`;
-  }
-}
-
-function chaseRestart() {
-  chaseState = chaseMap.start;
-  chaseFacing = 'S';
-  chaseTicks = 0;
-  chaseDead = false;
-  chasePlan = null;
-  chasePlanAt = 0;
-  queued = null;
-  $('#chaseSolve').disabled = false;
-  setChaseStatus();
-}
-
-/** One tick of the world: whatever Alice does, the cast moves. */
-function chaseTick() {
-  if (chaseDead || isChaseGoal(chaseMap, chaseState)) return;
-  const action = chasePlan ? (chasePlan[chasePlanAt++] ?? 'wait') : (queued ?? 'wait');
-  queued = null;
-  if (action !== 'wait') chaseFacing = action;
-
-  const next = chaseStep(chaseMap, chaseState, action);
-  if (!next) {
-    // an illegal move is just a bump; a fatal one ends the run
-    const bumped = chaseStep(chaseMap, chaseState, 'wait');
-    if (action !== 'wait' && bumped) { chaseState = bumped; chaseTicks++; setChaseStatus(); return; }
-    chaseDead = true;
-    chasePlan = null;
-    $('#chaseSolve').disabled = false;
-    setChaseStatus();
-    return;
-  }
-  chaseState = next;
-  chaseTicks++;
-  if (chasePlan && chasePlanAt >= chasePlan.length) {
-    chasePlan = null;
-    $('#chaseSolve').disabled = false;
-  }
-  setChaseStatus();
-}
-
-function startClock() {
-  if (chaseTimer) clearInterval(chaseTimer);
-  chaseTimer = setInterval(() => { if ($('#chaseRun').checked) chaseTick(); }, chaseTickMs);
-}
-startClock();
-
-function drawChase(now) {
-  cctx.imageSmoothingEnabled = false;
-  cctx.clearRect(0, 0, chase.width, chase.height);
-
-  const allHeld = chaseState.rocks.every(r => chaseMap.buttons.has(r));
-  chaseMap.rows.forEach((row, y) => [...row].forEach((ch, x) => {
-    const i = y * chaseMap.w + x;
-    const px = x * TILE, py = y * TILE;
-    drawCell(cctx, CHASE_THEME, ch, x, y, TILE);
-    if (chaseMap.gates.has(i) && !chaseState.lever)
-      cctx.drawImage(tiles.images[CHASE_THEME.gateClosed], px, py, TILE, TILE);
-    if (chaseMap.levers.has(i))
-      cctx.drawImage(tiles.images[chaseState.lever ? 'lever_down' : 'lever_up'], px, py, TILE, TILE);
-    if (chaseMap.buttons.has(i))
-      cctx.drawImage(tiles.images[chaseState.rocks.includes(i) ? 'button_heart_down' : 'button_heart_up'],
-                     px, py, TILE, TILE);
-    if (i === chaseMap.door)
-      cctx.drawImage(tiles.images[allHeld ? 'door_heart_open' : 'door_heart_closed'], px, py, TILE, TILE);
-  }));
-
-  // what the Queen can see this tick - the rule is invisible otherwise
-  for (const hz of chaseMap.hazards) {
-    if (!hz.sight) continue;
-    for (let i = 0; i < chaseMap.w * chaseMap.h; i++) {
-      if (!seenBy(chaseMap, hz, chaseState.phase, i)) continue;
-      cctx.fillStyle = 'rgba(226, 64, 84, .22)';
-      cctx.fillRect((i % chaseMap.w) * TILE, ((i / chaseMap.w) | 0) * TILE, TILE, TILE);
+// ?level=<token> in the address is a room that came in a link: a card of its
+// own, the one open, and on a phone the one on screen, whatever the
+// tutorial's step says (play=1, the studio's, changes nothing here). Else
+// ?room=<id> is the one open - or, naming no level, the status says so.
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('level') !== null) openShared(q.get('level'));
+  else if (q.get('room') !== null) {
+    const wanted = q.get('room');
+    if (byId(wanted)) open(wanted, { tell: false, show: phone(), remember: true });
+    else {
+      const glitch = listed.find(s => s.id === wanted && s.kind && s.kind !== 'tea' && s.kind !== 'chase');
+      if (glitch) say(`"${glitch.name ?? wanted}" is a glitch level, not a room: `, 'hot', { href: 'glitch.html', text: `play it on the range page, the last tab of the ${glitch.kind} range` });
+      else say(`no level "${wanted}" - ${current.name} is open instead`, 'hot');
     }
   }
-
-  for (const rock of chaseState.rocks)
-    cctx.drawImage(items.images.rock_pair,
-                   (rock % chaseMap.w) * TILE, ((rock / chaseMap.w) | 0) * TILE, TILE, TILE);
-
-  // the cast, facing the way they are walking
-  for (const { hz, cell } of hazardCells(chaseMap, chaseState.phase)) {
-    const character = byId[HAZARD_CHARACTER[hz.id]];
-    if (!character) continue;
-    const ahead = hazardAt(chaseMap, hz, chaseState.phase + 1);
-    const dx = Math.sign((ahead % chaseMap.w) - (cell % chaseMap.w));
-    const dy = Math.sign(((ahead / chaseMap.w) | 0) - ((cell / chaseMap.w) | 0));
-    const dir = dy < 0 ? 'N' : dy > 0 ? 'S' : dx > 0 ? 'E' : 'W';
-    const cyc = character.meta.cycle ?? [0, 1, 0, 2];
-    const img = character.images[dir][cyc[Math.floor(now / chaseTickMs) % cyc.length]];
-    cctx.drawImage(img, (cell % chaseMap.w) * TILE, ((cell / chaseMap.w) | 0) * TILE, TILE, TILE);
-  }
-
-  const al = byId.alice2;
-  const alCyc = al.meta.cycle ?? [0, 1, 0, 2];
-  const alImg = al.images[chaseFacing][alCyc[Math.floor(now / chaseTickMs) % alCyc.length]];
-  cctx.globalAlpha = chaseDead ? 0.35 : 1;
-  cctx.drawImage(alImg, (chaseState.alice % chaseMap.w) * TILE,
-                 ((chaseState.alice / chaseMap.w) | 0) * TILE, TILE, TILE);
-  cctx.globalAlpha = 1;
+  // ?autosolve=tea|chase kicks the solver on load - a screenshot or a smoke test; the bench only
+  const auto = q.get('autosolve');
+  if (mode === 'dev' && STAGE_OF[auto]) { open(STAGE_OF[auto], { tell: false }); setTimeout(() => room.solve(), 400); }
 }
 
-const CHASE_KEYS = { ArrowUp: 'N', ArrowDown: 'S', ArrowLeft: 'W', ArrowRight: 'E',
-                     w: 'N', s: 'S', a: 'W', d: 'E', ' ': 'wait' };
-addEventListener('keydown', (e) => {
-  if (e.key === 'r' || e.key === 'R') { chaseRestart(); return; }
-  const action = CHASE_KEYS[e.key];
-  if (!action || chasePlan) return;
-  queued = action;                       // consumed by the next tick, not now
-});
-
-$('#chaseReset').addEventListener('click', chaseRestart);
-$('#chaseSpeed').addEventListener('input', (e) => {
-  chaseTickMs = +e.target.value;
-  $('#chaseSpeedOut').textContent = `${chaseTickMs}ms`;
-  startClock();
-});
-$('#chaseSolve').addEventListener('click', () => {
-  $('#chaseSolve').disabled = true;
-  chaseStatus.textContent = 'searching…';
-  chaseStatus.className = 'status busy';
-  setTimeout(() => {
-    const t0 = performance.now();
-    const { moves, explored } = solveChase(chaseMap, chaseState);
-    const ms = Math.round(performance.now() - t0);
-    if (!moves) {
-      chaseStatus.textContent = `no way out from here (${explored} states, ${ms}ms) — press R`;
-      $('#chaseSolve').disabled = false;
-      return;
-    }
-    console.log(`[gauntlet] ${moves.length} ticks, ${explored} states, ${ms}ms`);
-    chasePlan = moves;
-    chasePlanAt = 0;
-    setChaseStatus();
-  }, 30);
-});
-
-chaseRestart();
-if (new URLSearchParams(location.search).get('autosolve') === 'chase')
-  setTimeout(() => $('#chaseSolve').click(), 400);
+// scripted tests read the page through this (dev hosts; nothing here plays)
+window.__stages = {
+  get tutor() { return tutor; }, room, levels, open, openShared, progress,
+  get current() { return current; }, get board() { return room.state; }, get history() { return room.history; },
+  get chase() { return { state: room.state, ticks: room.count, dead: room.dead, waiting: room.waiting }; },
+  get par() { return Object.fromEntries(levels.map(l => [l.id, l.par])); },
+};
 
 // The render loop starts last: everything it draws has to exist first.
+function tick(now) {
+  room.draw(now);
+  requestAnimationFrame(tick);
+}
 requestAnimationFrame(tick);

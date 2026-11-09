@@ -1,0 +1,389 @@
+/* Alice in AI Land - the level maker on top of styles.css.
+
+   styles.css is the shared chrome and the palette (every colour below is one
+   of its variables, so a theme paints this page too). This file is what the
+   maker page adds: the landing's hero, the editor's grid and side column,
+   the run & debug bench with its simulated badge, and the invitation dialog.
+   Everything the published site shows is the landing; the editor is class
+   dev-only and styles.css hides it there. */
+
+/* ------------------------------------------------------------- the hero -- */
+
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.5rem; align-items: center; overflow: hidden; }
+.hero-room {
+  display: flex; justify-content: center; align-items: center;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--ink-2); padding: .75rem;
+}
+.hero-room canvas { max-width: 100%; height: auto; }
+.hero h1 { margin: 0 0 .6rem; font: 700 clamp(22px, 3.4vw, 34px)/1.15 var(--font-display); letter-spacing: .02em; color: var(--accent); text-shadow: 0 0 18px var(--glow); }
+.lede { margin: 0 0 1rem; color: var(--text); font-size: 14px; max-width: 60ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .8rem; }
+.btn.big { padding: .7rem 1.1rem; font-size: 13px; letter-spacing: .06em; }
+@media (max-width: 860px) { .hero { grid-template-columns: 1fr; } }
+
+.steps.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: 0; max-width: none; counter-reset: step; list-style: none; }
+.steps.three li {
+  position: relative; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2);
+  padding: .9rem .9rem .9rem 2.8rem; font-size: 12px; color: var(--dim);
+}
+.steps.three li b { color: var(--text); }
+/* a step's title is its first bold, on a line of its own; a bold word in the prose stays in its sentence */
+.steps.three li > b:first-child { display: block; margin-bottom: .25rem; }
+.steps.three li::before {
+  counter-increment: step; content: counter(step);
+  position: absolute; left: .9rem; top: .9rem; width: 1.4rem; height: 1.4rem; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent); font-weight: 700; display: grid; place-items: center; font-size: 12px;
+}
+@media (max-width: 760px) { .steps.three { grid-template-columns: 1fr; } }
+
+.format { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+.format pre { margin: 0; }
+@media (max-width: 760px) { .format { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------- the editor -- */
+
+.maker { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 1.25rem; align-items: start; }
+@media (max-width: 900px) { .maker { grid-template-columns: 1fr; } }
+.maker-side { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: .25rem; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); min-width: 0; }
+.field input, .field select, .field textarea {
+  font: 13px/1.4 var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+  padding: .35rem .5rem; letter-spacing: 0; text-transform: none; min-width: 0;
+}
+.field textarea { resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto; letter-spacing: .25em; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.field-row { display: flex; gap: .6rem; }
+.field-row .field { flex: 1; }
+.field small { text-transform: none; letter-spacing: 0; }
+#tickField[hidden] { display: none; }
+.field.grow { flex: 1; }
+
+.palette { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .6rem; }
+.brush {
+  display: flex; align-items: center; gap: .4rem; padding: .2rem .55rem .2rem .2rem; cursor: pointer;
+  font: inherit; font-size: 11px; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+}
+.brush canvas { width: 24px; height: 24px; border-radius: 3px; }
+.brush kbd { margin-left: .2rem; }
+.brush:hover { color: var(--text); border-color: var(--accent); }
+.brush.on { color: var(--text); border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; }
+.board-wrap { touch-action: none; }
+.board-wrap canvas { cursor: crosshair; max-width: 100%; height: auto; }
+
+.hazards { display: flex; flex-direction: column; gap: .4rem; }
+.hazard { border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); padding: .45rem .55rem; font-size: 11px; display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; }
+.hazard.on { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent) inset; }
+.hazard select, .hazard input { font: 12px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .15rem .3rem; }
+.hazard input[type=number] { width: 3.6em; }
+.hazard .route { flex-basis: 100%; color: var(--dim); font-size: 10px; letter-spacing: .04em; }
+.hazard .btn { padding: .2rem .5rem; font-size: 10px; }
+
+.lint { margin: 0; padding: 0 0 0 1.2rem; font-size: 11px; color: var(--hot); }
+.lint:empty { display: none; }
+.lint li.ok { color: var(--accent-2); list-style: none; margin-left: -1.2rem; }
+
+/* ---------------------------------------------------------- the studio -- */
+
+.tag { float: right; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.tag.on { color: var(--accent-2); }
+.studio-bar { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; margin: 0 0 .9rem; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2); }
+.tools { display: flex; flex-wrap: wrap; gap: .25rem; }
+.tool {
+  display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .55rem; cursor: pointer;
+  font: inherit; font-size: 11px; letter-spacing: .04em; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+}
+.tool i { font-style: normal; font-size: 13px; line-height: 1; color: var(--text); }
+.tool:hover { color: var(--text); border-color: var(--accent); }
+.tool.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.tool.on i { color: var(--on-accent); }
+.tool:disabled { opacity: .4; cursor: default; }
+.shift { display: inline-flex; gap: .15rem; margin-left: .25rem; }
+.shift .tool { padding: .3rem .45rem; }
+.zoom { display: flex; align-items: center; gap: .4rem; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-left: auto; }
+.zoom input { width: 90px; accent-color: var(--accent); }
+#keysBtn { font-weight: 700; padding: .3rem .6rem; }
+
+.board-wrap { position: relative; }
+.board-wrap canvas[data-tool=fill] { cursor: cell; }
+.board-wrap canvas[data-tool=pick] { cursor: copy; }
+.board-cursor { position: absolute; right: .5rem; bottom: .4rem; font: 10px/1 monospace; letter-spacing: .06em; color: var(--dim); background: color-mix(in srgb, var(--ink) 70%, transparent); padding: .2rem .4rem; border-radius: 3px; pointer-events: none; }
+.board-cursor:empty { display: none; }
+.overlays { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin: .5rem 0 .2rem; font-size: 11px; color: var(--dim); }
+.overlays label { display: inline-flex; align-items: center; gap: .3rem; cursor: pointer; }
+.overlays input { accent-color: var(--accent); margin: 0; }
+.stage-bar.tight { margin-top: .4rem; gap: .6rem; }
+
+.drawer { border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); padding: 0 .6rem; }
+.drawer summary { cursor: pointer; padding: .45rem 0; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); list-style: none; display: flex; align-items: center; gap: .5rem; }
+.drawer summary::before { content: '▸'; color: var(--accent); transition: transform .12s; }
+.drawer[open] summary::before { transform: rotate(90deg); }
+.drawer summary::-webkit-details-marker { display: none; }
+.drawer > :not(summary) { margin-bottom: .6rem; }
+.count { color: var(--accent-2); }
+.starters { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+.starter { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; padding: .4rem .55rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); }
+.starter b { color: var(--text); font-size: 11px; }
+.starter small { font-size: 10px; }
+.starter:hover { border-color: var(--accent); color: var(--text); }
+.knobs { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem .8rem; font-size: 11px; color: var(--dim); }
+.knobs label { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.knobs input[type=number] { width: 4.2em; font: 12px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .15rem .3rem; }
+.knobs input[type=range] { width: 70px; accent-color: var(--accent); }
+.knobs input[type=checkbox] { accent-color: var(--accent); }
+.shelf { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; max-height: 260px; overflow: auto; }
+.shelf li { display: flex; gap: .4rem; align-items: stretch; }
+.shelf-open { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; padding: .35rem .5rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); min-width: 0; }
+.shelf-open b { color: var(--text); font-size: 11px; }
+.shelf-open small { font-size: 10px; }
+.shelf-open:hover { border-color: var(--accent); }
+.shelf .btn { padding: .2rem .5rem; font-size: 10px; }
+.shelf:empty::after { content: 'nothing kept yet'; font-size: 10px; color: var(--dim); letter-spacing: .06em; }
+
+.verdict { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-top: .7rem; padding: .55rem .8rem; border: 1px solid var(--line); border-left: 3px solid var(--accent-2); border-radius: var(--r-xs); background: var(--well); font-size: 11px; color: var(--dim); }
+.verdict[hidden] { display: none; }
+.verdict b { color: var(--accent-2); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.meter { display: inline-flex; gap: 3px; }
+.meter i { width: 14px; height: 8px; border-radius: 2px; background: var(--line); }
+.meter i.on { background: var(--accent-2); box-shadow: 0 0 6px var(--accent-2); }
+
+/* ---------------------------------------------------- a glitch level -- */
+/* The second category of #editPanel (data-category, set by src/maker.js):
+   .room-only hides while a glitch level is on, .glitch-only while a room
+   is. The board's place is taken by the range's map, what the rules make
+   of the numbers, and one form per range. */
+
+.category { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: flex-end; margin: 0 0 .9rem; }
+.category .field { min-width: 12rem; }
+.category .note { flex-basis: 100%; margin: 0; }
+#editPanel[data-category=glitch] .room-only { display: none !important; }
+#editPanel:not([data-category=glitch]) .glitch-only { display: none !important; }
+.maker-range { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; min-width: 0; }
+@media (max-width: 900px) { .maker-range { grid-template-columns: 1fr; } }
+.range-preview { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.range-map-wrap canvas { max-width: 100%; height: auto; cursor: default; }
+.range-map-wrap[hidden] { display: none; }
+.range-facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .25rem .8rem; font-size: 11px; color: var(--dim); }
+.range-facts:empty { display: none; }
+.range-facts dt { color: var(--text); white-space: nowrap; letter-spacing: .04em; }
+.range-facts dd { margin: 0; overflow-wrap: anywhere; }
+.range-form { display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
+.range-form[hidden] { display: none; }
+.range-form .field textarea { letter-spacing: 0; font-family: monospace; }
+.range-form .legend {
+  margin: 0; padding: .5rem .6rem; font: 11px/1.5 monospace; color: var(--dim); background: var(--well);
+  border: 1px solid var(--line); border-radius: var(--r-xs); white-space: pre; overflow-x: auto;
+}
+.pool { border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); padding: .4rem .6rem .5rem; margin: 0; display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: 12px; color: var(--dim); }
+.pool legend { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 0 .3rem; }
+.pool label, .check { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; }
+.check { font-size: 11px; color: var(--dim); }
+.pool input, .check input { accent-color: var(--accent); margin: 0; }
+
+/* ------------------------------------------------------ the assistant -- */
+
+.bridge-chip { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); padding: .2rem .5rem; border: 1px solid var(--line); border-radius: var(--r-xs); max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bridge-chip.on { border-color: var(--accent); color: var(--accent); }
+.bridge-chip.who { border-color: var(--accent-2); color: var(--accent-2); }
+.chat { max-height: 320px; }
+.chat li b { color: var(--accent); margin-right: .2em; }
+.chat li.you b { color: var(--text); }
+.chat li.act { color: var(--dim); font-style: italic; }
+.chat li.act b { color: var(--accent-2); font-style: normal; }
+.chat:empty::after { content: 'nothing said yet'; color: var(--dim); font-size: 11px; letter-spacing: .06em; }
+/* the guide's question as a card: the step's line, the question, its options as buttons; a card answered or superseded dims */
+/* the guide's step card: the whole step - the line, the why, the board, what the assistant does, the question's buttons, Do it for me */
+.chat li.ask { border-left: 2px solid var(--accent-2); padding-left: .5rem; }
+.chat li.ask b { color: var(--accent-2); }
+.chat li.ask .ask-step { color: var(--dim); font-size: 11px; letter-spacing: .04em; }
+.chat li.ask .ask-say { display: block; color: var(--text); margin-top: .15rem; }
+.chat li.ask .ask-why, .chat li.ask .ask-board, .chat li.ask .ask-does { display: block; color: var(--dim); font-size: 11px; margin-top: .2rem; }
+.chat li.ask .ask-why::before { content: 'why · '; color: var(--accent-2); }
+.chat li.ask .ask-board::before { content: 'on the board · '; color: var(--accent-2); }
+.chat li.ask .ask-work { margin-top: .25rem; color: var(--dim); font-size: 11px; }
+.chat li.ask .ask-work summary { cursor: pointer; color: var(--accent-2); }
+.chat li.ask .ask-work ul { margin: .2rem 0 0 1rem; padding: 0; }
+.ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .35rem 0 .1rem; }
+.ask-q { flex-basis: 100%; color: var(--dim); font-size: 11px; }
+.ask-pick, .ask-help { font-size: 11px; padding: .2rem .55rem; }
+.ask-row small { color: var(--dim); font-size: 10px; }
+.chat li.ask.stale, .chat li.ask.answered { opacity: .55; }
+.chat li.ask.answered { border-left-color: var(--accent); }
+.chat li.ask.busy { opacity: .75; }
+.chat li.ask.busy::after { content: 'working…'; display: block; color: var(--dim); font-size: 10px; font-style: italic; margin-top: .15rem; }
+.chat-text { flex: 1 1 16rem; font: 13px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .6rem; min-width: 0; }
+.chat-text:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+/* in the dock (the classic look; the dock's place is styles.css's): the log takes the room and scrolls, the note stays only
+   while the log is empty (it says how an assistant gets in), the input row is tight; the tag stops floating in the flex heading */
+html[data-look=classic] .dock .chat { flex: 1 1 auto; min-height: 0; max-height: none; margin: .4rem 0 0; }
+html[data-look=classic] .dock:has(.chat:not(:empty)) > .note { display: none; }
+html[data-look=classic] .dock > .note { margin: .4rem 0 0; font-size: 11px; }
+html[data-look=classic] .dock > .stage-bar { margin-top: .5rem; gap: .4rem; }
+html[data-look=classic] .dock .chat-text { flex: 1 1 8rem; }
+/* the guide's card in the dock: the newest sits at the top of a short log, so what wants a press comes first - the title,
+   the question and its buttons, then the step's line (in the page the line reads before the question, as a chat would) */
+html[data-look=classic] .dock .chat li.ask { display: flex; flex-direction: column; }
+html[data-look=classic] .dock .chat li.ask > b { order: -2; }
+html[data-look=classic] .dock .chat li.ask > .ask-row { order: -1; margin: .25rem 0 .35rem; }
+html[data-look=classic] .dock .tag { float: none; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* the chip stays one line: the state gives way first */
+
+.keys-dialog { width: min(640px, 92vw); }
+.keys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1.2rem; font-size: 12px; color: var(--dim); }
+.keys-grid h3 { margin: 0 0 .2rem; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.keys-grid p { margin: 0; line-height: 1.9; }
+@media (max-width: 600px) { .keys-grid, .starters, .knobs { grid-template-columns: 1fr; } }
+
+/* ------------------------------------------------------ run & debug -- */
+/* The rig (#playPanel, class rig; its place is styles.css's): in the classic look its body (#rig) is in the editor while a
+   room is played, moved there by src/maker.js, and the editor is armed: the category, the tools and the board with its
+   fields give way to the legend, the room, the badge, the controls and the log, and Check with the rest of the editor's
+   foot stays under them. The room and the badge sit side by side (the room takes what the badge leaves) down to 640 px. */
+#editPanel.armed > :is(.category, .studio-bar, .maker) { display: none; }
+#editPanel > h2 .armed-mark { margin-left: .6rem; }   /* the mark floats right of the name's tag */
+/* a narrow classic window (no guide column): the Learn drawer and the chat dock open over the right edge (styles.css, 380 px),
+   so the rig keeps to the left of them - the legend, the room, the controls in a row, then the badge beside the log, the badge's
+   note left out - and the room stays in view whichever opens; the body is one grid, .run lending it its two children. 400 px
+   wide and the room no taller than 44vh, the whole rig fits under the header and the coach line at 900 x 768 */
+@media (max-width: 999.98px) {
+  #editPanel.armed > .rig-body {
+    display: grid; grid-template-columns: minmax(180px, 200px) minmax(0, 1fr); grid-template-areas: "keys keys" "room room" "bar bar" "side log";
+    gap: .5rem 1rem; align-items: start; max-width: min(400px, calc(100vw - 380px - 4.5rem));
+  }
+  #editPanel.armed > .rig-body > .keys { grid-area: keys; margin: 0; }
+  #editPanel.armed > .rig-body > .run { display: contents; }
+  #editPanel.armed > .rig-body .run-wrap { grid-area: room; }
+  #editPanel.armed > .rig-body .run-wrap canvas { max-height: 44vh; width: auto; }
+  #editPanel.armed > .rig-body .run-side { grid-area: side; }
+  #editPanel.armed > .rig-body .sim-note { display: none; }
+  #editPanel.armed > .rig-body > .stage-bar { grid-area: bar; margin: 0; gap: .5rem .8rem; }
+  #editPanel.armed > .rig-body > .log { grid-area: log; margin: 0; max-height: 110px; }
+}
+
+.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 280px); gap: 1.25rem; align-items: start; }
+@media (max-width: 640px) { .run { grid-template-columns: 1fr; } }
+.run-wrap canvas { max-width: 100%; height: auto; }
+#playPanel:not(.armed) .run-wrap { opacity: .6; }
+
+.sim { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; touch-action: none; }
+.sim .body { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.5; }
+.sim .key { fill: var(--well); stroke: var(--line); stroke-width: 1.2; cursor: pointer; transition: fill .05s; }
+.sim text { font: 700 9px var(--font); fill: var(--dim); text-anchor: middle; dominant-baseline: central; pointer-events: none; letter-spacing: .04em; }
+.sim g[data-btn]:hover .key { stroke: var(--accent); }
+.sim g.on .key { fill: var(--accent); stroke: var(--accent); filter: drop-shadow(0 0 6px var(--glow)); }
+.sim g.on text { fill: var(--on-accent); }
+.sim .brandline { font-size: 7px; fill: var(--dim); letter-spacing: .18em; opacity: .7; }
+.sim .led { fill: var(--accent-2); opacity: .25; }
+.sim .led.on { opacity: 1; filter: drop-shadow(0 0 4px var(--accent-2)); }
+.sim-note { margin-top: .5rem; }
+
+/* --------------------------------------------------------- send it in -- */
+
+.export { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 900px) { .export { grid-template-columns: 1fr; } }
+.export .field { margin-bottom: .6rem; }
+.module { margin: 0; max-height: 420px; overflow: auto; font-size: 11px; }
+
+/* ------------------------------------------------------- the invitation -- */
+
+.ai {
+  width: min(680px, 92vw); border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); color: var(--text);
+  padding: 1.2rem 1.4rem; box-shadow: 0 30px 80px var(--shade);
+}
+.ai::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
+.ai h2 { margin: 0 0 .4rem; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.ai textarea {
+  width: 100%; font: 12px/1.5 var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs);
+  padding: .6rem .7rem; resize: vertical;
+}
+
+/* the landing's line under the hero when a link brought a room */
+.shared-note { border-left: 3px solid var(--accent); padding-left: .7rem; }
+.shared-note b { color: var(--text); }
+.shared-note .btn { display: block; width: max-content; max-width: 100%; margin: .5rem 0 .4rem; }   /* the one thing to press, on a line of its own */
+
+/* ------------------------------------------------------------ the share -- */
+/* the Share dialog: where it opens and at which address (the row that matters), what goes in, how the link reads, the link, the level's JSON */
+
+.share { width: min(760px, 94vw); }
+.share-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin: .7rem 0 .8rem; }
+.share .share-sub { margin-left: 1.3rem; color: var(--dim); }
+.share .share-sub:has(:disabled) { opacity: .5; }
+.share fieldset label:has(:disabled) { opacity: .5; cursor: default; }
+#shareSite { width: 100%; margin-top: .3rem; font: 11px/1.4 var(--font); letter-spacing: 0; }
+#shareSite:disabled { opacity: .5; }
+.share fieldset { margin: 0; padding: .4rem .7rem .55rem; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); min-width: 0; }
+.share legend { padding: 0 .3rem; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+.share fieldset label { display: flex; align-items: center; gap: .45rem; padding: .15rem 0; font-size: 12px; color: var(--text); cursor: pointer; }
+.share fieldset input { accent-color: var(--accent); margin: 0; }
+.share .field { margin-top: .6rem; }
+.share .field small { text-transform: none; letter-spacing: 0; }
+.share-row { display: flex; gap: .5rem; align-items: center; }
+#shareUrl { flex: 1 1 12rem; font: 12px/1.4 var(--font); letter-spacing: 0; text-overflow: ellipsis; }
+.share-row .btn { white-space: nowrap; }
+#shareStatus { margin: .4rem 0 0; font-size: 11px; }
+.share textarea { font: 11px/1.45 var(--font); letter-spacing: 0; white-space: pre; overflow: auto; }
+@media (max-width: 640px) { .share-grid { grid-template-columns: 1fr; } .share-row { flex-wrap: wrap; } }
+
+/* ------------------------------------------------- the guided builds -- */
+/* The Learn panel's cards, one per entry of MAKER_TUTORIALS: the title, the
+   blurb, where the player is in it; the chosen one is .on, a finished one .done. */
+
+.learn-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .5rem; margin: 0 0 1rem; }
+.learn-pick { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; padding: .55rem .7rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); min-width: 0; }
+.learn-pick b { color: var(--text); font-size: 12px; }
+.learn-pick small { font-size: 10px; line-height: 1.4; }
+.learn-pick i { font-style: normal; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; margin-top: .2rem; }
+.learn-pick:hover { border-color: var(--accent); color: var(--text); }
+.learn-pick.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; color: var(--text); }
+.learn-pick.on b { color: var(--accent-2); }
+.learn-pick.done i { color: var(--accent-2); }
+
+/* ------------------------------------------------- the welcome banner -- */
+/* #guideDialog: an assistant said hello, the person picks a way (src/guide.js
+   GUIDE_MODES). One card per way: the icon, the title, the kicker, the blurb,
+   how long it takes. */
+
+.guide { width: min(820px, 94vw); }
+.guide-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; margin: .9rem 0 1rem; }
+.guide-pick { display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; padding: .9rem .95rem 1rem; cursor: pointer; text-align: left; font: inherit; color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); min-width: 0; min-height: 100%; }
+.guide-pick .icon { font-size: 26px; line-height: 1; }
+.guide-pick b { font: 700 15px/1.2 var(--font-display); color: var(--accent); letter-spacing: .02em; }
+.guide-pick i { font-style: normal; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-2); }
+.guide-pick small { font-size: 12px; line-height: 1.45; color: var(--dim); }
+.guide-pick em { font-style: normal; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-top: auto; padding-top: .4rem; }
+.guide-pick:hover, .guide-pick:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 18px var(--glow); outline: none; }
+.guide-pick:hover small { color: var(--text); }
+.guide .status { font-size: 11px; }
+@media (max-width: 720px) { .guide-picks { grid-template-columns: 1fr; } }
+
+/* The guide beside the board (the column, the drawer, "unpin") is every page's: styles.css, keyed on the place
+   <html> names. The maker adds nothing to it; on the site the studio's panel is not there and src/look-boot.js
+   drops the place from <html> (maker.html marks it the checkout's), so the landing stays one column. */
+
+/* ------------------------------------------------ in the phone looks -- */
+
+html:not([data-look=classic]) .hero { gap: .75rem; }
+html:not([data-look=classic]) .hero h1 { font-size: 20px; }
+html:not([data-look=classic]) .maker, html:not([data-look=classic]) .maker-range, html:not([data-look=classic]) .run, html:not([data-look=classic]) .export, html:not([data-look=classic]) .format { grid-template-columns: 1fr; }
+html:not([data-look=classic]) .steps.three, html:not([data-look=classic]) .keys-grid, html:not([data-look=classic]) .starters, html:not([data-look=classic]) .knobs, html:not([data-look=classic]) .share-grid { grid-template-columns: 1fr; }
+html:not([data-look=classic]) .zoom { margin-left: 0; }
+html:not([data-look=classic]) .learn-picks { grid-template-columns: 1fr; }
+html:not([data-look=classic]) .guide-picks { grid-template-columns: 1fr; }
+
+/* ------------------------------------------------------- open a level -- */
+/* the picker (#openDialog): what to work on - new, a stage, the community's, the shelf, a link */
+.open-level { width: min(94vw, 820px); }
+.open-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; margin: .8rem 0; }
+.open-group h3 { margin: 0 0 .35rem; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.open-list { display: flex; flex-direction: column; gap: .35rem; max-height: 300px; overflow: auto; }
+.open-list .note { margin: 0; font-size: 10px; }
+.open-pick { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; padding: .45rem .6rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); }
+.open-pick b { color: var(--text); font-size: 12px; }
+.open-pick small { font-size: 10px; }
+.open-pick:hover, .open-pick:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
+.open-level .field { margin-top: .4rem; }
+.open-level .share-row { display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
+.open-level .share-row input { flex: 1; min-width: 0; }
+.guide-else { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; margin: 0 0 .9rem; padding-top: .7rem; border-top: 1px dashed var(--line); }
+.guide-else small { font-size: 11px; color: var(--dim); }
+@media (max-width: 900px) { .open-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+html:not([data-look=classic]) .open-grid { grid-template-columns: 1fr; }

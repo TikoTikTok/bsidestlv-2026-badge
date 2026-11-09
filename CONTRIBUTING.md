@@ -3,7 +3,8 @@
 ## Layout
 
 ```
-index.html, styles.css, src/, stages/, assets/   the published site - MIT
+index.html, glitch.html, flash.html, badge.html, maker.html, robots.txt,
+  styles.css, src/, stages/, assets/, rabbit-hole/  the published site - MIT
 images/                                          README renders, not published
 hardware/                                        KiCad 9 projects - CERN-OHL-S-2.0
 software/                                        tools, firmware, sources - MIT
@@ -24,20 +25,32 @@ genuinely both (a tool that reads board files, say), say so in its header.
 - Run DRC and ERC before opening a pull request. A board that does not pass is
   a draft.
 
+## A room
+
+The easiest contribution is a stage. `npm run maker` opens the level maker
+on a checkout; draw a room, let **Check** prove it solves, play it in
+**Run & debug**, export it to `stages/community/<id>.js`, add one line to
+`stages/community/index.json`, and open a pull request with those two
+changes and nothing else. `npm run stage -- stages/community/<id>.js`
+prints the verdict CI will reach. The format and what gets a room merged:
+[`software/docs/LEVEL_MAKER.md`](software/docs/LEVEL_MAKER.md).
+
 ## Software
 
 ```
 ./serve.sh              # http://localhost:8080, serves the repo root
-npm run verify          # both stages still solvable
+npm run maker           # the same in Node, and opens maker.html
+npm run verify          # both stages still solvable, the ranges still honest, the looks, the badge gate and the maker still whole
 npm run validate        # legacy sprite/frame integrity
 ```
 
-The site is the repo root: `index.html`, `styles.css`, `src/`, `stages/` and
-`assets/`. Those five paths are what the Pages workflow stages and publishes, so
+The site is the repo root: `index.html`, `glitch.html`, `flash.html`,
+`badge.html`, `maker.html`, `robots.txt`, `styles.css`, `src/`, `stages/`, `assets/` and
+`rabbit-hole/`. Those paths are what the Pages workflow stages and publishes, so
 keep every path inside them relative — an absolute `/assets/...` works locally
 and breaks under `/<repo>/` on Pages. Anything the page does not load belongs in
-`software/` or, for README artwork, `images/` — neither is staged. Adding a
-sixth *published* path means updating `.github/workflows/pages.yml` too.
+`software/` or, for README artwork, `images/` — neither is staged. Adding
+another *published* path means updating `.github/workflows/pages.yml` too.
 
 No dependencies — Node with ES modules and Python 3 standard library only.
 Keep it that way; `package.json` has no `dependencies` block on purpose.
@@ -56,7 +69,13 @@ cmake -DPICO_SDK_PATH=/path/to/pico-sdk ..
 make -j
 ```
 
-`build/` is ignored. The USB descriptors deliberately report Sony's VID/PID so
+`build/` is ignored. The quick-glitch engine has a host test that needs only a
+C compiler — `make -C software/controller/test` — and CI runs it plus a full
+cross-build on every change under `software/controller/`. On Windows,
+`software/tools/setup-pico-toolchain.ps1` then `build-firmware.ps1` do the
+cross-build; `software/tools/flash-badge.py` puts the result on a badge.
+
+The USB descriptors deliberately report Sony's VID/PID so
 iOS binds a controller profile — do not "fix" that without reading the note at
 the end of `software/controller/README.md`, and do not ship hardware with it.
 

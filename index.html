@@ -1,10 +1,15 @@
 <!doctype html>
-<html lang="en">
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json.
+     data-learn: where the Learn panel sits in the classic look - "side" (beside the stages: a column, or a drawer on a narrow window) or "page"; the boot script applies the remembered choice -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-mode="play" data-learn="side">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Alice in AI Land — Asset Sheet</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 8 8 15 1 8z' fill='%236fb0f0'/%3E%3C/svg%3E">
+<title>Alice in AI Land — The Stages</title>
+<meta name="robots" content="noai, noimageai">
 <link rel="stylesheet" href="styles.css">
+<script src="src/look-boot.js"></script>
 </head>
 <body>
 
@@ -13,134 +18,166 @@
     <span class="mark">◆</span>
     <span>
       <b>ALICE IN AI LAND</b>
-      <small>characters &amp; items · 48×48</small>
+      <small>the stages · <a href="glitch.html">glitch range</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a> · <a href="maker.html">the level maker</a></small>
     </span>
   </div>
 
   <div class="controls">
-    <label>Item zoom
-      <input id="zoom" type="range" min="1" max="6" step="1" value="2">
-      <output id="zoomOut">2×</output>
-    </label>
-    <label class="check"><input id="animate" type="checkbox" checked> animate</label>
-    <label>Backdrop
-      <select id="backdrop">
-        <option value="checker">checker</option>
-        <option value="dark">dark</option>
-        <option value="light">light</option>
-      </select>
-    </label>
+    <button type="button" id="turnBtn" class="turn-btn" aria-label="Page turn: auto" aria-haspopup="dialog" aria-expanded="false" aria-controls="turnPop" data-state="auto"></button>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
   </div>
 </header>
 
+<!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look. -->
+<nav id="modes" class="modes" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="learn">Learn</button>
+  <button type="button" class="mode" data-mode="play">Play</button>
+  <button type="button" class="mode" data-mode="levels">Levels</button>
+  <button type="button" class="mode help" data-mode="help" aria-label="elsewhere, and the looks">?</button>
+</nav>
+
+<!-- the tutorial's coach line: the current step, in every mode and look; src/tutor.js + src/coach.js drive it.
+     In the classic look it sticks under the header (styles.css); "learn" opens the Learn panel: the drawer on a narrow window, the panel itself otherwise. -->
+<div id="coach" class="coach" hidden>
+  <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
+  <span id="coachSay" class="coach-say"></span>
+  <span class="coach-actions">
+    <button type="button" id="coachSkip" class="btn ghost">skip</button>
+    <button type="button" id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false">learn</button>
+  </span>
+</div>
+
 <main>
-  <section class="panel">
-    <h2>Stage — A Mad Tea Party</h2>
-    <p class="note">One wall splits the room and the only way through is the gate, shut until
-      Alice steps on the lever. Every rock starts on the wrong side, so each has to be lined up
-      on the gate's row and shoved through a one-tile corridor — the order is the puzzle. The
-      door opens once all three buttons are held.</p>
-    <p class="note">Arrow keys or WASD to move, <b>R</b> to reset. <b>Solve</b> runs a real
-      search over the stage and plays back what it finds — it is not a recorded answer.</p>
+  <!-- The one player (src/room.js): whichever level is open - a shipped stage, one of the community's rooms, or a room that
+       came in a link - played by the rules it is, with its facts above it and its lesson, when it carries one, under them.
+       The badge drives it; on a dev host the keyboard too. src/gallery.js fills every id here. -->
+  <section class="panel" id="playPanel" data-mode="play">
+    <h2><span id="levelName">A level</span> <small id="levelBy" class="by"></small></h2>
+    <p id="levelFacts" class="facts" aria-label="about this level"></p>
+    <p id="roomBlurb" class="note"></p>
+    <details class="how">
+      <summary>how it works</summary>
+    <p class="note">Push every rock onto a button and walk Alice to the door. A rock slides one cell when walked into, one at a
+      time, never into a wall; a gate in a wall opens while Alice stands on its lever. An <b>untimed</b> room has no clock and
+      forgives everything: <b>B</b> takes a move back, <b>START</b> starts over, and the status line warns when a rock is stuck
+      in a corner. A <b>timed</b> room waits for your first press, then runs on a clock: every tick the cast walks one cell
+      along its loop whether you move or not, <b>Y</b> waits a tick, the red cells are what a watcher sees, and being seen
+      or walked into ends the run - <b>START</b> restarts it.<span class="dev-only"> On a local checkout the arrow keys or
+      WASD, <b>Backspace</b>, <b>space</b> and <b>R</b> work too; the published site plays from the badge alone. <b>Solve</b>
+      runs a real search over the room and plays back what it finds - it is not a recorded answer, and it earns no prize.</span>
+      New here? <b>Learn</b> walks the stages one press at a time. <b>Levels</b> lists every room and what you have won.</p>
+    </details>
+    <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="roomKeyUndo"><kbd>B</kbd>undo</span><span id="roomKeyWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd><span id="roomKeyReset">reset</span></span></p>
+    <p id="roomLesson" class="lesson" hidden></p>
 
-    <div class="stage-wrap"><canvas id="stage"></canvas></div>
-
-    <div class="stage-bar">
-      <button id="solveBtn" class="btn">Solve</button>
-      <button id="resetBtn" class="btn ghost">Reset</button>
-      <label>Playback
-        <input id="playSpeed" type="range" min="40" max="400" step="20" value="120">
-        <output id="playSpeedOut">120ms</output>
-      </label>
-      <span id="stageStatus" class="status">3 buttons to hold</span>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>Stage — The Queen's Gauntlet</h2>
-    <p class="note">This room runs on a clock. Every tick the cast advances one cell along a fixed
-      loop, so a plan is a <em>schedule</em>: one corridor joins the two halves, the Queen walks it
-      looking three cells ahead, and both rocks plus Alice have to cross it several times over.
-      Standing still is a move — the shortest solution waits five times.</p>
-    <p class="note">Arrow keys or WASD to move, <b>space</b> to wait, <b>R</b> to restart. Miss a
-      window and the Queen sees you, which ends the run. Par is <b>64 ticks</b>; an empty room is 41,
-      so the cast costs 23.</p>
-
-    <div class="stage-wrap"><canvas id="chase"></canvas></div>
+    <div class="stage-wrap"><canvas id="room"></canvas></div>
 
     <div class="stage-bar">
-      <button id="chaseSolve" class="btn">Solve</button>
-      <button id="chaseReset" class="btn ghost">Restart</button>
-      <label>Tick
-        <input id="chaseSpeed" type="range" min="120" max="700" step="20" value="320">
-        <output id="chaseSpeedOut">320ms</output>
-      </label>
-      <label class="check"><input id="chaseRun" type="checkbox" checked> clock running</label>
-      <span id="chaseStatus" class="status">tick 0 · par 64</span>
+      <button type="button" id="roomSolve" class="btn dev-only">Solve</button>
+      <button type="button" id="roomUndo" class="btn ghost">Undo</button>
+      <button type="button" id="roomReset" class="btn ghost">Reset</button>
+      <button type="button" id="shareBtn" class="btn ghost" aria-haspopup="dialog" aria-controls="shareDialog">Share</button>
+      <span id="roomStatus" class="status"></span>
     </div>
   </section>
 
-  <section class="panel">
-    <h2>8-way walk cycles</h2>
-    <p class="note">24 frames per character — 8 directions × 3 frames (stand, step, step),
-      indexed by <code>tools/build-walk-manifest.mjs</code>. Click a direction, or use the arrow
-      keys / WASD (two keys for a diagonal), to drive the big one.</p>
+  <!-- The explorer: every level this page plays, as a card with a picture of the room, what it is made of and what you have
+       done in it - the two stages, then the rooms the community made with the level maker (stages/community/index.json), then
+       a room that came in a link (?level=, the maker's Share dialog). Pick one and it opens above. Under them, the prizes:
+       what the page remembers of your play on this device (src/progress.js). -->
+  <section class="panel" id="levelsPanel" data-mode="levels">
+    <h2>Levels <span id="progressLine" class="progress-line"></span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+    <p class="note">Every level the page plays. The two stages come first; then the rooms the community made with
+      <a href="maker.html">the level maker</a> and sent in - every one proved solvable before it shipped - and a room
+      someone shared with you in a link, if you came here by one. Pick a card and the level opens above, with its facts:
+      its rules, its size, what is in it, the par once the solver has worked it out, and your best. What you win is
+      remembered on this device, and the prizes below say what else there is to do. <b>Share</b> on a level makes a link
+      that plays it here or opens it in the level maker, for someone else to carry on.</p>
+    </details>
+    <div id="levelGroups" class="level-groups"></div>
 
-    <div id="walkTabs" class="tabs"></div>
-
-    <div class="walk-stage">
-      <div id="compass" class="compass"></div>
-      <div class="walk-hero">
-        <canvas id="heroCanvas"></canvas>
-        <div class="hero-meta">
-          <b id="heroDir">S</b>
-          <span id="heroFrame">stand</span>
-          <label>Frame rate
-            <input id="walkSpeed" type="range" min="60" max="400" step="10" value="160">
-            <output id="walkSpeedOut">160ms</output>
-          </label>
-          <label class="check"><input id="walkPlay" type="checkbox" checked> play</label>
-        </div>
-      </div>
+    <h3 class="sub">Prizes</h3>
+    <p class="note">Won by playing. The solver's answer earns nothing; the badge in your hands does.</p>
+    <div id="prizes" class="prizes" aria-label="the prizes"></div>
+    <div class="stage-bar">
+      <button type="button" id="progressReset" class="btn ghost">Forget my progress</button>
+      <span id="progressStatus" class="status"></span>
     </div>
   </section>
 
-  <section class="panel">
-    <h2>Tiles</h2>
-    <p class="note">Cut from <code>references/tiles-reference.png</code> by
-      <code>tools/slice-tile-sheet.py</code>. Floors and walls fill the whole 48×48 cell — they
-      are the grid. Doors, buttons and levers keep their aspect and sit on the cell floor, sharing
-      one scale factor so a button stays smaller than a door.</p>
-    <div id="tileFilters" class="tabs"></div>
-    <div id="tiles" class="items"></div>
+  <!-- The guide. In the classic look it sits beside the stages (html[data-learn=side], styles.css): a column at the right of a wide
+       window, a drawer over the right edge of a narrow one (the coach line's "learn" opens it, the × closes it); "unpin" puts it back
+       in the page, here. In the phone looks it is the Learn mode. src/coach.js wires the buttons. -->
+  <section class="panel side" id="learnPanel" data-mode="learn">
+    <h2>A Caucus Race <span id="learnProgress" class="armed-mark"></span>
+      <button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="Beside the stages, or in the page">unpin</button>
+      <button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×</button></h2>
+    <p class="note">A guided first visit to the rooms. Each step watches what you do and ticks itself off;
+      the line at the top of the page says what comes next wherever you are. Chapter one is the tea
+      party, chapter two the gauntlet, chapter three a room the community made — skip what you like, it costs nothing.</p>
+    <div id="learnCoach" class="learn-now"></div>
+    <ol id="learnSteps" class="learn-steps"></ol>
+    <div class="stage-bar">
+      <button id="learnSkip" class="btn ghost">Skip this step</button>
+      <button id="learnRestart" class="btn ghost">Start over</button>
+      <span id="learnStatus" class="status"></span>
+    </div>
   </section>
 
-  <section class="panel">
-    <h2>Items</h2>
-    <p class="note">Cut from <code>references/assets-reference.png</code> by
-      <code>tools/slice-item-sheet.py</code> — one PNG each, 48×48, transparent. They share a
-      single scale factor, so a key stays small next to a boulder. Click a name to copy it.</p>
-    <div id="itemFilters" class="tabs"></div>
-    <div id="items" class="items"></div>
-  </section>
+  <section class="panel" data-mode="help">
+    <h2>How to play</h2>
+    <p class="note">Rooms, one controller. Push every rock onto a button and walk Alice to the door.
+      An untimed room has no clock and forgives everything: <b>B</b> takes a move back, <b>START</b> starts over.
+      A timed room runs on a clock from your first press, the cast walks whether you do or not, and the
+      Queen's gaze ends the run. <b>Levels</b> lists every room - the two stages, the community's, made with
+      <a href="maker.html">the level maker</a> and played by the same rules - with what you have won in each and the
+      prizes still to win. New here? <b>Learn</b> walks the stages one press at a time and says why.</p>
 
-  <section class="panel">
-    <h2>Using these</h2>
-<pre><code>// characters: assets/characters/&lt;name&gt;/&lt;dir&gt;&lt;frame&gt;.png  + &lt;name&gt;.json
-const meta  = await (await fetch('assets/characters/queen/queen.json')).json();
-const frame = meta.cycle[beat % meta.cycle.length];      // stand, step, stand, step
-ctx.drawImage(images[dir][frame], x, y, 48, 48);
+    <h2 style="margin-top: 1.25rem;">The glitch range</h2>
+    <p class="note">Five practice ranges, on <a href="glitch.html">their own page</a>, built for the badge's
+      <b>quick glitch</b> layer: a combo the Rabbit chimes faster than a hand can follow, the
+      Queen's guard running a routine whose one check has to be skipped with a pulse on X that
+      lands inside a 20 ms window, the Caterpillar's door, which gives its password away by
+      how long it takes to say no, the Dormouse's watchdog, which wants every nudge inside its
+      window, and Humpty Dumpty's wall, which falls to a name one symbol too long. Record a take
+      on the badge, speed it up, dial in the offset, fire — and read the measurements off the log.</p>
+    <p class="note">The firmware that does the recording goes onto the badge from
+      <a href="flash.html">the flash page</a>: put the badge in its bootloader and a Chromium browser
+      writes the image over WebUSB, no tools to install.</p>
+    <p class="note">The badge is the key: <a href="badge.html">the vault page</a> reads the stage key a badge
+      carries and writes one at the booth. On the published site the stages play from the badge alone.</p>
 
-// items and tiles: assets/&lt;items|tiles&gt;/&lt;name&gt;.png + the folder's .json
-ctx.drawImage(tiles.floor_checker, x, y, 48, 48);     // fills the cell
-ctx.drawImage(items.teapot_heart_red, x, y, 48, 48);  // sits on it</code></pre>
-    <p class="note">Rebuild everything:
-      <code>python3 tools/slice-walk-grid.py &lt;sheet&gt; &lt;name&gt;</code>,
-      <code>python3 tools/slice-item-sheet.py</code>,
-      <code>python3 tools/slice-tile-sheet.py</code>,
-      <code>node tools/build-walk-manifest.mjs assets/characters/&lt;name&gt; &lt;name&gt;</code>.</p>
+    <h2 style="margin-top: 1.25rem;">Themes and looks</h2>
+    <p class="note">What the site is painted in — the conference's lime on black, the Queen's court, the tea
+      party in daylight — and how it sits on the screen: the classic page, or a phone look that shows one
+      panel at a time. The <b>◐</b> chip in the header opens the picker; <code>?theme=queen</code> and
+      <code>?look=scope</code> in the address bar pick too, and the choice is remembered on this device.</p>
   </section>
+<a class="hole" href="rabbit-hole/" tabindex="-1" aria-hidden="true">down the rabbit hole</a>
 </main>
+
+<!-- Share: the open level as one link, two doors - played here (index.html?level=) or carried on in the level maker
+     (maker.html?level=). Nothing is uploaded: the whole level is in the address (src/level.js shareUrl). src/gallery.js fills it. -->
+<dialog id="shareDialog" class="share-sheet" aria-labelledby="shareTitle">
+  <h2 id="shareTitle">Share this level</h2>
+  <p class="note">One link carries the whole level - the map, its clock and cast, its blurb and lesson. Nothing is uploaded;
+    the level is in the address itself, so the link works in a chat, a bookmark, or for an assistant that can only open a URL.</p>
+  <div class="share-way">
+    <b>Play it</b><small>this page: the level as a card of its own, played with the badge</small>
+    <span class="share-row"><input id="sharePlayUrl" type="text" readonly spellcheck="false" aria-label="the link that plays it"><button type="button" id="sharePlayCopy" class="btn">Copy</button><a id="sharePlayOpen" class="btn ghost" target="_blank" rel="noopener" title="open the link in a new tab">open ↗</a></span>
+  </div>
+  <div class="share-way">
+    <b>Carry it on in the level maker</b><small>the studio of a checkout loads it to edit; on the published site the landing shows it</small>
+    <span class="share-row"><input id="shareEditUrl" type="text" readonly spellcheck="false" aria-label="the link that opens it in the level maker"><button type="button" id="shareEditCopy" class="btn">Copy</button><a id="shareEditOpen" class="btn ghost" target="_blank" rel="noopener" title="open the link in a new tab">open ↗</a></span>
+  </div>
+  <p id="shareStatus" class="status" aria-live="polite"></p>
+  <div class="stage-bar"><button type="button" id="shareClose" class="btn ghost">Close</button></div>
+</dialog>
+
+<!-- a prize won: one line, for a moment (src/gallery.js) -->
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script type="module" src="src/gallery.js"></script>
 </body>

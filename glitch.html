@@ -1,0 +1,397 @@
+<!doctype html>
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json.
+     data-learn: where the Learn panel sits in the classic look - "side" (beside the ranges: a column, or a drawer on a narrow window) or "page"; the boot script applies the remembered choice -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-mode="watch" data-look-touch="bench" data-learn="side">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 1 15 8 8 15 1 8z' fill='%236fb0f0'/%3E%3C/svg%3E">
+<title>Alice in AI Land — Glitch Range</title>
+<meta name="robots" content="noai, noimageai">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="src/glitch.css">
+<script src="src/look-boot.js"></script>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">◆</span>
+    <span>
+      <b>ALICE IN AI LAND</b>
+      <small>glitch range · <a href="index.html">back to the stages</a> · <a href="flash.html">flash the badge</a> · <a href="badge.html">the vault</a> · <a href="maker.html">the level maker</a></small>
+    </span>
+  </div>
+
+  <div class="controls pad-status">
+    <span id="padDevice" class="pad-device">keyboard</span>
+    <span id="padLeds" class="pad-leds"></span>
+    <button type="button" id="turnBtn" class="turn-btn" aria-label="Page turn: auto" aria-haspopup="dialog" aria-expanded="false" aria-controls="turnPop" data-state="auto"></button>
+    <button type="button" id="lookChip" class="look-chip" aria-haspopup="dialog" aria-controls="lookSheet">◐ <span class="look-name">classic</span> ▾</button>
+  </div>
+</header>
+
+<!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look. -->
+<nav id="modes" class="modes" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="learn">Learn</button>
+  <button type="button" class="mode" data-mode="watch">Watch</button>
+  <button type="button" class="mode" data-mode="glass">Glass</button>
+  <button type="button" class="mode" data-mode="lock">Lock</button>
+  <button type="button" class="mode" data-mode="dog">Dog</button>
+  <button type="button" class="mode" data-mode="wall">Wall</button>
+  <button type="button" class="mode" data-mode="bench">Bench</button>
+  <button type="button" class="mode help" data-mode="help" aria-label="how it works">?</button>
+</nav>
+
+<!-- the tutorial's coach line: the current step, in every mode and look; src/tutor.js + src/coach.js drive it.
+     In the classic look it sticks under the header (styles.css); "learn" opens the Learn panel: the drawer on a narrow window, the panel itself otherwise. -->
+<div id="coach" class="coach" hidden>
+  <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
+  <span id="coachSay" class="coach-say"></span>
+  <span class="coach-actions">
+    <button type="button" id="coachSkip" class="btn ghost">skip</button>
+    <button type="button" id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false">learn</button>
+  </span>
+</div>
+
+<main>
+  <section class="panel" data-mode="help">
+    <h2>The range</h2>
+    <p class="note">Five practice ranges for the badge's <b>quick glitch</b> layer. Plug the badge
+      in and press anything — the header lights up when the browser sees it. The published site
+      listens to the badge and nothing else; on a local checkout the keyboard stands in: arrows,
+      <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> for A B X Y, <kbd>Q</kbd> <kbd>E</kbd>
+      for the shoulders, <kbd>Enter</kbd> for START.</p>
+    <p class="note">Only the <b>armed</b> range listens. Click a range to arm it. The first level
+      of each is meant for a hand; the last is not, and that is the lesson. New here? The
+      <b>Learn</b> panel walks the whole range, one press at a time.</p>
+    <p class="note">Elsewhere: <a href="index.html">the stages</a> · <a href="flash.html">flash the badge</a> ·
+      <a href="badge.html">the vault</a> · <a href="maker.html">the level maker</a>.</p>
+
+    <h2 style="margin-top: 1.25rem;">Themes and looks</h2>
+    <p class="note">What the site is painted in, on every page — the conference's lime on black, the Queen's
+      court, the tea party in daylight — and how it sits on the screen: the classic page, or a phone look that
+      shows one panel at a time. The <b>◐</b> chip in the header opens the picker; <code>?theme=queen</code>
+      and <code>?look=scope</code> in the address bar pick too, and the choice is remembered on this device.</p>
+  </section>
+
+  <!-- The guide. In the classic look it sits beside the ranges (html[data-learn=side], styles.css): a column at the right of a wide
+       window, a drawer over the right edge of a narrow one (the coach line's "learn" opens it, the × closes it); "unpin" puts it back
+       in the page, here. In the phone looks it is the Learn mode. src/coach.js wires the buttons. -->
+  <section class="panel side" id="learnPanel" data-mode="learn">
+    <h2>Down the Rabbit Hole <span id="learnProgress" class="armed-mark"></span>
+      <button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="Beside the ranges, or in the page">unpin</button>
+      <button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×</button></h2>
+    <p class="note">A guided first visit. Each step watches what you do and ticks itself off; the line at
+      the top of the page says what comes next wherever you are. Chapter one wants only a controller;
+      chapter two wants the badge - skip what you cannot do, it costs nothing.</p>
+    <div id="learnCoach" class="learn-now"></div>
+    <ol id="learnSteps" class="learn-steps"></ol>
+    <div class="stage-bar">
+      <button id="learnSkip" class="btn ghost">Skip this step</button>
+      <button id="learnRestart" class="btn ghost">Start over</button>
+      <span id="learnStatus" class="status"></span>
+    </div>
+  </section>
+
+  <section class="panel range" id="watchPanel" data-mode="watch">
+    <h2>Range 1 — The Rabbit's Pocket Watch <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Rabbit chimes a tune of buttons. Play it back, in order, inside the window
+        — measured from your first press to your last. A wrong button or a slow finish ends the
+        attempt; the next press starts a fresh one. The tune is fixed per level, so a take recorded
+        once on the badge keeps working: record it slowly, then <b>SELECT+UP</b> until it fits.</p>
+    </details>
+
+    <div id="watchTabs" class="tabs"></div>
+
+    <div class="watch">
+      <canvas id="rabbit" width="96" height="96"></canvas>
+      <div class="watch-side">
+        <div id="comboSeq" class="combo"></div>
+        <div id="watchTrace" class="trace">
+          <div class="trace-head"><span id="wtHead"></span><span id="wtGaps"></span></div>
+          <div class="trace-bar"><div id="wtFill" class="trace-fill"></div><div id="wtMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="wtMid"></span><span id="wtEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="watchStatus" class="status">press the first button to start the clock</span>
+          <button id="watchShuffle" class="btn ghost">New tune</button>
+        </div>
+      </div>
+    </div>
+    <ol id="watchLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel range" id="glassPanel" data-mode="glass">
+    <h2>Range 2 — The Looking-Glass Glitch <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Queen's guard runs a routine at the treasure room door, one line per tick.
+        One of those lines is the check that turns Alice away. A pulse on <b>X</b> whose rising edge
+        lands while that line executes skips it — the routine falls through, the door opens, and
+        Alice jumps to the treasure. <b>START</b> is the trigger: the routine starts the instant the
+        browser sees it. Land anywhere else and the log says where you hit and by how much.</p>
+      <p class="note">A pulse is measured from its rising edge to its falling edge. Every line under
+        it is corrupted, some lines crash the guard, and a pulse wider than the guard survives
+        browns it out. Width is the badge's <b>speed</b>; offset is <b>SELECT+LEFT/RIGHT</b>.</p>
+    </details>
+
+    <div id="glassTabs" class="tabs"></div>
+    <p id="glassBlurb" class="note"></p>
+
+    <div class="glass">
+      <div class="stage-wrap"><canvas id="glass"></canvas></div>
+      <ol id="listing" class="listing"></ol>
+    </div>
+
+    <div class="stage-bar">
+      <button id="glassRun" class="btn">Run (START)</button>
+      <button id="glassClear" class="btn ghost">Clear log</button>
+      <span id="glassStatus" class="status">press START to run the guard's routine</span>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>offset · ms</small><b id="roOffset">—</b><small>trigger → rising edge</small></div>
+      <div class="tile"><small>width · ms</small><b id="roWidth">—</b><small>rising → falling edge</small></div>
+      <div class="tile"><small>landed</small><b id="roLanded">—</b><small>step · line</small></div>
+      <div class="tile"><small>from target</small><b id="roDelta">—</b><small>lines · ms</small></div>
+      <div class="tile"><small>verdict</small><b id="roVerdict">—</b><small id="roHint">&nbsp;</small></div>
+    </div>
+
+    <!-- where the pulse landed against the routine, tick by tick -->
+    <div id="glassTrace" class="trace">
+      <div class="trace-head"><span id="traceHead"></span><span id="traceLanded"></span></div>
+      <div class="trace-band"><span id="tracePulse" class="trace-pulse" hidden></span></div>
+      <div id="traceTicks" class="trace-ticks"></div>
+      <div class="trace-axis"><span>0 ms</span><span id="traceMid"></span><span id="traceEnd"></span></div>
+    </div>
+    <ol id="glassLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel range" id="lockPanel" data-mode="lock">
+    <h2>Range 3 — The Caterpillar's Lock <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Caterpillar's door wants a password and checks it the lazy way: one symbol per
+        tick, in order, stopping at the first one that is wrong. So the time it takes to say <em>no</em>
+        is the number of symbols you had right, plus one — a side channel. <b>START</b> opens a guess,
+        then one press per symbol; the door checks the moment the last one is in. Read the clock, change
+        one symbol, go again.</p>
+      <p class="note">On the badge a guess is a take: record the symbols only (no START), then fire — the
+        trigger's START opens the guess and the take types it. Give the take an offset of 40 ms or so
+        (<b>SELECT+RIGHT</b>) so START lands first. Hold the chord and the same guess goes in every
+        ~600 ms, which is how the jittery levels are beaten: the readout keeps the median.</p>
+    </details>
+
+    <div id="lockTabs" class="tabs"></div>
+    <p id="lockBlurb" class="note"></p>
+
+    <div class="lock">
+      <div class="stage-wrap"><canvas id="lockScene"></canvas></div>
+      <div class="lock-side">
+        <div id="lockGuess" class="combo"></div>
+        <div id="lockTrace" class="trace">
+          <div class="trace-head"><span id="ltHead"></span><span id="ltAnswer"></span></div>
+          <div class="trace-bar"><div id="ltFill" class="trace-fill"></div><div id="ltMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="ltMid"></span><span id="ltEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="lockStatus" class="status">press START, then the password</span>
+          <button id="lockShuffle" class="btn ghost">New password</button>
+          <button id="lockClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>answer · ms</small><b id="lrMs">—</b><small>submit → "no" / "enter"</small></div>
+      <div class="tile"><small>ticks</small><b id="lrTicks">—</b><small>answer ÷ tick</small></div>
+      <div class="tile"><small>samples</small><b id="lrN">—</b><small>of this guess</small></div>
+      <div class="tile"><small>median · ms</small><b id="lrMedian">—</b><small>over the samples</small></div>
+      <div class="tile"><small>verdict</small><b id="lrVerdict">—</b><small id="lrHint">&nbsp;</small></div>
+    </div>
+    <ol id="lockLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel range" id="dogPanel" data-mode="dog">
+    <h2>Range 4 — The Dormouse's Watchdog <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">The Dormouse is a <b>window watchdog</b>: it sleeps as long as it is nudged every so
+        often - and not too often. <b>START</b> puts it to sleep and starts the clock; every press of
+        <b>A</b> is a nudge that must land inside the window measured from the nudge before. Too soon
+        and it stirs, too late and it bites, and either way the attempt is over. Enough nudges in a row
+        and Alice tiptoes past.</p>
+      <p class="note">On the badge the take is the nudges and the <b>speed</b> is the tempo: a tap every
+        0.8 s at 8× is a tap every 100 ms. The first gap is the fire's <b>offset</b>, so set that inside
+        the window too. Hold each tap a good moment - at 8× a short tap is one the browser never sees.</p>
+    </details>
+
+    <div id="dogTabs" class="tabs"></div>
+    <p id="dogBlurb" class="note"></p>
+
+    <div class="watch">
+      <canvas id="dormouse" width="96" height="96"></canvas>
+      <div class="watch-side">
+        <div id="dogKicks" class="combo"></div>
+        <div id="dogTrace" class="trace">
+          <div class="trace-head"><span id="dtHead"></span><span id="dtGap"></span></div>
+          <div class="trace-bar"><div id="dtWindow" class="trace-window"></div><div id="dtFill" class="trace-fill"></div><div id="dtMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="dtMid"></span><span id="dtEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="dogStatus" class="status">press START to put the Dormouse to sleep</span>
+          <button id="dogClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout">
+      <div class="tile"><small>nudges</small><b id="drKicks">—</b><small>of the level's</small></div>
+      <div class="tile"><small>last gap · ms</small><b id="drGap">—</b><small>nudge → nudge</small></div>
+      <div class="tile"><small>window · ms</small><b id="drWindow">—</b><small>open → bite</small></div>
+      <div class="tile"><small>tempo</small><b id="drRate">—</b><small>nudges / s</small></div>
+      <div class="tile"><small>verdict</small><b id="drVerdict">—</b><small id="drHint">&nbsp;</small></div>
+    </div>
+    <ol id="dogLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel range" id="wallPanel" data-mode="wall">
+    <h2>Range 5 — Humpty Dumpty's Wall <span class="armed-mark">● armed</span></h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">Humpty asks Alice her name and reads it into a buffer on his stack with no bound.
+        Behind the buffer sit his saved return address - two symbols - and, on the last level, a
+        <b>canary</b>. A name that fits is politely received. One symbol more and the overflow begins:
+        a wrong canary and he halts, a wrong address and he has a great fall. The one address that
+        opens the wall is in his listing, as it would be in any firmware image.</p>
+      <p class="note"><b>START</b> is the prompt; then one press per symbol, each within the level's gap
+        of the last. The read ends when nothing more comes, and he answers. On the badge the name is
+        a take fired with an offset of ~40 ms so the prompt lands first; lengthen it a symbol per take.</p>
+    </details>
+
+    <div id="wallTabs" class="tabs"></div>
+    <p id="wallBlurb" class="note"></p>
+
+    <div class="lock">
+      <div class="stage-wrap"><canvas id="wallScene"></canvas></div>
+      <div class="lock-side">
+        <div id="wallName" class="combo"></div>
+        <div id="wallFrame" class="frame"></div>
+        <div id="wallTrace" class="trace">
+          <div class="trace-head"><span id="wlHead"></span><span id="wlAnswer"></span></div>
+          <div class="trace-bar"><div id="wlFill" class="trace-fill"></div><div id="wlMarks"></div></div>
+          <div class="trace-axis"><span>0 ms</span><span id="wlMid"></span><span id="wlEnd"></span></div>
+        </div>
+        <div class="stage-bar">
+          <span id="wallStatus" class="status">press START, then a name</span>
+          <button id="wallClear" class="btn ghost">Clear log</button>
+        </div>
+      </div>
+    </div>
+    <ol id="wallListing" class="listing"></ol>
+
+    <div class="readout">
+      <div class="tile"><small>name</small><b id="wrLen">—</b><small>symbols typed</small></div>
+      <div class="tile"><small>overflow</small><b id="wrOver">—</b><small>past the buffer</small></div>
+      <div class="tile"><small>lr</small><b id="wrLr">—</b><small>where he returned to</small></div>
+      <div class="tile"><small>said</small><b id="wrSaid">—</b><small>&nbsp;</small></div>
+      <div class="tile"><small>verdict</small><b id="wrVerdict">—</b><small id="wrHint">&nbsp;</small></div>
+    </div>
+    <ol id="wallLog" class="log" reversed></ol>
+  </section>
+
+  <section class="panel" id="benchPanel" data-mode="bench">
+    <h2>Bench</h2>
+    <details class="how">
+      <summary>how it works</summary>
+      <p class="note">Every edge the browser sees, timed from the last <b>START</b> press, whichever
+        range is armed. Fire the badge and read the offset and width straight off it. The browser
+        samples the pad every ~16 ms, so expect that much rounding; for microseconds use
+        <code>software/tools/hid-trace.py</code> on the raw HID reports.</p>
+    </details>
+    <div class="stage-bar">
+      <button id="benchClear" class="btn ghost">Clear</button>
+      <span id="benchStatus" class="status">no edges yet</span>
+    </div>
+    <ol id="benchLog" class="log bench" reversed></ol>
+  </section>
+
+  <section class="panel" data-mode="help">
+    <h2>Using the badge</h2>
+    <p class="note"><b>SELECT</b> is the shift key. While it is held nothing you press reaches the
+      browser, and every other button is a command. A plain SELECT still arrives as a tap when you
+      let go.</p>
+    <table class="chords">
+      <tr><th>SELECT + SL</th><td>record a take; again to stop. Silence before and after is trimmed.</td></tr>
+      <tr><th>SELECT + SR</th><td><b>fire</b>: tap START, wait the offset, replay the take at the speed. Hold the chord to fire again every ~600 ms.</td></tr>
+      <tr><th>SELECT + UP / DOWN</th><td>speed ×2 / ÷2, from 1/4× to 32×. Scales gaps and hold times alike.</td></tr>
+      <tr><th>SELECT + LEFT / RIGHT</th><td>offset −/+ 1 ms; hold to repeat, and the step grows to 10 ms after twenty.</td></tr>
+      <tr><th>SELECT + B</th><td>forget the take, offset 0, speed 1×.</td></tr>
+      <tr><th>SELECT + Y, held</th><td>the <b>beacon</b>: the badge spells its vault — serial and stage key — on the stick axes, for browsers without WebHID. The gate on these pages reads it; <a href="badge.html">the vault page</a> shows it.</td></tr>
+      <tr><th>SELECT + START, held 2 s</th><td>reboot into the UF2 bootloader (the <code>RPI-RP2</code> drive) to take a new firmware — <a href="flash.html">the flash page</a> writes one from this browser, <code>software/tools/flash-badge.py</code> from a checkout.</td></tr>
+    </table>
+    <p class="note"><b>Range 1:</b> record the tune at a comfortable pace, stop, then fire. Too slow?
+      SELECT+UP and fire again. Too fast and the browser starts dropping presses — it samples the
+      pad every ~16 ms, so a press needs to be held about 20 ms to be seen. The log shows the
+      rate you achieved and the gap between each press.</p>
+    <p class="note"><b>Range 2:</b> record a single X tap, stop. Read the target's tick off the
+      listing, multiply by the tick length, add half a tick: that is the offset. SELECT+RIGHT until
+      the log's <em>offset</em> readout says so, then fire. Nudge and fire again; or hold the chord
+      and tap RIGHT between shots to sweep. SELECT+UP shortens the pulse if it is crashing on the
+      line after the check.</p>
+    <p class="note"><b>Range 3:</b> record the guess's symbols only, set an offset of ~40 ms so the
+      trigger's START lands before the first symbol, fire. The log says how many ticks the door took;
+      one more tick than last time means the symbol you changed is right. When the level jitters, hold
+      the chord: every ~600 ms the same guess goes in and the readout keeps the median. One symbol per
+      take, and a level with a secret order gives up which position it checks next the same way.</p>
+    <p class="note"><b>Range 4:</b> record the nudges at an easy tempo - a tap every 0.8 s, each held a
+      moment - and SELECT+UP until the gap readout sits inside the window. The first gap is the offset:
+      SELECT+RIGHT it into the window too. The log says where every nudge fell, early side or late.</p>
+    <p class="note"><b>Range 5:</b> record the name's symbols only, offset ~40 ms, fire. Make the take one
+      symbol longer each time until Humpty stops being polite: that is the size. A canary is found the
+      same way, one symbol at a time in its slot; the address is in the listing. Repeated addresses
+      (a sled) work too, when nothing guards the frame.</p>
+    <p class="note">Firmware, engine tests and the chord table:
+      <code>software/controller/README.md</code>. Flashing it: <a href="flash.html">flash.html</a>.</p>
+  </section>
+<a class="hole" href="rabbit-hole/" tabindex="-1" aria-hidden="true">down the rabbit hole</a>
+</main>
+
+<details id="touchPad" class="touchpad">
+  <summary>
+    <span class="tp-label">on-screen pad</span>
+    <span class="tp-hint"><small>for a phone without the badge · the Bench marks these edges <code>ui</code></small></span>
+  </summary>
+  <div class="tp">
+    <div class="tp-dpad">
+      <button type="button" data-btn="UP" aria-label="up">▲</button>
+      <button type="button" data-btn="LEFT" aria-label="left">◀</button>
+      <button type="button" data-btn="RIGHT" aria-label="right">▶</button>
+      <button type="button" data-btn="DOWN" aria-label="down">▼</button>
+    </div>
+    <div class="tp-mid">
+      <button type="button" data-btn="SELECT">select</button>
+      <button type="button" data-btn="START">start</button>
+    </div>
+    <div class="tp-face">
+      <button type="button" data-btn="SL">SL</button>
+      <button type="button" data-btn="SR">SR</button>
+      <button type="button" data-btn="Y">Y</button>
+      <button type="button" data-btn="X">X</button>
+      <button type="button" data-btn="B">B</button>
+      <button type="button" data-btn="A">A</button>
+    </div>
+  </div>
+</details>
+
+<script>
+// The handheld look moulds the pad into the body: out before the module
+// runs, so nothing jumps. src/look-boot.js has already folded the prose.
+if (document.documentElement.dataset.look === 'handheld') document.getElementById('touchPad').open = true;
+</script>
+<script type="module" src="src/glitch.js"></script>
+</body>
+</html>

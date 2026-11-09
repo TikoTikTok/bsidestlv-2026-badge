@@ -1,0 +1,41 @@
+/* Alice in AI Land - the "queen" theme: the Queen of Hearts' court.
+
+   Heart red and gold on a black-crimson ground, hard corners, a card back's
+   diagonal weave across the header, a heart for the mark and before every
+   heading, headings in a Didone with wide tracking, and the Queen's heart
+   over the whole page. Crashes are orange so they are never mistaken for
+   the accent.
+
+   One file per theme: src/themes/index.json lists it, src/look-boot.js loads
+   it on demand when <html data-theme="queen"> is in force, and styles.css
+   paints from the variables it sets. A theme paints; a look (src/looks/)
+   shapes. Replace this file to replace the theme; keep the id so bookmarks
+   and the remembered choice still resolve. */
+
+html[data-theme=queen] {
+  --ink: #0f0407; --ink-2: #080203; --well: #190709;
+  --panel: #1d080d; --panel-2: #290c12; --panel-end: #15050a; --line: #4d1826;
+  --haze: #5c0a1c; --bar: rgba(15, 4, 7, .94);
+  --text: #ffe7eb; --dim: #b9838f;
+  --accent: #ff2d55; --accent-2: #f2c14e; --hot: #ff7b2e; --amber: #ffe08a; --on-accent: #fff6f7;
+  --font-display: "Playfair Display", "Bodoni MT", Didot, "Big Caslon", "Times New Roman", Georgia, serif;
+  --r: 2px; --r-s: 2px; --r-xs: 2px;
+}
+/* the card back: a diagonal weave across the header, a gold rule under it */
+html[data-theme=queen] .bar {
+  background-image: repeating-linear-gradient(135deg, transparent 0 9px, color-mix(in srgb, var(--accent) 8%, transparent) 9px 10px);
+  border-bottom-color: color-mix(in srgb, var(--accent-2) 50%, transparent);
+}
+html[data-theme=queen] .brand .mark { font-size: 0; color: var(--accent); text-shadow: 0 0 14px var(--glow); }
+html[data-theme=queen] .brand .mark::before { content: '♥'; font-size: 24px; }
+html[data-theme=queen] .brand b, html[data-theme=queen] .panel > h2 { color: var(--accent-2); font-weight: 700; letter-spacing: .2em; }
+html[data-theme=queen] .panel > h2::before { content: '♥ '; color: var(--accent); }
+html[data-theme=queen] .panel { border-color: color-mix(in srgb, var(--accent-2) 30%, var(--line)); }
+html[data-theme=queen] .btn { letter-spacing: .16em; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-2) 60%, transparent); }
+html[data-theme=queen] .tab.on, html[data-theme=queen] .mode.on { box-shadow: inset 0 0 0 1px var(--accent-2); }
+html[data-theme=queen] .led.on { box-shadow: 0 0 8px var(--glow); }
+/* the Queen's mark, over the whole page */
+html[data-theme=queen] body::after {
+  content: '♥'; position: fixed; right: -6vmin; bottom: -14vmin; z-index: -1; font-size: 70vmin; line-height: 1;
+  color: var(--accent); opacity: .06; pointer-events: none;
+}

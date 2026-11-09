@@ -3,7 +3,9 @@
 Thumbs.db
 *.swp
 .idea/
-.vscode/
+# .vscode/ is the editor's, except the MCP registration of the level studio's bridge, which is the repository's
+.vscode/*
+!.vscode/mcp.json
 
 # --- agent / tool local state ---
 .claude/settings.local.json
@@ -14,9 +16,14 @@ __pycache__/
 
 # --- Pico firmware (CMake) ---
 software/controller/build/
+software/controller/test/test_glitch
+software/controller/test/test_vault
 
 # --- Pages staging ---
 _site/
+# The deploy builds firmware/ (glitch.uf2 + index.json) next to the site;
+# a local copy is for trying flash.html and is never committed.
+firmware/
 
 # --- Node ---
 node_modules/

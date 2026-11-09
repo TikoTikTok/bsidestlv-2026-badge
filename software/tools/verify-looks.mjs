@@ -1,0 +1,389 @@
+#!/usr/bin/env node
+// Checks the looks and the themes: each manifest against the files it
+// describes, so a look or theme that is listed but missing (or shipped but
+// unlisted) fails the deploy instead of a phone; that a theme only paints and
+// a look only shapes (a theme file never names data-look, a look file never
+// data-theme); and every page against the picker, so a page cannot ship
+// without the boot script, the chip, a touch-screen look or a default theme,
+// and the theme and look cards show in the chip's sheet only, never on a
+// page. Pages with a mode bar must name a button for every panel and for the
+// mode they open on. Part of `npm run verify`; see src/looks/index.json,
+// src/themes/index.json, src/looks.js.
+
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const root = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const problems = [];
+const say = (s) => problems.push(s);
+const slug = /^[a-z][a-z0-9-]*$/;
+const hex = /^#[0-9a-f]{6}$/i;
+
+// ----------------------------------------------------------- the manifests ----
+
+function manifest(kind, dir, list, check) {
+  const at0 = `src/${dir}/index.json`;
+  const items = JSON.parse(readFileSync(resolve(root, 'src', dir, 'index.json'), 'utf8'))[list];
+  if (!Array.isArray(items) || !items.length) { say(`${at0}: "${list}" must be a non-empty array`); return { items: [], ids: new Set() }; }
+  const ids = new Set();
+  for (const it of items) {
+    const at = `${kind} "${it?.id ?? '?'}"`;
+    if (!slug.test(it?.id ?? '')) say(`${at}: id must be a lower-case slug`);
+    if (ids.has(it.id)) say(`${at}: duplicate id`);
+    ids.add(it.id);
+    for (const k of ['label', 'blurb']) if (typeof it[k] !== 'string' || !it[k].trim()) say(`${at}: ${k} is required`);
+    check(it, at);
+    if (it.id === 'classic') continue;    // styles.css alone, no file of its own
+    const file = resolve(root, 'src', dir, `${it.id}.css`);
+    if (!existsSync(file)) { say(`${at}: src/${dir}/${it.id}.css is missing`); continue; }
+    const css = readFileSync(file, 'utf8');
+    if (!css.trim()) say(`${at}: src/${dir}/${it.id}.css is empty`);
+    if (!css.includes(`[data-${kind}=${it.id}]`)) say(`${at}: src/${dir}/${it.id}.css has no [data-${kind}=${it.id}] rule`);
+    const other = kind === 'look' ? 'theme' : 'look';
+    if (css.includes(`[data-${other}=`)) say(`${at}: src/${dir}/${it.id}.css names data-${other}; a ${kind} ${kind === 'look' ? 'shapes' : 'paints'} and leaves the ${other} alone`);
+  }
+  if (!ids.has('classic')) say(`${at0}: the "classic" ${kind} (styles.css alone) must be listed`);
+  // every shipped file is listed, so nothing dead rides along
+  for (const f of readdirSync(resolve(root, 'src', dir))) {
+    const m = /^([a-z][a-z0-9-]*)\.css$/.exec(f);
+    if (m && !ids.has(m[1])) say(`src/${dir}/${f} is not in ${at0}`);
+  }
+  return { items, ids };
+}
+
+const SHAPES = new Set(['page', 'sheet', 'device', 'dock']);
+const looks = manifest('look', 'looks', 'looks', (l, at) => {
+  if (!SHAPES.has(l.shape)) say(`${at}: shape must be one of ${[...SHAPES].join(' | ')}`);
+  if (typeof l.phone !== 'boolean') say(`${at}: phone must be true or false`);
+  if ('padAlwaysOut' in l && typeof l.padAlwaysOut !== 'boolean') say(`${at}: padAlwaysOut must be true or false`);
+});
+const themes = manifest('theme', 'themes', 'themes', (t, at) => {
+  if (!Array.isArray(t.swatch) || t.swatch.length !== 5 || !t.swatch.every(c => hex.test(c)))
+    say(`${at}: swatch must be five #rrggbb colours (page, panel, accent, good, text)`);
+});
+
+// --------------------------------------------------------------- the pages ----
+
+const PAGES = ['index.html', 'glitch.html', 'flash.html', 'badge.html', 'maker.html'];
+const pages = [];
+for (const page of PAGES) {
+  const html = readFileSync(resolve(root, page), 'utf8');
+  const tag = /<html\b[^>]*>/.exec(html)?.[0] ?? '';
+  const attr = (name) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1];
+  const look = attr('data-look'), theme = attr('data-theme'), touch = attr('data-look-touch'), dflt = attr('data-theme-default'), mode = attr('data-mode');
+
+  if (look !== 'classic') say(`${page}: <html> must open as data-look="classic" (src/look-boot.js sets the real one before paint)`);
+  if (theme !== 'classic') say(`${page}: <html> must open as data-theme="classic" (src/look-boot.js sets the real one before paint)`);
+  if (!touch) say(`${page}: <html> needs data-look-touch="<id>", the look a touch screen opens on`);
+  else if (!looks.ids.has(touch)) say(`${page}: data-look-touch="${touch}" is not a listed look`);
+  else if (!looks.items.find(l => l.id === touch)?.phone) say(`${page}: data-look-touch="${touch}" is not a phone look`);
+  if (!dflt) say(`${page}: <html> needs data-theme-default="<id>", the theme the page opens on`);
+  else if (!themes.ids.has(dflt)) say(`${page}: data-theme-default="${dflt}" is not a listed theme`);
+  if (!/<script src="src\/look-boot\.js"><\/script>/.test(html)) say(`${page}: <head> must load src/look-boot.js before the body`);
+  if (!/id="lookChip"/.test(html)) say(`${page}: the header needs the look chip (#lookChip)`);
+  // the page-turn icon sits before the chip: a real button, labelled, with its popover named
+  const turn = /<button\b[^>]*id="turnBtn"[^>]*>/.exec(html)?.[0];
+  if (!turn) say(`${page}: the header needs the page-turn icon (#turnBtn) beside the chip`);
+  else {
+    if (html.indexOf(turn) > html.indexOf('id="lookChip"')) say(`${page}: the page-turn icon (#turnBtn) goes before the chip (#lookChip)`);
+    for (const a of ['aria-label="Page turn', 'aria-expanded="false"', 'aria-controls="turnPop"', 'data-state="auto"']) if (!turn.includes(a)) say(`${page}: #turnBtn needs ${a}…"`);
+    if (!/type="button"/.test(turn)) say(`${page}: #turnBtn must be type="button"`);
+  }
+  if (/id="turnPop"/.test(html)) say(`${page}: the page-turn popover is built by src/looks.js; do not put it in the page`);
+  if (/id="lookSheet"/.test(html)) say(`${page}: the picker sheet is built by src/looks.js; do not put it in the page`);
+  if (/look-cards/.test(html)) say(`${page}: the theme and look cards are the sheet's only, behind the ◐ chip; a page carries no .look-cards host`);
+
+  // a mode bar: every panel's mode has a button, and the page opens on one of them
+  const buttons = [...html.matchAll(/<button[^>]*class="mode[^"]*"[^>]*data-mode="([^"]+)"/g)].map(m => m[1]);
+  const panels = [...html.matchAll(/<section class="panel[^"]*"[^>]*data-mode="([^"]+)"/g)].map(m => m[1]);
+  if (buttons.length || panels.length || mode) {
+    if (!mode) say(`${page}: has a mode bar but <html> names no data-mode to open on`);
+    else if (!buttons.includes(mode)) say(`${page}: opens on data-mode="${mode}" but the mode bar has no such button`);
+    for (const pm of new Set(panels)) if (!buttons.includes(pm)) say(`${page}: a panel is data-mode="${pm}" but the mode bar has no such button`);
+    for (const b of buttons) if (!panels.includes(b)) say(`${page}: the mode bar's "${b}" shows no panel`);
+    const bare = [...html.matchAll(/<section class="panel[^"]*"(?![^>]*data-mode=)/g)].length;
+    if (bare) say(`${page}: ${bare} panel(s) carry no data-mode and would stay on screen in every mode`);
+  }
+  pages.push({ page, touch, dflt, mode, modes: buttons });
+}
+if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different default themes: ${pages.map(p => `${p.page} ${p.dflt}`).join(', ')}`);
+
+// the cards: the sheet behind the chip is the only place they show, so no
+// page is a wall of swatches; a help panel says where the chip is instead
+{
+  const looksJs = readFileSync(resolve(root, 'src/looks.js'), 'utf8');
+  if (/querySelectorAll\('\.look-cards'\)/.test(looksJs) || /pageHosts/.test(looksJs)) say('src/looks.js: fill the sheet\'s cards only; a page has no .look-cards host to fill');
+  if (/\.panel \.pick\b/.test(readFileSync(resolve(root, 'styles.css'), 'utf8'))) say('styles.css: no .panel .pick rule; the cards never sit in a panel');
+}
+
+// ------------------------------------------------------- the stages page ----
+// The page is for playing: one player (src/room.js) for every level, the
+// explorer of levels with the prizes, the tutorial, the help. Nothing of the
+// asset bench - the walk-cycle viewer, the tile and item sheets, the tuning
+// sliders - is on it any more; what only a local checkout shows (Solve, the
+// keyboard prose) is class dev-only, the boot script sets data-host on
+// <html> before paint and styles.css hides the class on the site.
+{
+  const html = readFileSync(resolve(root, 'index.html'), 'utf8');
+  if (!/id="roomSolve" class="[^"]*dev-only/.test(html)) say('index.html: #roomSolve (Solve) is the bench\'s: class dev-only');
+  for (const [id, what] of [['playPanel', 'play'], ['levelsPanel', 'levels'], ['learnPanel', 'learn']])
+    if (!new RegExp(`<section class="panel[^"]*" id="${id}" data-mode="${what}">`).test(html)) say(`index.html: #${id} is the ${what} panel, data-mode="${what}", for everyone`);
+  for (const m of ['play', 'levels', 'learn']) if (!new RegExp(`class="mode" data-mode="${m}"`).test(html)) say(`index.html: the mode bar has a ${m} button for everyone (not dev-only)`);
+  for (const gone of ['walk', 'art', 'tea', 'chase', 'rooms']) if (new RegExp(`data-mode="${gone}"`).test(html)) say(`index.html: no "${gone}" mode any more - one player plays every level, the explorer lists them`);
+  for (const gone of ['8-way walk', 'id="tiles"', 'id="items"', 'id="compass"', 'id="heroCanvas"', 'id="zoom"', 'id="backdrop"', 'id="playSpeed"', 'id="chaseSpeed"', 'id="chaseRun"', 'id="walkTabs"'])
+    if (html.includes(gone)) say(`index.html: ${gone} is the asset bench's, not the player's; it does not belong on the stages page`);
+  for (const id of ['levelName', 'levelBy', 'levelFacts', 'roomBlurb', 'room', 'roomStatus', 'roomUndo', 'roomReset', 'shareBtn', 'levelGroups', 'progressLine', 'prizes', 'progressReset', 'shareDialog', 'sharePlayUrl', 'shareEditUrl', 'toast'])
+    if (!new RegExp(`id="${id}"`).test(html)) say(`index.html: no #${id} (src/gallery.js fills it)`);
+  const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
+  for (const sel of ['.facts {', '.levels {', '.level-card {', '.level-card.shared {', '.level-mark {', '.prizes {', '.prize {', '.prize.on {', '.toast {', '.share-sheet {'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} rule (the stages page's explorer, prizes, toast and Share dialog)`);
+  for (const gone of ['.walk-stage', '.compass', '.swatchbox', '.hero-meta', '.items {', '.room-card', '.rooms {'])
+    if (css.includes(gone)) say(`styles.css: ${gone} is dead: the asset bench and the old Rooms panel are gone from the stages page`);
+  for (const f of readdirSync(resolve(root, 'src/themes'))) if (/swatchbox|hero-meta|room-card/.test(readFileSync(resolve(root, 'src/themes', f), 'utf8'))) say(`src/themes/${f}: names a class the stages page no longer has`);
+  const gallery = readFileSync(resolve(root, 'src/gallery.js'), 'utf8');
+  if (/assetGrid|buildCompass|heroCanvas|'#walkTabs'/.test(gallery)) say('src/gallery.js: the asset bench (the walk cycles, the sheets) is gone from the stages page');
+  for (const what of ["from './room.js'", "from './progress.js'", 'new Progress(', 'mountRoom(', 'check-worker.js', "shareUrl(base('index.html')", "shareUrl(base('maker.html')"])
+    if (!gallery.includes(what)) say(`src/gallery.js: should ${what.startsWith('from') ? `import ${what}` : `use ${what}`} - one player, the progress, the par worker, the two share links`);
+  if (!/html\[data-host=site\] \.dev-only \{ display: none !important; \}/.test(css)) say('styles.css: no html[data-host=site] .dev-only rule hiding the bench\'s chrome on the site');
+  const boot = readFileSync(resolve(root, 'src/look-boot.js'), 'utf8');
+  if (!/var dev = \(h === '' \|\| h === 'localhost' \|\| h === '127\.0\.0\.1' \|\| h === '\[::1\]'\) && !\(query && query\.get\('gate'\) === '1'\)/.test(boot) || !/html\.dataset\.host = dev \? 'dev' : 'site'/.test(boot))
+    say('src/look-boot.js: must set data-host as gateMode would: the four dev hosts of isDevHost (src/pad.js), ?gate=1 on one of them being the site');
+  if (!/hostname === '' \|\| hostname === 'localhost' \|\| hostname === '127\.0\.0\.1' \|\| hostname === '\[::1\]'/.test(readFileSync(resolve(root, 'src/pad.js'), 'utf8'))) say('src/pad.js: isDevHost changed; keep src/look-boot.js\'s data-host in step');
+}
+
+// ------------------------------------------------------------ the tutorials ----
+// index.html (A Caucus Race) and glitch.html (Down the Rabbit Hole) each carry
+// a coach line above the panels and a Learn panel behind a Learn mode, drawn
+// by src/coach.js; the styles are styles.css's, once, not a page's own sheet.
+// In the classic look the panel sits beside the stage on every page (the
+// maker's too): a sticky column on a wide window, a drawer the coach line's
+// "learn" opens on a narrow one, "unpin" for the page - html[data-learn],
+// one breakpoint in styles.css and src/coach.js, the choice (alice.learn)
+// honoured before paint by src/look-boot.js.
+{
+  for (const page of ['index.html', 'glitch.html']) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    if (!/<div id="coach" class="coach" hidden>/.test(html)) say(`${page}: no #coach line (src/coach.js renders the tutorial's current step there)`);
+    for (const id of ['coachTitle', 'coachCount', 'coachSay', 'coachSkip', 'coachOpen', 'learnPanel', 'learnProgress', 'learnCoach', 'learnSteps', 'learnSkip', 'learnRestart', 'learnStatus'])
+      if (!new RegExp(`id="${id}"`).test(html)) say(`${page}: no #${id}, which src/coach.js needs`);
+    if (!/<section class="panel side" id="learnPanel" data-mode="learn">/.test(html)) say(`${page}: the Learn panel is data-mode="learn" and class side (the column beside the stage)`);
+    if (!/class="mode" data-mode="learn"/.test(html)) say(`${page}: the mode bar has a Learn button for everyone (not dev-only)`);
+    if (!/<\/nav>\s*(<!--[^]*?-->\s*)?<div id="coach"/.test(html)) say(`${page}: the coach line sits between the mode bar and main`);
+    if (!/<html [^>]*data-learn="side"[^>]*>/.test(html) || /data-learn-host/.test(html)) say(`${page}: <html> opens with the guide beside the stage (data-learn="side") for everyone (no data-learn-host)`);
+  }
+  for (const page of ['index.html', 'glitch.html', 'maker.html']) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    if (!/id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false"/.test(html)) say(`${page}: the coach line's "learn" names the panel it opens (aria-controls="learnPanel" aria-expanded="false")`);
+    const h2 = /<section class="panel[^"]*" id="learnPanel" data-mode="learn">\s*<h2>([^]*?)<\/h2>/.exec(html)?.[1] ?? '';
+    if (!/<button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="[^"]+">unpin<\/button>/.test(h2)) say(`${page}: the Learn panel's heading carries #learnPin (class learn-pin, aria-pressed="true", "unpin")`);
+    if (!/<button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×<\/button>/.test(h2)) say(`${page}: the Learn panel's heading carries #learnClose (class learn-close, the ×)`);
+  }
+  const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
+  for (const sel of ['.coach {', '.coach[hidden]', '.learn-now {', '.learn-steps {', '.keys {']) if (!css.includes(sel)) say(`styles.css: no ${sel} rule (the coach and the legend are every page's)`);
+  // the classic page scrolls: the line sticks under the header, and a panel scrolled to lands under both
+  if (!/html\[data-look=classic\] \.coach \{ position: sticky; top: var\(--bar-h, 0px\)/.test(css)) say('styles.css: in the classic look the coach line sticks under the header (--bar-h)');
+  if (!/html\[data-look=classic\] main > \.panel \{ scroll-margin-top: calc\(var\(--bar-h, 0px\) \+ var\(--coach-h, 0px\)/.test(css)) say('styles.css: a panel scrolled to in the classic look lands under the header and the coach line (scroll-margin-top)');
+  if (!/setProperty\('--bar-h'/.test(readFileSync(resolve(root, 'src/looks.js'), 'utf8'))) say('src/looks.js: must measure the header into --bar-h (ResizeObserver)');
+  const coach = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
+  if (!/setProperty\('--coach-h'/.test(coach)) say('src/coach.js: must measure the coach line into --coach-h');
+  if (/\.coach\b|\.learn-/.test(readFileSync(resolve(root, 'src/glitch.css'), 'utf8'))) say('src/glitch.css: the coach\'s rules belong in styles.css, both pages carry one');
+  // the guide beside the stage: the column (any .side panel), the drawer (the Learn panel's, the coach line opens it), the step first,
+  // the pin and the x - styles.css, keyed on html[data-learn], no host in it
+  for (const sel of ['html[data-look=classic][data-learn=side] main {', 'html[data-look=classic][data-learn=side] main > .panel { grid-column: 1;', 'html[data-look=classic][data-learn=side] main > .side {',
+                     'html[data-look=classic][data-learn=side][data-learn-open] #learnPanel {', 'html[data-look=classic][data-learn=side] .coach { display: none; }', 'html[data-look=classic][data-learn=side] .learn-close { display: inline-grid; }',
+                     'html[data-look=classic][data-learn=side] .side > .learn-now, html:not([data-look=classic]) .side > .learn-now { order: -4;', 'html[data-look=classic][data-learn=side] .side > .note, html:not([data-look=classic]) .side > .note { order: 1;',
+                     '.side { container-type: inline-size; }', '@container (max-width: 480px) {', '@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }',
+                     'html:not([data-look=classic]) #learnPanel.off { display: none; }', 'html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }',
+                     'body.touchpad-open { --pad-h: 16rem; padding-bottom: var(--pad-h); }', 'bottom: var(--pad-h, 0px);'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} (the guide beside the stage is every page's)`);
+  if (/\] #learnPanel \{\s*grid-column: 2/.test(css) || /@media \(max-width: 999\.98px\) \{\s*html\[data-look=classic\]\[data-learn=side\] \.side \{/.test(css))
+    say('styles.css: the column is every .side panel\'s and the drawer the Learn panel\'s alone (the coach line opens it; the flash page\'s steps have none)');
+  // every page whose <html> names the guide's place has one side panel in main, and no page has one without naming it
+  for (const page of PAGES) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const named = /<html [^>]*data-learn="side"/.test(html);
+    const sides = (html.match(/<section class="panel side[^"]*"/g) ?? []).length;
+    if (named && sides !== 1) say(`${page}: <html data-learn="side"> wants exactly one <section class="panel side ..."> in main, found ${sides}`);
+    if (!named && sides) say(`${page}: a side panel without data-learn="side" on <html> never leaves the page`);
+  }
+  // the dock at the column's foot (the maker's assistant chat): class dock, styles.css's in the classic look only - folded to its
+  // heading until html[data-dock-open], the side panel's grid area beside the guide (end-aligned, sticky to the bottom), fixed over
+  // the right edge elsewhere; the column and the drawer stop above it (--dock-h, measured by the page); nothing in the phone looks
+  for (const sel of ['html[data-look=classic] .dock {', 'html[data-look=classic][data-learn=side] main > .dock {', 'html[data-look=classic]:not([data-dock-open]) .dock > :not(h2) { display: none; }',
+                     'html[data-look=classic][data-dock-open] .dock { max-height:', 'html[data-look=classic] .dock > h2 { margin: 0; cursor: pointer;', 'html[data-look=classic] .dock-fold { display: inline-grid; }',
+                     '.dock > h2 { display: flex;', '.dock-fold { display: none;', '.dock-new { display: none;'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} (the dock at the column's foot)`);
+  if (!/main > \.dock \{\s*position: sticky;[^}]*grid-column: 2; grid-row: 1 \/ span 12; align-self: end;/.test(css)) say('styles.css: beside the guide the dock shares the side panel\'s grid area, end-aligned and sticky to the bottom');
+  if (!/main > \.side \{[^}]*- var\(--dock-h, 0px\)/.test(css) || !/#learnPanel \{[^}]*bottom: calc\(var\(--pad-h, 0px\) \+ var\(--dock-h, 0px\)\)/.test(css)) say('styles.css: the column\'s max-height and the drawer\'s bottom leave the dock its room (--dock-h)');
+  if (!/html\[data-look=classic\] \.dock \{\s*position: fixed; right: 0; bottom: var\(--pad-h, 0px\);/.test(css)) say('styles.css: away from the column the dock is fixed over the right edge, above the on-screen pad');
+  if (/html:not\(\[data-look=classic\]\)[^\n]*\.dock/.test(css) || /\.dock[^\n]*data-flip|data-flip[^\n]*\.dock/.test(css)) say('styles.css: the dock has no rule in the phone looks (the chat is a mode there) and none under the turn');
+  // a dock is wired by its page (--dock-h measured, html[data-dock-open] set), is never the side panel, and a page has one at most
+  for (const page of PAGES) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const docks = html.match(/<section class="panel[^"]*\bdock\b[^"]*"/g) ?? [];
+    if (docks.length > 1) say(`${page}: one dock at most, found ${docks.length}`);
+    if (docks.some(d => /\bside\b/.test(d))) say(`${page}: a dock is never the side panel`);
+    if (docks.length) {
+      const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
+      const js = mod ? readFileSync(resolve(root, mod), 'utf8') : '';
+      if (!/setProperty\('--dock-h'/.test(js) || !/dataset\.dockOpen/.test(js)) say(`${page}: ${mod ?? 'its module'} must measure the dock into --dock-h and open it through html[data-dock-open]`);
+    }
+  }
+  // the rig (the maker's Run & debug): class rig, not a panel of its own in the classic look - styles.css keeps main > .rig out
+  // of the page there and the page moves its body into the panel it plays, armed; nothing fixed or sticky, nothing in the phone looks
+  if (!css.includes('html[data-look=classic] main > .rig { display: none; }')) say('styles.css: no html[data-look=classic] main > .rig { display: none; } (the rig plays inside another panel there)');
+  if (/\.rig\b[^\n]*position: (fixed|sticky)/.test(css) || /--rig-h/.test(css)) say('styles.css: the rig is never fixed or sticky and nothing keeps clear of it; its body is moved into the panel it plays');
+  if (/html:not\(\[data-look=classic\]\)[^\n]*\.rig\b/.test(css) || /\.rig\b[^\n]*data-flip|data-flip[^\n]*\.rig\b/.test(css)) say('styles.css: the rig has no rule in the phone looks (Run & debug is a mode there) and none under the turn');
+  for (const page of PAGES) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const rigs = html.match(/<section class="panel[^"]*\brig\b[^"]*"/g) ?? [];
+    if (rigs.length > 1) say(`${page}: one rig at most, found ${rigs.length}`);
+    if (rigs.some(r => /\b(side|dock)\b/.test(r))) say(`${page}: a rig is never the side panel or the dock`);
+    if (rigs.length) {
+      if (!/<section class="panel[^"]*\brig\b[^"]*"[^>]*>\s*<h2>[^]*?<\/h2>\s*<div id="rig" class="rig-body">/.test(html)) say(`${page}: the rig's body is <div id="rig" class="rig-body">, right after the panel's heading`);
+      const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
+      const js = mod ? readFileSync(resolve(root, mod), 'utf8') : '';
+      if (!/\.after\(rig\)/.test(js) || !/classList\.toggle\('armed'/.test(js)) say(`${page}: ${mod ?? 'its module'} must move the rig's body into the panel it plays and arm that panel`);
+    }
+  }
+  const flash = readFileSync(resolve(root, 'flash.html'), 'utf8');
+  if (!/<section class="panel side" id="flashGuide">\s*<h2>Flash the badge from this page<\/h2>/.test(flash) || /data-learn-host/.test(flash)) say('flash.html: the steps panel is the page\'s guide (class side, #flashGuide), for everyone');
+  if (/download<\/a> below/.test(flash)) say('flash.html: the steps stand beside the firmware on a wide window, so the note cannot say the download is "below"');
+  if (/data-host[^\n]*data-learn|data-learn[^\n]*data-host/.test(css)) say('styles.css: the guide\'s rules name no host: the maker alone keeps its guide to a checkout (data-learn-host, src/look-boot.js)');
+  const bp = /@media \(min-width: (\d+)px\) \{\s*html\[data-look=classic\]\[data-learn=side\] main \{/.exec(css.replace(/\/\*[^]*?\*\//g, ''))?.[1];
+  if (!bp || !new RegExp(`@media \\(max-width: ${bp - 1}\\.98px\\) \\{\\s*html\\[data-look=classic\\]\\[data-learn=side\\] #learnPanel \\{`).test(css) || !new RegExp(`LEARN_WIDE = '\\(min-width: ${bp}px\\)'`).test(coach))
+    say(`styles.css / src/coach.js: the column / drawer breakpoint (${bp ?? '?'}px) must be one number in both (LEARN_WIDE)`);
+  if (!/LEARN_KEY = 'alice\.learn'/.test(coach) || !/function openLearn\(/.test(coach) || !/function setLearn\(/.test(coach) || !/WIDE\.addEventListener\('change'/.test(coach)
+      || !/\$\('#learnClose'\)\?\.addEventListener\('click'/.test(coach) || !/pin\?\.addEventListener\('click'/.test(coach) || !/setAttribute\('aria-expanded'/.test(coach) || !/setLearn, openLearn, get learn\(\)/.test(coach))
+    say('src/coach.js: mountCoach wires the guide\'s place for every page (alice.learn, #learnPin, #learnClose, the drawer on the line\'s "learn" with aria-expanded, closed when the window crosses the breakpoint) and returns setLearn / openLearn / learn');
+  const boot = readFileSync(resolve(root, 'src/look-boot.js'), 'utf8');
+  if (!/localStorage\.getItem\('alice\.learn'\)/.test(boot) || !/if \(learn === 'page'\) html\.dataset\.learn = 'page';/.test(boot) || !/if \(!dev && html\.dataset\.learnHost === 'dev'\) delete html\.dataset\.learn;/.test(boot))
+    say('src/look-boot.js: must apply the remembered guide place (alice.learn -> data-learn="page") before paint, and drop data-learn on the site where it is the checkout\'s (data-learn-host="dev")');
+  if (!/data-learn="side" data-learn-host="dev"/.test(readFileSync(resolve(root, 'maker.html'), 'utf8'))) say('maker.html: its guide is the studio\'s - <html data-learn="side" data-learn-host="dev">, so the site\'s landing stays one column');
+  for (const page of ['index.html', 'glitch.html']) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
+    const js = mod ? readFileSync(resolve(root, mod), 'utf8') : '';
+    if (!/from '\.\/coach\.js'/.test(js)) say(`${page}: ${mod} does not import src/coach.js`);
+  }
+  const index = readFileSync(resolve(root, 'index.html'), 'utf8');
+  if ((index.match(/<p class="keys"/g) ?? []).length !== 1) say('index.html: the one player carries one controls legend (p.keys), which follows the open level\'s rules');
+  for (const id of ['roomKeyUndo', 'roomKeyWait', 'roomKeyReset', 'roomLesson']) if (!new RegExp(`id="${id}"`).test(index)) say(`index.html: no #${id} (the legend follows the level's rules; the lesson sits under it)`);
+  if (!/id="roomUndo"/.test(index)) say('index.html: an untimed level has an Undo button (#roomUndo)');
+}
+
+// ------------------------------------------------------------- the page turn ----
+// src/tilt.js turns the page by data-flip on <html> when the phone is upside
+// down: 180 when the OS left the page alone, 90 or 270 when auto-rotate took
+// it to landscape on the way round and stopped there. The rules live in
+// styles.css (shared by every look), the boot script honours the remembered
+// hand switch before paint by the same arithmetic, and the sheet carries the
+// switch. A look or a theme never names data-flip: the turn is the same
+// whatever the page wears. Every page must reach src/tilt.js from its own
+// module (it listens from load, no pad or gate needed). The control is a
+// small icon beside the ◐ chip in every header (#turnBtn: the state, a dot
+// while iOS still has to be asked, a popover of auto / no / yes that doubles
+// as the first-visit tip) plus the same row in the sheet; on iOS the tap on
+// the icon, or on the chip, is the one that asks for the sensors. The gate
+// carries no page-turn button of its own any more.
+
+const src = (p) => readFileSync(resolve(root, p), 'utf8');
+const css = src('styles.css');
+const rule = (sel, body, what) => { if (!new RegExp(`${sel.replace(/[.[\]"()]/g, '\\$&')} \\{[^}]*${body}`).test(css)) say(`styles.css: ${what}`); };
+rule('html[data-flip="180"] body', 'transform: rotate\\(180deg\\)', 'no html[data-flip="180"] body rule turning the page a half turn');
+rule('html[data-flip] body', 'position: fixed', 'the turned body must be a fixed box (fixed descendants turn with it)');
+rule('html[data-flip]', 'overflow: hidden', 'the root must hide its overflow while turned, else the body\'s is propagated to the viewport and the body never scrolls');
+rule('html[data-flip="90"] body, html[data-flip="270"] body', 'width: 100dvh; height: 100dvw', 'a quarter-turned body must be the viewport\'s height wide and its width tall (the OS parked the page in landscape)');
+rule('html[data-flip="90"] body', 'rotate\\(90deg\\)', 'no html[data-flip="90"] body rule: a phone whose OS went to landscape on the way round needs a quarter turn on');
+rule('html[data-flip="270"] body', 'rotate\\(-90deg\\)', 'no html[data-flip="270"] body rule: the other landscape needs a quarter turn back');
+rule('html[data-flip="180"] dialog', 'rotate\\(180deg\\)', 'dialogs live in the top layer and must turn by themselves');
+rule('html[data-flip="90"] dialog', 'rotate\\(90deg\\)', 'dialogs must turn a quarter too');
+rule('html[data-flip="270"] dialog', 'rotate\\(-90deg\\)', 'dialogs must turn a quarter back too');
+rule('html[data-flip="180"] .look-sheet', 'inset: 0 0 auto 0', 'the looks sheet must move to the top edge, the player\'s bottom once turned a half turn');
+rule('html[data-flip="90"] .look-sheet', 'left: 0', 'the looks sheet must move to the left edge, the player\'s bottom under a quarter turn on');
+rule('html[data-flip="270"] .look-sheet', 'left: 100%', 'the looks sheet must move to the right edge, the player\'s bottom under a quarter turn back');
+rule('html[data-flip="90"] .gate, html[data-flip="270"] .gate', '92dvh', 'a quarter-turned gate dialog is sized by the viewport\'s height');
+rule('html[data-flip="180"] .bar', 'safe-area-inset-bottom', 'the header must pad for the notch at its new end (safe-area-inset-bottom)');
+rule('html[data-flip="180"] .touchpad', 'safe-area-inset-top', 'the on-screen pad must pad for the notch at its new end (safe-area-inset-top)');
+rule('html[data-flip="90"] .bar', 'safe-area-inset-right', 'under a quarter turn on the header is at the viewport\'s right edge (safe-area-inset-right)');
+rule('html[data-flip="90"] .touchpad', 'safe-area-inset-left', 'under a quarter turn on the notch is at the viewport\'s left edge (safe-area-inset-left)');
+rule('html[data-flip="270"] .bar', 'safe-area-inset-left', 'under a quarter turn back the header is at the viewport\'s left edge (safe-area-inset-left)');
+rule('html[data-flip="270"] .touchpad', 'safe-area-inset-right', 'under a quarter turn back the notch is at the viewport\'s right edge (safe-area-inset-right)');
+rule('html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways', 'grid-template-columns: 1fr', 'a quarter-turned page sits in a landscape viewport, so the phone breakpoints must be forced (the gate\'s two ways in one column)');
+const bootJs = src('src/look-boot.js');
+if (!/alice\.flip/.test(bootJs)) say('src/look-boot.js: must honour localStorage alice.flip before paint');
+if (!/screen\.orientation/.test(bootJs) || !/dataset\.flip = String\(turn\)/.test(bootJs)) say('src/look-boot.js: must set data-flip to the turn a remembered half turn still needs (180, or 90 / 270 when the page is in landscape), from screen.orientation');
+const looksJs = src('src/looks.js');
+if (!/flip-chip/.test(looksJs) || !/tilt\.manual = v/.test(looksJs)) say('src/looks.js: the sheet needs the page-turn switch (flip-chip) setting tilt.manual');
+if (!/'Page turn'/.test(looksJs)) say('src/looks.js: the switch is about the page, and must say so ("Page turn")');
+if (!/chip\?\.addEventListener\('click', [^\n]*tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the ◐ chip must ask iOS for the sensors (tilt.request) on its tap');
+if (!/turnBtn\.addEventListener\('click', \(\) => \{\s*if \(tilt\.needsPermission\) tilt\.request\(\)/.test(looksJs)) say('src/looks.js: the page-turn icon\'s tap must ask iOS for the sensors (tilt.request) first thing');
+if (!/pop\.id = 'turnPop'/.test(looksJs) || !/setAttribute\('aria-expanded', 'true'\)/.test(looksJs)) say('src/looks.js: the icon opens a popover #turnPop and says so with aria-expanded');
+if (!/setAttribute\('aria-pressed', String\(on\)\)/.test(looksJs)) say('src/looks.js: the auto / no / yes chips must carry aria-pressed');
+if (!/TIP_KEY = 'alice\.flip\.tip'/.test(looksJs) || !/matchMedia\('\(pointer: coarse\)'\)\.matches/.test(looksJs)) say('src/looks.js: the first-visit tip is once per device (localStorage alice.flip.tip) and only on a touch screen');
+if (!/tilt\.manual === 'auto' && matchMedia/.test(looksJs)) say('src/looks.js: a switch set by hand means no tip');
+if (!/dataset\.state = state/.test(looksJs) || !/dataset\.ask = 'yes'/.test(looksJs)) say('src/looks.js: the icon must show the state (data-state) and whether iOS still has to be asked (data-ask)');
+for (const sel of ['.turn-btn', '.turn-btn[data-state=on]', '.turn-btn[data-state=off] svg .no', '.turn-btn[data-ask]::after', '.turn-pop', '.turn-pop[hidden]'])
+  if (!css.includes(`${sel} {`)) say(`styles.css: no ${sel} rule (the page-turn icon and its popover)`);
+if (/gateTilt/.test(src('src/gate.js'))) say('src/gate.js: the gate carries no page-turn button; the header icon asks');
+const glitchCss = src('src/glitch.css');
+if (!/grid-template-areas: 'dev turn look' 'leds turn look'/.test(glitchCss) || !/\.turn-btn \{ grid-area: turn; \}/.test(glitchCss)) say('src/glitch.css: the range header\'s grid needs a column for the page-turn icon (area "turn")');
+for (const look of ['handheld', 'scope'])
+  if (!/grid-template-areas: 'dev leds turn look'/.test(src(`src/looks/${look}.css`))) say(`src/looks/${look}.css: the range header's grid must place the page-turn icon (area "turn")`);
+const tiltJs = src('src/tilt.js');
+if (!/^if \(globalThis\.document\) \{[^}]*tilt\.start\(\)/m.test(tiltJs)) say('src/tilt.js: must start listening when loaded in a browser, not wait for a pad or a gate');
+if (!/tilt\.request\(\)/.test(src('src/gate.js'))) say('src/gate.js: the gate\'s Connect tap must ask iOS for the sensors');
+if (!/tilt\.request\(\)/.test(src('src/glitch.js'))) say('src/glitch.js: a tap on the on-screen pad must ask iOS for the sensors');
+for (const page of PAGES) {
+  const mod = /<script type="module" src="([^"]+)"><\/script>/.exec(src(page))?.[1];
+  if (!mod) { say(`${page}: loads no module script`); continue; }
+  const seen = new Set();
+  const reaches = (file) => {
+    if (seen.has(file)) return false;
+    seen.add(file);
+    if (file === 'src/tilt.js') return true;
+    const text = src(file);
+    return [...text.matchAll(/from '\.\/([a-z-]+\.js)'/g)].some(m => reaches(`src/${m[1]}`));
+  };
+  if (!reaches(mod)) say(`${page}: ${mod} never reaches src/tilt.js, so the page would not turn with the phone`);
+}
+for (const [kind, dir] of [['look', 'looks'], ['theme', 'themes']])
+  for (const f of readdirSync(resolve(root, 'src', dir)))
+    if (f.endsWith('.css') && /data-flip/.test(src(`src/${dir}/${f}`))) say(`src/${dir}/${f}: a ${kind} must not name data-flip; the turn is styles.css's`);
+
+// ------------------------------------------------------------ press this ----
+// src/prompt.js draws where the next press goes - the badge with the asked-for
+// buttons lit, glyphs in a line, a hand on a control - and every page may
+// carry one, so its rules are styles.css's; the pages that say "press" or
+// "hold" show it.
+{
+  for (const sel of ['.prompt {', '.prompts {', '.badge-art {', '.badge-art .key.on .cap {', '.badge-art .key.hold .gauge {', '.badge-art.plugged .plug {',
+                     'html[data-flip] .badge-art .phys {', '.steps li.now {', '.key-glyph {', '.cue-anchor {', '.cued {', '.cue-hand {'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} rule (src/prompt.js)`);
+  if (!/@media \(prefers-reduced-motion: reduce\) \{\s*\.badge-art \.ring[^}]*animation: none/.test(css)) say('styles.css: the prompts must stand still under prefers-reduced-motion');
+  for (const [file, what] of [['src/flash.js', 'mountPrompt'], ['src/gate.js', 'mountPrompt'], ['src/badge.js', 'mountPrompt'], ['src/coach.js', 'keyGlyphs'], ['src/coach.js', 'mountPrompt'], ['src/room.js', 'keyGlyphs']]) {
+    const js = src(file);
+    if (!/from '\.\/prompt\.js'/.test(js) || !js.includes(`${what}(`)) say(`${file}: should draw where the press goes (${what} from src/prompt.js)`);
+  }
+  if (!/cue\(/.test(src('src/flash.js')) || !/cue\(connect\)/.test(src('src/gate.js')) || !/cue\(\$\('#connectBtn'\)\)/.test(src('src/badge.js'))) say('the flash page, the gate and the vault page point the hand at their next control (cue from src/prompt.js)');
+  const flash = src('flash.html');
+  for (const id of ['flashSteps', 'stepBoot', 'stepPick', 'stepBack', 'bootPrompts', 'backPrompt']) if (!flash.includes(`id="${id}"`)) say(`flash.html: no #${id} (the steps src/flash.js marks and the pictures under them)`);
+  const badge = src('badge.html');
+  for (const id of ['beaconPrompt', 'selectPrompt']) if (!badge.includes(`id="${id}"`)) say(`badge.html: no #${id} for the hold's picture`);
+  for (const f of ['src/glitch.css', 'src/maker.css']) if (/\.badge-art|\.key-glyph|\.cue-hand|\.cued\b/.test(src(f))) say(`${f}: the prompt's rules belong in styles.css, every page carries one`);
+  if (!/GENERATED by software\/tools\/gen-badge-art\.mjs/.test(src('src/badge-shape.js'))) say('src/badge-shape.js is generated from the board by gen-badge-art.mjs and says so');
+}
+
+// ---------------------------------------------------------------- report ----
+
+console.log('looks');
+for (const l of looks.items) console.log(`  ${l.id.padEnd(9)} ${String(l.shape).padEnd(7)} ${l.phone ? 'phone' : 'desk '} ${l.id === 'classic' ? 'styles.css alone' : `src/looks/${l.id}.css`}`);
+console.log('themes');
+for (const t of themes.items) console.log(`  ${t.id.padEnd(9)} ${(t.swatch ?? []).slice(0, 3).join(' ')} ${t.id === 'classic' ? 'styles.css alone' : `src/themes/${t.id}.css`}`);
+console.log('pages');
+for (const p of pages) console.log(`  ${p.page.padEnd(12)} opens ${String(p.dflt).padEnd(9)} touch ${String(p.touch).padEnd(9)} ${p.mode ? `on ${p.mode}; modes ${p.modes.join(' ')}` : 'no mode bar'}`);
+if (problems.length) {
+  for (const p of problems) console.error('  ✗ ' + p);
+  process.exit(1);
+}
+console.log('\nlooks and themes: the manifests, the files, the pages and the prompts agree');
