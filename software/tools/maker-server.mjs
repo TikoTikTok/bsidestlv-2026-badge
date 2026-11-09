@@ -16,9 +16,11 @@
 //     POST /__maker/post          { text, kind?, data? }: a line the person typed in the page's chat
 //                                 (kind 'chat'), or an event the page reports (kind 'tutorial': a step done)
 //     POST /__maker/guide         { mode, from: 'page' }: the person picked a way on the welcome banner;
-//                                 { answer, at, from: 'page' }: they pressed one of the question's buttons on the page
-//                                 (the bridge shows every question of the guide on the page too, op 'ask', so the
-//                                 person may answer there or in the assistant's chat - whichever comes first wins)
+//                                 { answer, at, from: 'page' }: they pressed one of the question's buttons on the page;
+//                                 { help: true, run: true, at, from: 'page' }: they pressed "Do it for me" there
+//                                 (the bridge shows every step of the guide on the page too, op 'ask' - the line, the
+//                                 why, what the assistant does, the question's buttons, Do it for me - so the person
+//                                 follows and answers there or in the assistant's chat, whichever comes first)
 //
 //   an assistant (curl, or software/tools/maker-mcp.mjs)
 //     GET  /__maker/              status: is a page open, which assistants said hello, the ops, the guide
@@ -49,8 +51,8 @@
 import { createServer } from 'node:http';
 import { createReadStream, statSync } from 'node:fs';
 import { resolve, extname, sep } from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { GUIDE_IDS, GUIDE_MODES, PLATFORMS, modeById, guideStep, guideText, guideWelcome, applyAnswer } from '../../src/guide.js';
+import { execFileSync, spawn } from 'node:child_process';
+import { GUIDE_IDS, GUIDE_MODES, PLATFORMS, modeById, guideStep, guideText, guideWelcome, applyAnswer, boardLine } from '../../src/guide.js';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -94,8 +96,21 @@ export function repoFacts(root) {
   };
 }
 
-/** The bridge's state and handlers, apart from the HTTP so a test can hold it. */
-export function createBridge({ log = () => {}, facts = {} } = {}) {
+/**
+ * Open a page in the person's default browser through the system opener. The
+ * last resort: an assistant opens the page in its own browser pane first (the
+ * one the person sees beside its chat), and only one without a pane comes
+ * here. Quiet on failure - the address is printed either way.
+ */
+export function openInBrowser(page) {
+  const cmd = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', page]]
+            : process.platform === 'darwin' ? ['open', [page]] : ['xdg-open', [page]];
+  try { spawn(cmd[0], cmd[1], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); return true; } catch { return false; }
+}
+
+/** The bridge's state and handlers, apart from the HTTP so a test can hold it. `url` is where the page is served (set once the server listens). */
+export function createBridge({ log = () => {}, facts = {}, url = null } = {}) {
+  let base = url;                          // http://localhost:<port>, for the guide's "open the page" line
   const pages = new Set();                 // SSE responses of open pages
   const pending = new Map();               // command id -> { resolve, timer }
   const agents = new Map();                // name -> last seen (ms)
@@ -116,7 +131,7 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
 
   function rpc(op, args = {}, { timeoutMs } = {}) {
     if (!OPS.includes(op)) return Promise.reject(Object.assign(new Error(`no such op: ${op}; the ops are ${OPS.join(', ')}`), { code: 400 }));
-    if (!pages.size) return Promise.reject(Object.assign(new Error('no maker page is open: open http://localhost:<port>/maker.html on this machine (npm run maker opens it)'), { code: 503 }));
+    if (!pages.size) return Promise.reject(Object.assign(new Error(`no maker page is open: open ${base ?? 'http://localhost:<port>'}/maker.html in your own browser pane first, or in the person's browser (npm run maker opens it; over MCP, maker_open { browser: true })`), { code: 503 }));
     const id = nextId++;
     const ms = timeoutMs ?? OP_TIMEOUT[op] ?? 30_000;
     return new Promise((resolve, reject) => {
@@ -174,7 +189,7 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
 
   const ctx = (extra = {}) => ({
     vars: guide.vars, level: mirror?.level ?? null, lint: mirror?.lint ?? null, report: mirror?.report ?? null, tutorial: mirror?.tutorial ?? null,
-    assistant: [...agents.keys()].at(-1) ?? null, platform: guide.platform, ...facts, ...extra,
+    assistant: [...agents.keys()].at(-1) ?? null, platform: guide.platform, url: base, ...facts, ...extra,
   });
   const pageSteps = () => (guideStep('tutorial', 0, ctx())?.of ?? 14) - 2;    // the Rabbit's steps that are the page's
   /** The room and the tutorial's position straight from the page when one is open, so the guide never trails the mirror. */
@@ -199,9 +214,11 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
     return { mode: guide.mode, title: modeById(guide.mode).title, at, of: step.of, over: !!step.over, step: step.over ? null : step, vars: guide.vars, last: guide.last, text: guideText(guide.mode, at, c), page: pageFacts(), ...extra };
   }
   /**
-   * The current question, to the page as well: a card with the step's line and
-   * its options as buttons (op 'ask'), so the person may answer on the page or
-   * in the assistant's chat, whichever they are looking at. Sent once per step.
+   * The current step, to the page as well: a card with the whole of it - the
+   * line, the why, the board in a line, what the assistant does on it, the
+   * question with its options as buttons, Do it for me (op 'ask') - so the
+   * person follows and answers on the page or in the assistant's chat,
+   * whichever they are looking at. Sent once per step.
    */
   function tellPage({ again = false } = {}) {
     if (!guide.mode || !pages.size) return;
@@ -212,8 +229,9 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
     const m = modeById(guide.mode);
     if (v.over) { send({ op: 'ask', args: { mode: guide.mode, title: m.title, over: true, say: guideStep(guide.mode, v.of, ctx()).say } }); return; }
     const st = v.step;
-    send({ op: 'ask', args: { mode: guide.mode, title: m.title, at: v.at, of: v.of, id: st.id, step: st.title, say: st.say, q: st.ask?.q ?? null,
-                              options: (st.ask?.options ?? []).map(o => ({ label: o.label, hint: o.hint })), other: st.ask?.other?.hint ?? null, help: st.help?.say ?? null } });
+    send({ op: 'ask', args: { mode: guide.mode, title: m.title, at: v.at, of: v.of, id: st.id, step: st.title, say: st.say, why: st.why ?? null, board: boardLine(ctx()), next: st.next,
+                              q: st.ask?.q ?? null, options: (st.ask?.options ?? []).map(o => ({ label: o.label, hint: o.hint, then: o.then })), other: st.ask?.other?.hint ?? null,
+                              help: st.help?.say ?? null, does: st.do.map(d => d.op), before: !!st.before, work: st.work ?? null } });
   }
   /** The page reports a step of the Rabbit's build done: the position is known at once, and the next question goes to the page. */
   function pageStep(data = {}) {
@@ -293,7 +311,10 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
     if (b.next) { if (step.over) return view({ did: 'over' }); await advance(); return view({ did: 'next' }); }
     if (step.over) return view({ did: 'over' });
     if (b.help) {
+      // "Do it for me" from a card of a step the page has already moved past is not for this one
+      if (typeof b.at === 'number' && b.at < at) return view({ did: 'moved', say: `✓ ${guideStep(guide.mode, b.at, c).title}: that step is done; go on from the step below.` });
       const ran = b.run && step.help ? await runOps(step.help.do) : null;
+      if (b.from === 'page') post(`[guide] they pressed "Do it for me" on the page (step ${at + 1}, ${step.id}): ${step.help ? `the help plan ran - ${step.help.say}` : 'this step has no help plan'}`, { kind: 'answer', data: { at, step: step.id, answer: 'Do it for me', option: 'Do it for me', then: 'help', ran: ran?.map(r => r.op) ?? null } });
       return view({ did: 'help', say: step.help?.say ?? null, help: step.help, ran });
     }
     if (b.answer !== undefined) {
@@ -341,7 +362,7 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
 
   const close = () => { for (const res of pages) res.end(); pages.clear(); for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error('closed')); } pending.clear(); for (const w of guideWaiters) w(); };
 
-  return { status, rpc, reply, post, read, attach, hello, state, close, guide: { view, drive, pick, waitPick, refresh, pageStep, tellPage, state: guide, text: () => (guide.mode ? guideText(guide.mode, guideAt(), ctx()) : guideWelcome(ctx())) },
+  return { status, rpc, reply, post, read, attach, hello, state, close, setUrl: (u) => { base = u; }, guide: { view, drive, pick, waitPick, refresh, pageStep, tellPage, state: guide, text: () => (guide.mode ? guideText(guide.mode, guideAt(), ctx()) : guideWelcome(ctx())) },
            get mirror() { return mirror; }, get pages() { return pages.size; } };
 }
 
@@ -412,6 +433,7 @@ export function startMaker({ root, port = 8080, host = '127.0.0.1', log = consol
     server.on('error', fail);
     server.listen(port, host, () => {
       const at = server.address().port;
+      bridge.setUrl(`http://localhost:${at}`);
       ok({ server, bridge, port: at, url: `http://localhost:${at}`, close: () => new Promise((done) => { bridge.close(); server.close(() => done()); }) });
     });
   });

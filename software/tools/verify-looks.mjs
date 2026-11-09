@@ -116,22 +116,35 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
   if (/\.panel \.pick\b/.test(readFileSync(resolve(root, 'styles.css'), 'utf8'))) say('styles.css: no .panel .pick rule; the cards never sit in a panel');
 }
 
-// ------------------------------------------------------- the bench's chrome ----
-// What only a local checkout shows - the walk and art panels and their mode
-// buttons, Solve, the playback and tick sliders, the clock switch, the
-// keyboard prose - is class dev-only; the boot script sets data-host on
+// ------------------------------------------------------- the stages page ----
+// The page is for playing: one player (src/room.js) for every level, the
+// explorer of levels with the prizes, the tutorial, the help. Nothing of the
+// asset bench - the walk-cycle viewer, the tile and item sheets, the tuning
+// sliders - is on it any more; what only a local checkout shows (Solve, the
+// keyboard prose) is class dev-only, the boot script sets data-host on
 // <html> before paint and styles.css hides the class on the site.
 {
   const html = readFileSync(resolve(root, 'index.html'), 'utf8');
-  for (const id of ['solveBtn', 'chaseSolve', 'roomSolve']) if (!new RegExp(`id="${id}" class="[^"]*dev-only`).test(html)) say(`index.html: #${id} (Solve) is the bench's: class dev-only`);
-  if (!/<section class="panel" id="roomsPanel" data-mode="rooms">/.test(html)) say('index.html: the community\'s rooms are a panel for everyone, data-mode="rooms"');
-  if (!/class="mode" data-mode="rooms"/.test(html)) say('index.html: the mode bar has a Rooms button for everyone (not dev-only)');
-  for (const m of ['walk', 'art']) {
-    if (!new RegExp(`class="mode dev-only" data-mode="${m}"`).test(html)) say(`index.html: the ${m} mode button is the bench's: class dev-only`);
-    if (/<section class="panel" data-mode="(walk|art)"/.test(html)) say('index.html: every walk and art panel is the bench\'s: class dev-only');
-  }
-  for (const id of ['playSpeed', 'chaseSpeed', 'chaseRun']) if (!new RegExp(`<label class="[^"]*dev-only[^"]*">[^<]*<input id="${id}"`).test(html)) say(`index.html: the label around #${id} is the bench's: class dev-only`);
-  if (!/html\[data-host=site\] \.dev-only \{ display: none !important; \}/.test(readFileSync(resolve(root, 'styles.css'), 'utf8'))) say('styles.css: no html[data-host=site] .dev-only rule hiding the bench\'s chrome on the site');
+  if (!/id="roomSolve" class="[^"]*dev-only/.test(html)) say('index.html: #roomSolve (Solve) is the bench\'s: class dev-only');
+  for (const [id, what] of [['playPanel', 'play'], ['levelsPanel', 'levels'], ['learnPanel', 'learn']])
+    if (!new RegExp(`<section class="panel[^"]*" id="${id}" data-mode="${what}">`).test(html)) say(`index.html: #${id} is the ${what} panel, data-mode="${what}", for everyone`);
+  for (const m of ['play', 'levels', 'learn']) if (!new RegExp(`class="mode" data-mode="${m}"`).test(html)) say(`index.html: the mode bar has a ${m} button for everyone (not dev-only)`);
+  for (const gone of ['walk', 'art', 'tea', 'chase', 'rooms']) if (new RegExp(`data-mode="${gone}"`).test(html)) say(`index.html: no "${gone}" mode any more - one player plays every level, the explorer lists them`);
+  for (const gone of ['8-way walk', 'id="tiles"', 'id="items"', 'id="compass"', 'id="heroCanvas"', 'id="zoom"', 'id="backdrop"', 'id="playSpeed"', 'id="chaseSpeed"', 'id="chaseRun"', 'id="walkTabs"'])
+    if (html.includes(gone)) say(`index.html: ${gone} is the asset bench's, not the player's; it does not belong on the stages page`);
+  for (const id of ['levelName', 'levelBy', 'levelFacts', 'roomBlurb', 'room', 'roomStatus', 'roomUndo', 'roomReset', 'shareBtn', 'levelGroups', 'progressLine', 'prizes', 'progressReset', 'shareDialog', 'sharePlayUrl', 'shareEditUrl', 'toast'])
+    if (!new RegExp(`id="${id}"`).test(html)) say(`index.html: no #${id} (src/gallery.js fills it)`);
+  const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
+  for (const sel of ['.facts {', '.levels {', '.level-card {', '.level-card.shared {', '.level-mark {', '.prizes {', '.prize {', '.prize.on {', '.toast {', '.share-sheet {'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} rule (the stages page's explorer, prizes, toast and Share dialog)`);
+  for (const gone of ['.walk-stage', '.compass', '.swatchbox', '.hero-meta', '.items {', '.room-card', '.rooms {'])
+    if (css.includes(gone)) say(`styles.css: ${gone} is dead: the asset bench and the old Rooms panel are gone from the stages page`);
+  for (const f of readdirSync(resolve(root, 'src/themes'))) if (/swatchbox|hero-meta|room-card/.test(readFileSync(resolve(root, 'src/themes', f), 'utf8'))) say(`src/themes/${f}: names a class the stages page no longer has`);
+  const gallery = readFileSync(resolve(root, 'src/gallery.js'), 'utf8');
+  if (/assetGrid|buildCompass|heroCanvas|'#walkTabs'/.test(gallery)) say('src/gallery.js: the asset bench (the walk cycles, the sheets) is gone from the stages page');
+  for (const what of ["from './room.js'", "from './progress.js'", 'new Progress(', 'mountRoom(', 'check-worker.js', "shareUrl(base('index.html')", "shareUrl(base('maker.html')"])
+    if (!gallery.includes(what)) say(`src/gallery.js: should ${what.startsWith('from') ? `import ${what}` : `use ${what}`} - one player, the progress, the par worker, the two share links`);
+  if (!/html\[data-host=site\] \.dev-only \{ display: none !important; \}/.test(css)) say('styles.css: no html[data-host=site] .dev-only rule hiding the bench\'s chrome on the site');
   const boot = readFileSync(resolve(root, 'src/look-boot.js'), 'utf8');
   if (!/var dev = \(h === '' \|\| h === 'localhost' \|\| h === '127\.0\.0\.1' \|\| h === '\[::1\]'\) && !\(query && query\.get\('gate'\) === '1'\)/.test(boot) || !/html\.dataset\.host = dev \? 'dev' : 'site'/.test(boot))
     say('src/look-boot.js: must set data-host as gateMode would: the four dev hosts of isDevHost (src/pad.js), ?gate=1 on one of them being the site');
@@ -254,9 +267,9 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
     if (!/from '\.\/coach\.js'/.test(js)) say(`${page}: ${mod} does not import src/coach.js`);
   }
   const index = readFileSync(resolve(root, 'index.html'), 'utf8');
-  if ((index.match(/<p class="keys"/g) ?? []).length !== 3) say('index.html: each stage and the community\'s room carry a controls legend (p.keys)');
-  for (const id of ['roomKeyUndo', 'roomKeyWait', 'roomKeyReset', 'roomLesson']) if (!new RegExp(`id="${id}"`).test(index)) say(`index.html: no #${id} (the room's legend follows its rules; the lesson sits under it)`);
-  if (!/id="undoBtn"/.test(index)) say('index.html: the tea party has an Undo button');
+  if ((index.match(/<p class="keys"/g) ?? []).length !== 1) say('index.html: the one player carries one controls legend (p.keys), which follows the open level\'s rules');
+  for (const id of ['roomKeyUndo', 'roomKeyWait', 'roomKeyReset', 'roomLesson']) if (!new RegExp(`id="${id}"`).test(index)) say(`index.html: no #${id} (the legend follows the level's rules; the lesson sits under it)`);
+  if (!/id="roomUndo"/.test(index)) say('index.html: an untimed level has an Undo button (#roomUndo)');
 }
 
 // ------------------------------------------------------------- the page turn ----

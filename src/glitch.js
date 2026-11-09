@@ -17,7 +17,7 @@ import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
 import { tilt } from './tilt.js';
-import { decodeShare } from './level.js';
+import { decodeShare, isGlitch } from './level.js';
 import { rangeLint, RANGE_KINDS } from './rangecheck.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -1466,9 +1466,10 @@ window.__range.ready = (async () => {
   } catch { /* no index: nothing to add */ }
   const token = new URLSearchParams(location.search).get('level');
   if (!token) return;
+  let level = null;
   try {
-    const level = decodeShare(token);
-    if (!RANGE_KINDS.includes(level.range)) throw new Error(level.rows ? 'that is a room; the stages page (index.html) plays rooms' : `no such range '${level.range}'`);
+    level = decodeShare(token);
+    if (!RANGE_KINDS.includes(level.range)) throw new Error(level.rows ? 'that is a room, not a glitch level' : `no such range '${level.range}'`);
     shared.level = add(level, ' · yours');
     SELECT[level.range](level);
     arm(level.range);
@@ -1479,5 +1480,8 @@ window.__range.ready = (async () => {
     shared.error = e.message;
     logTo('#benchLog', `the level in the address would not open: ${e.message}`, 'hot');
     setWatchStatus(`the level in the address would not open: ${e.message}`, 'hot');
+    // a room's token is the stages page's: the status takes the player there
+    if (level?.rows && !isGlitch(level)) watchStatus.append(' - ', Object.assign(document.createElement('a'), { href: `index.html?level=${encodeURIComponent(token)}`, textContent: 'play it on the stages page' }));
+    if (looks.look.id !== 'classic') looks.setMode('watch');    // on a phone, the panel with the status
   }
 })();

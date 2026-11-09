@@ -76,8 +76,6 @@ html[data-host=dev] .site-only { display: none !important; }
 }
 .controls output { color: var(--accent); min-width: 2.2em; }
 .controls .check { text-transform: none; }
-/* the asset sheet's controls live in the Art panel, not the header, so the header holds the brand, the links and the chip */
-.sheet-controls { margin: .5rem 0 .25rem; }
 
 /* -------------------------------------------------------------- panels -- */
 
@@ -107,41 +105,7 @@ pre {
 /* a room wider than the screen shrinks rather than scrolls: 13 tiles is 624 px, a phone is 360 */
 .stage-wrap canvas { max-width: 100%; height: auto; }
 
-/* ---------------------------------------------------------- 8-way walk -- */
-
-.walk-stage {
-  display: grid; gap: 1rem;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
-}
-.compass { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; min-width: 0; }
-.cell {
-  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well);
-  padding: .35rem; display: grid; place-items: center; gap: .2rem;
-  cursor: pointer; position: relative;
-}
-.cell:hover { border-color: var(--accent); }
-.cell.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2) inset; }
-.cell b { font-size: 10px; letter-spacing: .12em; color: var(--dim); }
-.cell.on b { color: var(--accent-2); }
-.cell.spacer { border: none; background: none; cursor: default; }
-.cell canvas { display: block; max-width: 100%; height: auto; }   /* the 2x frame shrinks into a narrow column rather than over the hero */
-
-.walk-hero {
-  border: 1px solid var(--line); border-radius: var(--r); background: var(--ink-2);
-  padding: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
-  justify-content: center;
-}
-.walk-hero canvas { background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s); max-width: 100%; height: auto; }
-.hero-meta { display: flex; flex-direction: column; gap: .5rem; font-size: 11px; color: var(--dim); }
-.hero-meta b { font-size: 24px; letter-spacing: .12em; color: var(--accent); }
-.hero-meta label { display: flex; flex-direction: column; gap: .25rem; text-transform: uppercase; letter-spacing: .06em; }
-.hero-meta output { color: var(--accent); }
-.hero-meta .check { flex-direction: row; align-items: center; gap: .4rem; text-transform: none; }
-
-@media (max-width: 760px) {
-  .walk-stage { grid-template-columns: 1fr; }
-}
+/* ---------------------------------------------------------------- tabs -- */
 
 .tabs { display: flex; gap: .4rem; margin-bottom: .9rem; flex-wrap: wrap; }
 .tab {
@@ -151,24 +115,6 @@ pre {
 }
 .tab:hover { color: var(--text); border-color: var(--accent); }
 .tab.on { color: var(--ink); background: var(--accent); border-color: var(--accent); }
-
-/* ----------------------------------------------------------------- items -- */
-
-.items { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: .6rem; }
-.item { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .35rem; }
-.swatchbox {
-  border: 1px solid var(--line); border-radius: var(--r-s); padding: .4rem;
-  display: grid; place-items: center; width: 100%;
-}
-.swatchbox.checker {
-  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%), linear-gradient(-45deg, var(--line) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--line) 75%), linear-gradient(-45deg, transparent 75%, var(--line) 75%);
-  background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; background-color: var(--panel-2);
-}
-.swatchbox.dark { background: var(--ink-2); }
-.swatchbox.light { background: #cdd8e6; }
-.item figcaption { font-size: 10px; color: var(--dim); cursor: pointer; text-align: center; word-break: break-word; }
-.item figcaption:hover { color: var(--accent); }
-.item figcaption.copied { color: var(--accent-2); }
 
 /* ------------------------------------------------------------ stage bar -- */
 
@@ -194,6 +140,7 @@ pre {
 
 .brand small a, .note a { color: var(--accent); text-decoration: none; }
 .brand small a:hover, .note a:hover { text-decoration: underline; }
+.status a { color: var(--accent); }    /* a status that sends the player to another page carries the link */
 kbd {
   font: inherit; font-size: 11px; color: var(--text);
   background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;
@@ -508,7 +455,7 @@ html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-c
 }
 /* the column takes from the stage what the two-column grids above were given down to 860 px; until the window makes it up they go one column */
 @media (min-width: 1000px) and (max-width: 1179.98px) {
-  html[data-look=classic][data-learn=side] .glass, html[data-look=classic][data-learn=side] .lock, html[data-look=classic][data-learn=side] .walk-stage { grid-template-columns: 1fr; }
+  html[data-look=classic][data-learn=side] .glass, html[data-look=classic][data-learn=side] .lock { grid-template-columns: 1fr; }
 }
 /* the drawer is the Learn panel's alone: the coach line is what opens it; another side panel (the flash page's steps) stays in the page here */
 @media (max-width: 999.98px) {
@@ -574,21 +521,87 @@ html[data-look=classic] main > .rig { display: none; }
 .keys kbd { margin-right: .3em; }
 .status.hint { color: var(--accent); }
 
-/* ------------------------------------------------- the community's rooms -- */
-/* the cards (one per room in stages/community/index.json) and the lesson a room carries, under it */
-.rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .4rem; margin: .4rem 0 .6rem; }
-.room-card { display: flex; flex-direction: column; align-items: flex-start; gap: .15rem; padding: .45rem .6rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); }
-.room-card b { color: var(--text); font-size: 12px; }
-.room-card small { font-size: 10px; }
-.room-card:hover { border-color: var(--accent); color: var(--text); }
-.room-card.on { border-color: var(--accent-2); color: var(--text); }
-/* a room that came in a link (?level=, src/gallery.js openShared): a card of its own at the front, not the index's */
-.room-card.shared { border-style: dashed; border-color: var(--accent); }
-.room-card.shared.on { border-style: solid; border-color: var(--accent-2); }
+/* ------------------------------------------------------ the stages page -- */
+/* The one player's panel: the level's name with who made it, the facts strip
+   (the rules, the size, what is in it, the par, your best), the lesson a room
+   carries; then the explorer (src/gallery.js): the levels in groups, a card
+   each with the room drawn small and what you have won in it, and the
+   prizes (src/progress.js), every one shown, won or not. */
+.panel > h2 .by { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--dim); font-size: 11px; margin-left: .4rem; }
+.facts { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; margin: .2rem 0 .6rem; font-size: 12px; }
+.facts span { display: flex; flex-direction: column; gap: .05rem; }
+.facts small { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.facts b { font-weight: 500; color: var(--text); }
+.facts .dim b { color: var(--dim); font-weight: 400; }
+.facts .win b { color: var(--accent-2); }
 .lesson { margin: .4rem 0 .6rem; padding: .6rem .8rem; border-left: 3px solid var(--accent); background: var(--well); font-size: 12px; color: var(--text); }
 .lesson b { color: var(--accent); margin-right: .3em; }
 .lesson.done { border-color: var(--accent-2); }
 .lesson.done b { color: var(--accent-2); }
+
+.sub { margin: 1.1rem 0 .15rem; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.level-group > .sub:first-child { margin-top: .4rem; }
+.level-group > .note { margin-bottom: .5rem; }
+.progress-line { float: right; font-size: 10px; letter-spacing: .1em; color: var(--dim); }
+.levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin: .2rem 0 .4rem; }
+.level-card {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; padding: .5rem .6rem .55rem;
+  cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-s);
+}
+.level-card .thumb { display: block; width: 100%; height: auto; max-height: 84px; object-fit: contain; border-radius: 4px; background: var(--ink-2); margin-bottom: .2rem; }
+.level-card b { color: var(--text); font-size: 12px; letter-spacing: .02em; }
+.level-card small { font-size: 10px; }
+.level-card:hover { border-color: var(--accent); color: var(--text); }
+.level-card.on { border-color: var(--accent-2); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 25%, transparent) inset; color: var(--text); }
+.level-card.off { cursor: default; opacity: .6; }
+.level-card.off:hover { border-color: var(--line); }
+/* a room that came in a link (?level=, src/gallery.js openShared): a card of its own, not the index's */
+.level-card.shared { border-style: dashed; border-color: var(--accent); }
+.level-card.shared.on { border-style: solid; border-color: var(--accent-2); }
+.level-par { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); min-height: 1.2em; }
+.level-par:empty { display: none; }
+.level-mark { position: absolute; right: .5rem; top: .5rem; font-size: 10px; letter-spacing: .06em; color: var(--on-accent); background: var(--accent-2); border-radius: 99px; padding: .05rem .45rem; }
+.level-mark:empty { display: none; }
+.level-card.star .level-mark::after { content: ' ★'; }
+
+.prizes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; margin: .4rem 0 .8rem; }
+.prize {
+  display: grid; grid-template-columns: 2.2rem 1fr; grid-template-areas: 'i t' 'i s' 'i w'; column-gap: .6rem; align-items: center;
+  padding: .55rem .7rem; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--well); color: var(--dim); opacity: .72;
+}
+.prize .icon { grid-area: i; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; border: 1px solid var(--line); font-size: 18px; color: var(--dim); }
+.prize b { grid-area: t; font-size: 12px; color: var(--text); }
+.prize small { grid-area: s; font-size: 10px; line-height: 1.4; }
+.prize em { grid-area: w; font-style: normal; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-2); }
+.prize.on { opacity: 1; border-color: var(--accent-2); }
+.prize.on .icon { color: var(--on-accent); background: var(--accent-2); border-color: var(--accent-2); box-shadow: 0 0 10px color-mix(in srgb, var(--accent-2) 45%, transparent); }
+.prize.on b { color: var(--accent-2); }
+
+/* a prize won: one line at the foot of the screen, for a moment */
+.toast {
+  position: fixed; left: 50%; bottom: calc(1.2rem + env(safe-area-inset-bottom, 0px)); z-index: 12; transform: translateX(-50%);
+  max-width: min(92vw, 560px); padding: .55rem 1rem; font-size: 12px; color: var(--text); text-align: center;
+  background: color-mix(in srgb, var(--accent-2) 14%, var(--panel)); border: 1px solid var(--accent-2); border-radius: 99px;
+  box-shadow: 0 10px 30px var(--shade), 0 0 14px color-mix(in srgb, var(--accent-2) 35%, transparent);
+}
+.toast[hidden] { display: none; }
+
+/* the Share dialog: the open level as a link, two doors */
+.share-sheet {
+  width: min(92vw, 640px); margin: auto; padding: 1.3rem 1.5rem 1.1rem; font: inherit;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 30px 80px var(--shade), 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.share-sheet::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
+.share-sheet h2 { margin: 0 0 .4rem; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.share-way { display: flex; flex-direction: column; gap: .15rem; margin: .7rem 0; }
+.share-way > b { font-size: 12px; color: var(--text); }
+.share-way > small { font-size: 10px; color: var(--dim); }
+.share-row { display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
+.share-row input { flex: 1; min-width: 0; font: inherit; font-size: 11px; color: var(--text); background: var(--ink); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .5rem; }
+.share-row input:focus { outline: none; border-color: var(--accent); }
+.share-row .btn { flex: none; }
+@media (max-width: 480px) { .share-row { flex-wrap: wrap; } .share-row input { flex-basis: 100%; } }
 
 /* ------------------------------------------------------------------ looks -- */
 /* How the site sits on a screen. The classic look is this file alone: every
@@ -653,7 +666,8 @@ html:not([data-look=classic]) .stage-wrap canvas { max-width: 100%; height: auto
 html:not([data-look=classic]) .stage-bar { gap: 8px; }
 html:not([data-look=classic]) .controls label { font-size: 10px; }
 html:not([data-look=classic]) .log:empty { display: none; }
-html:not([data-look=classic]) .items { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+html:not([data-look=classic]) .levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html:not([data-look=classic]) .prizes { grid-template-columns: 1fr; }
 
 /* the on-screen pad as a mirror: on the site nothing on the screen is a
    controller, so the pad only shows what the badge is pressing */
@@ -708,7 +722,6 @@ html[data-flip="270"] .look-sheet .sheet { padding-bottom: calc(16px + env(safe-
 html[data-flip="90"] .bar, html[data-flip="270"] .bar { padding-left: clamp(.75rem, 3vh, 2rem); padding-right: clamp(.75rem, 3vh, 2rem); }   /* the header's side padding scales with the player's width, which is the viewport's height now */
 /* a quarter-turned page sits in a landscape viewport, which the width queries
    above take for a wide screen: the phone breakpoints hold here regardless */
-html[data-flip="90"] .walk-stage, html[data-flip="270"] .walk-stage,
 html[data-flip="90"] .glass, html[data-flip="270"] .glass,
 html[data-flip="90"] .lock, html[data-flip="270"] .lock,
 html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways { grid-template-columns: 1fr; }
@@ -970,4 +983,4 @@ html:not([data-look=classic]) .learn-now .prompts { width: 128px; }
 /* a theme may set --font-display apart from --font: the brand, the headings and
    the buttons take it; the data - listings, logs, readouts - stays in --font.
    Last in the file, after every `font: inherit` that would reset it. */
-.brand b, .panel > h2, .btn, .tab, .mode, .gate h2, .gate h3, .sheet-head b, .look-label, .hero-meta b, .pick-head b { font-family: var(--font-display); }
+.brand b, .panel > h2, .sub, .btn, .tab, .mode, .gate h2, .gate h3, .sheet-head b, .look-label, .pick-head b, .level-card b, .prize b, .share-sheet h2 { font-family: var(--font-display); }
