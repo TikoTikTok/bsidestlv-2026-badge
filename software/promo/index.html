@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Alice in AI Land - the BSidesTLV 2026 badge</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Space Grotesk"; src: url("assets/fonts/SpaceGrotesk-500.woff2") format("woff2"); font-weight: 300 700; font-display: block; }
+      @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/JetBrainsMono-400.woff2") format("woff2"); font-weight: 100 800; font-display: block; }
+      :root {
+        --ink: #0b0e14; --ink-2: #06080c; --well: #10141c; --panel: #12161f; --panel-2: #181d29; --line: #272d3b; --haze: #2e3f19;
+        --text: #e3e8ef; --dim: #a78bfa; --accent: #a3e635; --accent-2: #c4b5fd; --hot: #e879f9; --on-accent: #0b0e14;
+        --display: "Space Grotesk", "Segoe UI", Inter, Roboto, sans-serif;
+        --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+      }
+      body { margin: 0; background: var(--ink); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--ink); color: var(--text); font-family: var(--display); }
+      .clip { position: absolute; }
+      .scene { position: absolute; inset: 0; }
+      /* the camera: a wrapper GSAP translates and scales about 0 0; the footage fills the frame inside it */
+      .cam { position: absolute; inset: 0; }
+      .cam > video, .cam > img.frame { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block; }
+
+      /* the persistent background: the site's olive wash, a breathing glow, the lime rule over the header */
+      #bg { position: absolute; inset: 0; }
+      #bg .wash { position: absolute; inset: 0; background: radial-gradient(ellipse 1400px 560px at 50% -120px, color-mix(in srgb, var(--haze) 80%, var(--ink)) 0%, var(--ink) 70%); }
+      #bg .glow { position: absolute; left: 1060px; top: -200px; width: 1400px; height: 1400px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 60%); }
+      #bg .rule { position: absolute; left: 0; top: 0; width: 1920px; height: 4px; background: var(--accent); }
+      #bg .grid { position: absolute; inset: 0; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 96px 96px; opacity: .22; mask-image: radial-gradient(ellipse 1100px 700px at 50% 50%, #000 20%, transparent 80%); }
+
+      .kicker { position: absolute; left: 84px; top: 72px; margin: 0; font: 500 24px/1 var(--mono); color: var(--accent); letter-spacing: .24em; text-transform: uppercase; }
+      .ghost { position: absolute; left: -30px; top: 60px; margin: 0; font: 700 640px/1 var(--display); letter-spacing: -.05em; color: var(--text); opacity: .05; white-space: nowrap; }
+
+      /* the lower third */
+      .lt { position: absolute; left: 84px; bottom: 76px; max-width: 1200px; padding: 26px 40px 30px 34px; background: rgba(11, 14, 20, .86); border-left: 5px solid var(--accent); border-radius: 0 6px 6px 0; }
+      .lt small { display: block; margin: 0 0 14px; font: 500 22px/1 var(--mono); color: var(--accent); letter-spacing: .22em; text-transform: uppercase; }
+      .lt h2 { margin: 0; font: 700 50px/1.12 var(--display); color: var(--text); letter-spacing: -.01em; }
+      .lt.right { left: auto; right: 84px; border-left: 0; border-right: 5px solid var(--accent); border-radius: 6px 0 0 6px; }
+      .lt p { margin: 12px 0 0; font: 400 25px/1.42 var(--mono); color: var(--accent-2); }
+
+      /* the range's tags */
+      .tag { position: absolute; right: 84px; top: 64px; display: flex; align-items: center; gap: 20px; padding: 16px 30px 16px 18px; background: rgba(11, 14, 20, .88); border: 2px solid var(--line); border-radius: 8px; font: 700 38px/1 var(--display); color: var(--text); white-space: nowrap; }
+      .tag b { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--accent); color: var(--ink); font: 700 30px var(--mono); }
+
+      /* the title */
+      .glitch { position: absolute; left: 84px; top: 300px; margin: 0; width: 720px; height: 330px; font: 700 150px/1.02 var(--display); letter-spacing: -.035em; color: var(--text); --red: 0px; --blue: 0px; }
+      .glitch span, .glitch strong { position: absolute; inset: 0; }
+      .glitch b { display: block; font-weight: inherit; white-space: nowrap; }
+      .glitch span:first-child { color: #ff2d55; transform: translateX(var(--red)); mix-blend-mode: screen; }
+      .glitch span:nth-child(2) { color: #2ee6c5; transform: translateX(var(--blue)); mix-blend-mode: screen; }
+      .tagline { position: absolute; left: 84px; top: 690px; margin: 0; display: flex; gap: 18px; font: 500 34px/1 var(--mono); color: var(--accent-2); white-space: nowrap; }
+      .tagline i { font-style: normal; color: var(--accent); }
+
+      /* the photos: a card at the right */
+      .pcam { position: absolute; left: 1180px; top: 190px; width: 560px; height: 620px; }
+      .pcam .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 26px; box-shadow: 0 40px 90px rgba(0, 0, 0, .55), 0 0 0 2px rgba(255, 255, 255, .08); }
+      #pcam2 { left: 110px; top: 220px; }
+
+      .facts { position: absolute; left: 84px; top: 330px; margin: 0; padding: 0; list-style: none; width: 1000px; }
+      .facts li { margin: 0 0 36px; font: 700 54px/1.15 var(--display); color: var(--text); }
+      .facts em { font-style: normal; color: var(--accent); }
+      .rule-h { position: absolute; left: 84px; top: 290px; width: 1000px; height: 3px; background: var(--accent); }
+
+      /* the phone and the badge */
+      .phone { position: absolute; left: 300px; top: 24px; width: 284px; height: 598px; }
+      .phone .shell { position: absolute; left: 0; top: 0; width: 410px; height: 864px; border-radius: 48px; padding: 10px; box-sizing: border-box; background: linear-gradient(145deg, #343740, #1b1d22 42%, #111318); border: 1px solid rgba(255, 255, 255, .22); box-shadow: 0 40px 90px rgba(7, 10, 20, .5), inset 0 1px 0 rgba(255, 255, 255, .24), inset 0 0 0 1px rgba(0, 0, 0, .48); transform-origin: 0 0; transform: scale(.692); }
+      .phone .screen { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 38px; background: var(--ink); isolation: isolate; }
+      .phone .screen .cam { position: absolute; inset: 0; }
+      .phone .screen video { position: absolute; left: 0; top: 0; width: 390px; height: 844px; object-fit: cover; display: block; }
+      .divider { position: absolute; left: 84px; top: 640px; width: 1752px; height: 2px; background: var(--line); }
+      .padchips { position: absolute; left: 700px; top: 420px; display: flex; gap: 16px; }
+      .padchips span { display: grid; place-items: center; width: 84px; height: 84px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--dim); font: 700 40px var(--mono); }
+      .padchips small { align-self: center; margin-left: 18px; font: 400 24px/1.3 var(--mono); color: var(--dim); }
+      .side { position: absolute; left: 700px; top: 150px; width: 1120px; }
+      .side small { display: block; margin: 0 0 16px; font: 500 22px/1 var(--mono); color: var(--accent); letter-spacing: .22em; text-transform: uppercase; }
+      .side h2 { margin: 0; font: 700 56px/1.1 var(--display); color: var(--text); }
+      .side p { margin: 14px 0 0; font: 400 25px/1.42 var(--mono); color: var(--accent-2); }
+      #badge-host { position: absolute; left: 110px; top: 664px; width: 628px; height: 400px; }
+      #badge-host svg { display: block; width: 100%; height: 100%; overflow: visible; }
+      .badge-note { position: absolute; left: 820px; top: 700px; width: 1000px; }
+      .badge-note small { display: block; margin: 0 0 14px; font: 500 22px/1 var(--mono); color: var(--accent); letter-spacing: .22em; text-transform: uppercase; }
+      .badge-note p { margin: 0 0 10px; font: 400 26px/1.42 var(--mono); color: var(--text); }
+      .badge-note p.dim { color: var(--dim); }
+      /* the badge art: src/prompt.js's rules with the bsides theme resolved (the keys are lit by the timeline) */
+      .badge-art .shell { fill: var(--well); stroke: var(--line); stroke-width: .5; }
+      .badge-art .hub { fill: var(--panel-2); }
+      .badge-art .key .cap { fill: var(--panel-2); stroke: var(--line); stroke-width: .45; }
+      .badge-art .key text { font: 700 3.4px var(--mono); fill: var(--dim); text-anchor: middle; dominant-baseline: central; letter-spacing: .02em; }
+      .badge-art .key text.word { font-size: 2.1px; font-weight: 400; letter-spacing: .08em; }
+      .badge-art .key text.tiny { font-size: 1.7px; }
+      .badge-art .key[data-key=SL] text, .badge-art .key[data-key=SR] text { font-size: 2.6px; }
+      .badge-art .key .glyph { fill: var(--dim); }
+      .badge-art .ring { fill: none; stroke: var(--accent); stroke-width: .6; opacity: 0; }
+      .badge-art .gauge { display: none; }
+      .badge-art .led { fill: var(--accent-2); opacity: .35; }
+      .badge-art .usb { fill: var(--ink-2); stroke: var(--line); stroke-width: .4; }
+
+      /* the themes and the looks */
+      .chip { position: absolute; left: 84px; bottom: 84px; padding: 18px 30px; background: rgba(11, 14, 20, .88); border: 2px solid var(--accent); border-radius: 8px; font: 700 40px/1 var(--display); color: var(--text); white-space: nowrap; }
+      .chip i { font-style: normal; color: var(--accent); margin-right: 16px; }
+      .lookrow { position: absolute; inset: 0; }
+      .lookrow img { position: absolute; top: 230px; width: 222px; height: 480px; object-fit: cover; border-radius: 22px; box-shadow: 0 30px 70px rgba(0, 0, 0, .55), 0 0 0 2px rgba(255, 255, 255, .1); }
+      .lookrow img:nth-child(1) { left: 405px; } .lookrow img:nth-child(2) { left: 735px; } .lookrow img:nth-child(3) { left: 1065px; } .lookrow img:nth-child(4) { left: 1395px; }
+      .looklabels { position: absolute; left: 0; top: 740px; width: 1920px; }
+      .looklabels span { position: absolute; top: 0; width: 302px; text-align: center; font: 500 26px/1.3 var(--mono); color: var(--accent-2); }
+      .looklabels span:nth-child(1) { left: 365px; } .looklabels span:nth-child(2) { left: 695px; } .looklabels span:nth-child(3) { left: 1025px; } .looklabels span:nth-child(4) { left: 1355px; }
+      .looklabels span b { display: block; color: var(--text); font: 700 30px/1.3 var(--display); }
+
+      /* the close */
+      .lockup { position: absolute; left: 760px; top: 300px; margin: 0; width: 1080px; font: 700 128px/1 var(--display); letter-spacing: -.035em; color: var(--text); }
+      .url { position: absolute; left: 760px; top: 585px; margin: 0; font: 700 40px/1 var(--mono); color: var(--accent); letter-spacing: -.01em; }
+      .meta { position: absolute; left: 760px; top: 660px; margin: 0; font: 400 26px/1.4 var(--mono); color: var(--dim); }
+      .rule-c { position: absolute; left: 760px; top: 548px; width: 1080px; height: 3px; background: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="promo" data-start="0" data-width="1920" data-height="1080" data-duration="88">
+      <div id="bg">
+        <div class="wash"></div>
+        <div class="grid"></div>
+        <div class="glow" id="bg-glow"></div>
+        <div class="rule"></div>
+      </div>
+
+      <!-- 1 · the title (0-4.5) and 2 · the badge (4.5-10): the photo card spans both -->
+      <div class="pcam" id="pcam">
+        <img class="clip photo" id="p-front" src="assets/Controller-Front.jpeg" alt="" data-start="0" data-duration="10" data-track-index="1" />
+        <img class="clip photo" id="p-back" src="assets/Controller-Back.jpeg" alt="" data-start="6" data-duration="4" data-track-index="1" />
+      </div>
+      <section class="clip scene" id="s-title" data-start="0" data-duration="4.5" data-track-index="2">
+        <p class="ghost" id="t-ghost">ALICE</p>
+        <small class="kicker" id="t-kicker">BSidesTLV 2026 · the badge and its challenge</small>
+        <h1 class="glitch" id="t-title" data-layout-allow-overlap><span><b>ALICE IN</b><b>AI LAND</b></span><span><b>ALICE IN</b><b>AI LAND</b></span><strong><b>ALICE IN</b><b>AI LAND</b></strong></h1>
+        <p class="tagline" id="t-tag"><span>a badge</span><i>·</i><span>a controller</span><i>·</i><span>a key</span><i>·</i><span>a glitching tool</span></p>
+      </section>
+      <section class="clip scene" id="s-badge" data-start="4.5" data-duration="5.5" data-track-index="2">
+        <small class="kicker" id="b-kicker">The badge</small>
+        <div class="rule-h" id="b-rule"></div>
+        <ul class="facts" id="b-facts">
+          <li>RP2040 · 14 buttons · USB-C</li>
+          <li>enumerates as a <em>wired DualShock 4</em></li>
+          <li>so an iPhone binds it, and the site knows it by name</li>
+        </ul>
+      </section>
+
+      <!-- 3 · the gate (10-16) -->
+      <div class="cam" id="cam-gate"><video class="clip" id="v-gate" src="footage/gate.mp4" data-start="10" data-duration="6" data-media-start="0.6" data-track-index="1" muted playsinline></video></div>
+      <section class="clip scene" id="s-gate" data-start="10" data-duration="6" data-track-index="2">
+        <div class="lt" id="lt-gate"><small>The badge is the key</small><h2>Nothing on the site plays from a keyboard</h2><p>Connect over WebHID, or hold SELECT + Y and the badge spells its vault on the stick axes - any browser, phones included</p></div>
+      </section>
+
+      <!-- 4 · the stages (16-31): three cuts -->
+      <div class="cam" id="cam-st1"><video class="clip" id="v-st1" src="footage/stages.mp4" data-start="16" data-duration="5.4" data-media-start="1.8" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-st2"><video class="clip" id="v-st2" src="footage/stages.mp4" data-start="21.4" data-duration="6" data-media-start="8" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-st3"><video class="clip" id="v-st3" src="footage/stages.mp4" data-start="27.4" data-duration="3.6" data-media-start="32.5" data-track-index="1" muted playsinline></video></div>
+      <section class="clip scene" id="s-stages" data-start="16" data-duration="15" data-track-index="2">
+        <div class="lt" id="lt-st1"><small>The stages</small><h2>One player for every level</h2><p>the two stages, the community's rooms, a room from a link - the par of each worked out on your device</p></div>
+        <div class="lt right" id="lt-st2"><small>Play</small><h2>A lesson that follows the player, and thirteen prizes</h2><p>progress lives on the device: the same room shared, shelved or merged is one level</p></div>
+        <div class="lt right" id="lt-st3"><small>On a checkout</small><h2>Solve runs the real solver in the browser</h2><p>106 moves for A Mad Tea Party; the published site keeps the solver for the verifier, not the player</p></div>
+      </section>
+
+      <!-- 5 · the glitch range (31-46): five cuts of three seconds -->
+      <div class="cam" id="cam-r1"><video class="clip" id="v-r1" src="footage/range.mp4" data-start="31" data-duration="3" data-media-start="2.8" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-r2"><video class="clip" id="v-r2" src="footage/range.mp4" data-start="34" data-duration="3" data-media-start="8.9" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-r3"><video class="clip" id="v-r3" src="footage/range.mp4" data-start="37" data-duration="3" data-media-start="15" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-r4"><video class="clip" id="v-r4" src="footage/range.mp4" data-start="40" data-duration="3" data-media-start="34.8" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-r5"><video class="clip" id="v-r5" src="footage/range.mp4" data-start="43" data-duration="3" data-media-start="42.8" data-track-index="1" muted playsinline></video></div>
+      <section class="clip scene" id="s-range" data-start="31" data-duration="15" data-track-index="2">
+        <div class="tag" id="tag-r1"><b>1</b>The Rabbit's Pocket Watch</div>
+        <div class="tag" id="tag-r2"><b>2</b>The Looking-Glass Glitch</div>
+        <div class="tag" id="tag-r3"><b>3</b>The Caterpillar's Lock</div>
+        <div class="tag" id="tag-r4"><b>4</b>The Dormouse's Watchdog</div>
+        <div class="tag" id="tag-r5"><b>5</b>Humpty Dumpty's Wall</div>
+        <div class="lt" id="lt-range"><small>The glitch range</small><h2>Fault injection and side channels, trained on the badge</h2><p>a tune inside a window · a pulse that skips the check · a door that leaks how much you had right · a watchdog's window · a stack to smash</p></div>
+      </section>
+
+      <!-- 6 · the badge in the phone (46-57): the page above, the badge below -->
+      <div class="phone" id="ph">
+        <div class="shell"><div class="screen"><div class="cam" id="cam-ph" data-layout-allow-overflow>
+          <video class="clip" id="v-ph" src="footage/phone.mp4" data-start="46" data-duration="11" data-media-start="1" data-track-index="1" muted playsinline></video>
+        </div></div></div>
+      </div>
+      <section class="clip scene" id="s-phone" data-start="46" data-duration="11" data-track-index="2">
+        <div class="side" id="ph-side"><small>Plug the badge into the phone</small><h2>The page reads it as a wired DualShock 4</h2><p>the d-pad moves Alice, Y waits, B takes a move back, START restarts; the lesson line follows, and a prize when the door opens</p></div>
+        <div class="padchips" id="ph-chips"><span data-k="UP">▲</span><span data-k="DOWN">▼</span><span data-k="LEFT">◀</span><span data-k="RIGHT">▶</span><small>what the thumb does,<br />as it does it</small></div>
+        <div class="divider" id="ph-div"></div>
+        <div id="badge-host"><svg id="badge" class="badge-art" viewBox="-76.91 -3.3 81.64 52" data-frame="full" role="img"><g class="phys" style="transform-origin: -33.48px 22.56px"><path class="shell" d="M-3.92 92.57L-1.82 92.01L-0.64 91.18L0.32 89.81L0.54 88.72L3 88.73L4.66 87.9L5.78 86.51L6.11 85.07L5.74 83.12L5.23 82.25L4.05 81.19L2.78 80.56L1.3 78.56L-0.67 77.94L-2.16 78.06L-3.13 78.52L-3.42 77.83L-4.97 76.47L-4.96 76L-3.17 74.47L-3.23 73.08L-1.35 72.89L-0.89 72.4L-2.11 69.4L0.56 69.21L1.18 68.65L-0.8 65.74L-2.4 64.55L-2.7 63.56L-1.36 61.07L-2.88 57.86L-2.29 55.58L-1.21 54.16L-1.58 53.13L-1.26 52.12L2.24 47.9L2.7 46.71L2.89 44.4L2.12 42.3L0.53 40.5L0.84 39.14L0.05 38.48L-1.27 38.23L3.41 34.95L6.31 32.23L8.58 29.6L11.45 25.48L13.44 21.39L14.54 17.41L14.74 13.6L14.02 10.04L12.39 6.79L11.14 5.24L8.36 2.79L4.75 0.51L-7.88 -4.82L-12.62 -6.23L-18.62 -7.45L-17.08 -10.49L-13.97 -15.02L-12.86 -17.67L-12.71 -20.19L-13.16 -21.81L-13.76 -22.85L-15.62 -24.66L-17.45 -25.71L-20.4 -26.74L-26.21 -27.85L-40.62 -28.13L-44.95 -27.61L-50.05 -26.33L-52.93 -24.95L-54.91 -23.23L-55.55 -22.22L-56.19 -19.88L-55.77 -16.56L-54.85 -14.64L-51.13 -9.22L-49.88 -6.85L-57.39 -5.34L-62.48 -3.64L-72.19 0.55L-78 4.02L-80.72 6.73L-81.73 8.22L-83.09 11.5L-83.43 14.82L-82.76 19.46L-81.19 23.46L-78.33 28.29L-71.98 35.21L-72.32 36.49L-71.94 37.45L-72.8 40.09L-72.7 42.3L-71.73 44.85L-70.2 46.83L-69.39 49.21L-68.25 51L-61.24 56.56L-59.03 57.27L-57.33 57.36L-54.89 58.34L-52.17 58.45L-50.71 59.2L-50.45 61.52L-49.51 63.14L-49.97 64.66L-49.75 66.52L-48.24 68.8L-48.48 71.2L-47.95 73.05L-43.63 78.43L-43.32 79.29L-43.87 82.1L-44.91 83.81L-46.06 84.74L-47.47 85.07L-48.76 84.26L-48.96 83.38L-48.44 82.76L-47.83 83.57L-47.08 83.21L-47.04 82.57L-47.69 81.84L-48.42 81.72L-49.53 82.31L-49.95 83.85L-49.21 85.23L-47.86 86L-47.05 86.08L-44.77 85.12L-43.31 83.31L-41.97 79.98L-41.54 79.63L-41.29 79.9L-41.6 81.53L-41.53 83.79L-40.83 85.76L-39.14 87.46L-37.72 87.75L-36.53 87.36L-35.7 85.92L-35.9 85.05L-36.67 84.22L-37.57 84.26L-38.13 84.88L-37.78 85.52L-37.26 85.58L-37.12 85.15L-36.69 85.65L-37.22 86.7L-38.61 86.63L-39.76 85.6L-40.58 82.64L-40.11 80.51L-39.57 79.98L-36.17 79.6L-34.89 78.74L-33.77 77.6L-32.92 75.63L-32.33 75.28L-31.87 75.39L-32.18 74.57L-30.53 73.13L-30.19 70.81L-29.48 70.85L-27.3 72.28L-25.19 72.33L-24.51 72.73L-24.56 73.25L-25.31 74.14L-25.27 75.25L-24.45 76.39L-23.69 76.89L-22.01 77.21L-19.33 76.88L-18.51 77.19L-18.15 78.1L-19.66 78.91L-19.9 80.61L-19.07 81.91L-17.11 83.13L-15.14 83.59L-10.48 82.53L-7.89 82.73L-6.83 84.73L-7.12 85.69L-8.26 86.08L-9.78 85.22L-10.92 85.46L-12.07 86.9L-12.03 88.29L-11.13 89.82L-9.56 91.16L-7.52 92.13L-5.2 92.58Z"></path><rect class="usb" x="-38.66" y="-28.45" width="8.9" height="3.2" rx="1.4"></rect><g class="key" data-key="SL"><rect x="-10.37" y="0.3" width="12.2" height="4.8" rx="2.4" class="ring"></rect><rect x="-11.27" y="-0.6" width="14" height="6.6" rx="3.3" class="gauge" pathLength="100"></rect><rect x="-9.77" y="0.9" width="11" height="3.6" rx="1.8" class="cap"></rect><text x="-4.27" y="2.7">SL</text></g><g class="key" data-key="SR"><rect x="-63.9" y="0.3" width="12.2" height="4.8" rx="2.4" class="ring"></rect><rect x="-64.8" y="-0.6" width="14" height="6.6" rx="3.3" class="gauge" pathLength="100"></rect><rect x="-63.3" y="0.9" width="11" height="3.6" rx="1.8" class="cap"></rect><text x="-57.8" y="2.7">SR</text></g><g class="key" data-key="START"><rect x="-40.1" y="39.6" width="8.2" height="4.2" rx="2.1" class="ring"></rect><rect x="-41" y="38.7" width="10" height="6" rx="3" class="gauge" pathLength="100"></rect><rect x="-39.5" y="40.2" width="7" height="3" rx="1.5" class="cap"></rect><text class="word" x="-36" y="45.6">START</text></g><g class="key" data-key="SELECT"><rect x="-30.1" y="39.6" width="8.2" height="4.2" rx="2.1" class="ring"></rect><rect x="-31" y="38.7" width="10" height="6" rx="3" class="gauge" pathLength="100"></rect><rect x="-29.5" y="40.2" width="7" height="3" rx="1.5" class="cap"></rect><text class="word" x="-26" y="45.6">SELECT</text></g><g class="key" data-key="BOOT"><circle cx="-67.91" cy="31.33" r="1.9" class="ring"></circle><circle cx="-67.91" cy="31.33" r="2.8" class="gauge" pathLength="100"></circle><circle cx="-67.91" cy="31.33" r="1.3" class="cap"></circle><text class="word tiny" x="-69.11" y="34.63">BootSel</text></g><g class="key" data-key="RESET"><circle cx="-65.14" cy="31.36" r="1.9" class="ring"></circle><circle cx="-65.14" cy="31.36" r="2.8" class="gauge" pathLength="100"></circle><circle cx="-65.14" cy="31.36" r="1.3" class="cap"></circle><text class="word tiny" x="-63.94" y="28.76">reset</text></g><circle class="led" cx="-33.42" cy="22.21" r="1.1"></circle></g><g class="thumbs"><rect class="hub" x="-51.7" y="19.3" width="6.4" height="6.4"></rect><g class="key" data-key="UP"><rect x="-52.3" y="11.2" width="7.6" height="7.6" rx="1.5" class="ring"></rect><rect x="-53.2" y="10.3" width="9.4" height="9.4" rx="2.4" class="gauge" pathLength="100"></rect><rect x="-51.7" y="11.8" width="6.4" height="6.4" rx="0.9" class="cap"></rect><path class="glyph" d="M0 -1.3L1.3 .9H-1.3Z" transform="translate(-48.5 15)"></path></g><g class="key" data-key="DOWN"><rect x="-52.3" y="26.2" width="7.6" height="7.6" rx="1.5" class="ring"></rect><rect x="-53.2" y="25.3" width="9.4" height="9.4" rx="2.4" class="gauge" pathLength="100"></rect><rect x="-51.7" y="26.8" width="6.4" height="6.4" rx="0.9" class="cap"></rect><path class="glyph" d="M0 1.3L1.3 -.9H-1.3Z" transform="translate(-48.5 30)"></path></g><g class="key" data-key="LEFT"><rect x="-59.8" y="18.7" width="7.6" height="7.6" rx="1.5" class="ring"></rect><rect x="-60.7" y="17.8" width="9.4" height="9.4" rx="2.4" class="gauge" pathLength="100"></rect><rect x="-59.2" y="19.3" width="6.4" height="6.4" rx="0.9" class="cap"></rect><path class="glyph" d="M-1.3 0L.9 -1.3V1.3Z" transform="translate(-56 22.5)"></path></g><g class="key" data-key="RIGHT"><rect x="-44.8" y="18.7" width="7.6" height="7.6" rx="1.5" class="ring"></rect><rect x="-45.7" y="17.8" width="9.4" height="9.4" rx="2.4" class="gauge" pathLength="100"></rect><rect x="-44.2" y="19.3" width="6.4" height="6.4" rx="0.9" class="cap"></rect><path class="glyph" d="M1.3 0L-.9 -1.3V1.3Z" transform="translate(-41 22.5)"></path></g><g class="key" data-key="X"><circle cx="-18.47" cy="12.5" r="4" class="ring"></circle><circle cx="-18.47" cy="12.5" r="4.9" class="gauge" pathLength="100"></circle><circle cx="-18.47" cy="12.5" r="3.4" class="cap"></circle><text x="-18.47" y="12.5">X</text></g><g class="key" data-key="A"><circle cx="-8.4" cy="22.5" r="4" class="ring"></circle><circle cx="-8.4" cy="22.5" r="4.9" class="gauge" pathLength="100"></circle><circle cx="-8.4" cy="22.5" r="3.4" class="cap"></circle><text x="-8.4" y="22.5">A</text></g><g class="key" data-key="B"><circle cx="-18.47" cy="33" r="4" class="ring"></circle><circle cx="-18.47" cy="33" r="4.9" class="gauge" pathLength="100"></circle><circle cx="-18.47" cy="33" r="3.4" class="cap"></circle><text x="-18.47" y="33">B</text></g><g class="key" data-key="Y"><circle cx="-28.47" cy="22.5" r="4" class="ring"></circle><circle cx="-28.47" cy="22.5" r="4.9" class="gauge" pathLength="100"></circle><circle cx="-28.47" cy="22.5" r="3.4" class="cap"></circle><text x="-28.47" y="22.5">Y</text></g></g></svg></div>
+        <div class="badge-note" id="ph-note"><small>The badge, as the player holds it</small><p>the back of the board, the stalk up into the phone: drawn from the PCB itself</p><p class="dim">every press lights the key here as it lands on the page above; held upside down, the page turns and the buttons swap with it</p></div>
+      </section>
+
+      <!-- 7 · the level maker (57-74.5): six cuts -->
+      <div class="cam" id="cam-m1"><video class="clip" id="v-m1" src="footage/maker.mp4" data-start="57" data-duration="1.6" data-media-start="1" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-m2"><video class="clip" id="v-m2" src="footage/maker.mp4" data-start="58.6" data-duration="4.6" data-media-start="4.4" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-m3"><video class="clip" id="v-m3" src="footage/maker.mp4" data-start="63.2" data-duration="2.2" data-media-start="10.5" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-m4"><video class="clip" id="v-m4" src="footage/maker.mp4" data-start="65.4" data-duration="3.6" data-media-start="15.7" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-m5"><video class="clip" id="v-m5" src="footage/maker.mp4" data-start="69" data-duration="2.2" data-media-start="23.3" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-m6"><video class="clip" id="v-m6" src="footage/maker.mp4" data-start="71.2" data-duration="3.3" data-media-start="26.9" data-track-index="1" muted playsinline></video></div>
+      <section class="clip scene" id="s-maker" data-start="57" data-duration="17.5" data-track-index="2">
+        <div class="lt" id="lt-m1"><small>The level maker</small><h2>Paint a room with the game's own tiles</h2><p>a grid editor on a local checkout: brushes, mirror, undo, overlays, a seeded generator, a shelf - and a glitch level for any of the five ranges</p></div>
+        <div class="lt right" id="lt-m2"><small>Check, then Run &amp; debug</small><h2>The real solver says: the par, a load-bearing gate, a difficulty word</h2><p>then the room plays on a simulated badge that lights from the keyboard, a click or a badge on USB</p></div>
+        <div class="lt" id="lt-m3"><small>Build it with your AI</small><h2>Your assistant opens the pull request, or follows the White Rabbit with you</h2><p>three ways to a first room: Follow the White Rabbit · Drink Me · Eat Me - Claude Code, Codex, Cursor, Gemini, Copilot, Hermes</p></div>
+      </section>
+
+      <!-- 8 · flash from the browser (74.5-78.1), six themes (78.1-80.5), four looks (80.5-82.5) -->
+      <div class="cam" id="cam-fl"><video class="clip" id="v-fl" src="footage/flash.mp4" data-start="74.5" data-duration="3.6" data-media-start="1.6" data-track-index="1" muted playsinline></video></div>
+      <div class="cam" id="cam-th">
+        <img class="clip frame" id="th-1" src="footage/theme-bsides.png" alt="" data-start="78.1" data-duration="0.4" data-track-index="1" />
+        <img class="clip frame" id="th-2" src="footage/theme-classic.png" alt="" data-start="78.5" data-duration="0.4" data-track-index="1" />
+        <img class="clip frame" id="th-3" src="footage/theme-teaparty.png" alt="" data-start="78.9" data-duration="0.4" data-track-index="1" />
+        <img class="clip frame" id="th-4" src="footage/theme-queen.png" alt="" data-start="79.3" data-duration="0.4" data-track-index="1" />
+        <img class="clip frame" id="th-5" src="footage/theme-cheshire.png" alt="" data-start="79.7" data-duration="0.4" data-track-index="1" />
+        <img class="clip frame" id="th-6" src="footage/theme-phosphor.png" alt="" data-start="80.1" data-duration="0.4" data-track-index="1" />
+      </div>
+      <div class="lookrow" id="lookrow">
+        <img class="clip" id="lk-1" src="footage/look-bench.png" alt="" data-start="80.5" data-duration="2" data-track-index="1" />
+        <img class="clip" id="lk-2" src="footage/look-handheld.png" alt="" data-start="80.5" data-duration="2" data-track-index="1" />
+        <img class="clip" id="lk-3" src="footage/look-scope.png" alt="" data-start="80.5" data-duration="2" data-track-index="1" />
+        <img class="clip" id="lk-4" src="footage/flip.png" alt="" data-start="80.5" data-duration="2" data-track-index="1" />
+      </div>
+      <section class="clip scene" id="s-flash" data-start="74.5" data-duration="3.6" data-track-index="2">
+        <div class="lt" id="lt-fl"><small>Flash from the browser</small><h2>WebUSB to the RP2040's bootloader, nothing to install</h2><p>BootSel while the plug goes in, or SELECT + START for two seconds; the deploy's own build, read back before the reboot</p></div>
+      </section>
+      <section class="clip scene" id="s-themes" data-start="78.1" data-duration="2.4" data-track-index="2">
+        <small class="kicker" id="th-kicker">Six themes · one room</small>
+        <div class="chip" id="ch-1"><i>◐</i>BSidesTLV 2026</div>
+        <div class="chip" id="ch-2"><i>◐</i>classic</div>
+        <div class="chip" id="ch-3"><i>◐</i>tea party</div>
+        <div class="chip" id="ch-4"><i>◐</i>Queen's court</div>
+        <div class="chip" id="ch-5"><i>◐</i>Cheshire</div>
+        <div class="chip" id="ch-6"><i>◐</i>phosphor</div>
+      </section>
+      <section class="clip scene" id="s-looks" data-start="80.5" data-duration="2" data-track-index="2">
+        <small class="kicker" id="lk-kicker">Four looks · and the page turns with the phone</small>
+        <div class="looklabels" id="lk-labels"><span><b>tidy bench</b>one panel at a time</span><span><b>handheld</b>the phone is the console</span><span><b>scope</b>the measurement first</span><span><b>upside down</b>the page rights itself</span></div>
+      </section>
+
+      <!-- 9 · the close (82.5-88) -->
+      <div class="pcam" id="pcam2"><img class="clip photo" id="c-photo" src="assets/Controller-Front.jpeg" alt="" data-start="82.5" data-duration="5.5" data-track-index="1" /></div>
+      <section class="clip scene" id="s-close" data-start="82.5" data-duration="5.5" data-track-index="2">
+        <small class="kicker" id="c-kicker">BSidesTLV 2026</small>
+        <h1 class="lockup" id="c-title">ALICE IN AI LAND</h1>
+        <div class="rule-c" id="c-rule"></div>
+        <p class="url" id="c-url">bsidestlv.github.io/bsidestlv-2026-badge</p>
+        <p class="meta" id="c-meta">github.com/bsidestlv/bsidestlv-2026-badge · the challenge and the firmware MIT · the boards CERN-OHL-S-2.0</p>
+      </section>
+    </div>
+
+    <script>
+      // ---------------------------------------------------------------- helpers --
+      const tl = gsap.timeline({ paused: true });
+      const W = 1920, H = 1080;
+      const ACC = '#a3e635', INK = '#0b0e14', DIM = '#a78bfa', LINE = '#272d3b', PANEL2 = '#181d29';
+
+      /** the camera: moves = [{ at, dur, x, y, s, ease }], x/y the point of the footage (its own CSS px, k px per CSS px) to centre */
+      function cam(sel, k, moves, box = { w: W, h: H }) {
+        for (const m of moves) {
+          const S = m.s ?? 1;
+          let tx = box.w / 2 - S * k * m.x, ty = box.h / 2 - S * k * m.y;
+          tx = Math.min(0, Math.max(box.w - box.w * S, tx));
+          ty = Math.min(0, Math.max(box.h - box.h * S, ty));
+          const v = { x: tx, y: ty, scale: S, transformOrigin: '0 0' };
+          if (!m.dur) tl.set(sel, v, m.at);
+          else tl.to(sel, { ...v, duration: m.dur, ease: m.ease ?? 'power3.inOut' }, m.at);
+        }
+      }
+      /** a lower third or any block: in at `at`, out before `at + dur` */
+      function block(sel, at, dur, { y = 40, inDur = 0.5, outDur = 0.35 } = {}) {
+        tl.fromTo(sel, { opacity: 0, y }, { opacity: 1, y: 0, duration: inDur, ease: 'power3.out' }, at);
+        tl.to(sel, { opacity: 0, y: -y * 0.6, duration: outDur, ease: 'power2.in' }, at + dur - outDur);
+      }
+      /** a tag slamming in from above scale */
+      function slam(sel, at, dur) {
+        tl.fromTo(sel, { opacity: 0, scale: 1.5, x: 40 }, { opacity: 1, scale: 1, x: 0, duration: 0.3, ease: 'power4.out' }, at);
+        tl.to(sel, { opacity: 0, x: 40, duration: 0.2, ease: 'power2.in' }, at + dur - 0.2);
+      }
+      const hide = (sel) => tl.set(sel, { opacity: 0 }, 0);
+
+      // ------------------------------------------------------------ background --
+      tl.fromTo('#bg-glow', { scale: 1 }, { scale: 1.14, duration: 4, repeat: 21, yoyo: true, ease: 'sine.inOut' }, 0);
+
+      // ----------------------------------------------------------- 1 · title --
+      tl.fromTo('#t-kicker', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
+      tl.fromTo('#t-title', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, duration: 0.55, ease: 'power4.out' }, 0.35);
+      tl.to('#t-title', { '--red': '-14px', '--blue': '14px', duration: 0.06, repeat: 7, yoyo: true, ease: 'steps(1)' }, 0.42);
+      tl.to('#t-title', { '--red': '-6px', '--blue': '6px', duration: 0.05, repeat: 3, yoyo: true, ease: 'steps(1)' }, 2.6);
+      tl.fromTo('#t-ghost', { x: 0 }, { x: -80, duration: 4.5, ease: 'none' }, 0);
+      tl.fromTo('#t-tag > *', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out', stagger: 0.07 }, 1.1);
+      tl.fromTo('#pcam', { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.7, ease: 'back.out(1.6)' }, 0.5);
+      tl.fromTo('#pcam', { y: 0 }, { y: -14, duration: 3.3, ease: 'sine.inOut' }, 1.2);
+      tl.to('#s-title > *', { opacity: 0, duration: 0.35, ease: 'power2.in' }, 4.15);
+
+      // ----------------------------------------------------------- 2 · badge --
+      tl.fromTo('#b-kicker', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 4.6);
+      tl.fromTo('#b-rule', { scaleX: 0, transformOrigin: '0 50%' }, { scaleX: 1, duration: 0.6, ease: 'power3.inOut' }, 4.7);
+      tl.fromTo('#b-facts li', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.55, ease: 'power3.out', stagger: 0.6 }, 4.9);
+      tl.to('#pcam', { scale: 1.1, y: 0, duration: 5.5, ease: 'none' }, 4.5);
+      tl.fromTo('#p-back', { opacity: 0 }, { opacity: 1, duration: 0.7, ease: 'power2.inOut' }, 6.0);
+      tl.to('#s-badge > *', { opacity: 0, duration: 0.35, ease: 'power2.in' }, 9.65);
+      tl.to('#pcam', { opacity: 0, duration: 0.3 }, 9.7);
+
+      // ------------------------------------------------------------ 3 · gate --
+      const K = 1.5;                                             // desktop footage: 1280 CSS px across a 1920 frame
+      cam('#cam-gate', K, [{ at: 10, x: 640, y: 360, s: 1 }, { at: 11.3, dur: 0.8, x: 453, y: 330, s: 1.6 }, { at: 13.8, dur: 0.7, x: 740, y: 400, s: 1.75 }, { at: 15.3, dur: 0.6, x: 640, y: 400, s: 1.25 }]);
+      block('#lt-gate', 10.45, 5.2);
+
+      // ---------------------------------------------------------- 4 · stages --
+      cam('#cam-st1', K, [{ at: 16, x: 640, y: 360, s: 1 }, { at: 16.9, dur: 0.9, x: 560, y: 450, s: 1.3 }, { at: 18.0, dur: 0.5, x: 305, y: 370, s: 1.55 }, { at: 19.1, dur: 0.5, x: 818, y: 590, s: 1.55 }, { at: 20.2, dur: 0.5, x: 175, y: 590, s: 1.7 }]);
+      cam('#cam-st2', K, [{ at: 21.4, x: 400, y: 480, s: 1.15 }, { at: 21.9, dur: 0.8, x: 285, y: 480, s: 1.6 }, { at: 26.3, dur: 0.6, x: 560, y: 500, s: 1.15 }]);
+      cam('#cam-st3', K, [{ at: 27.4, x: 380, y: 250, s: 1.3 }, { at: 28, dur: 2.8, x: 390, y: 260, s: 1.45, ease: 'none' }]);
+      block('#lt-st1', 16.4, 4.7);
+      block('#lt-st2', 21.8, 5.2);
+      block('#lt-st3', 27.7, 3.1);
+
+      // ----------------------------------------------------------- 5 · range --
+      cam('#cam-r1', K, [{ at: 31, x: 640, y: 360, s: 1 }, { at: 31.25, dur: 0.6, x: 280, y: 230, s: 1.7 }]);
+      cam('#cam-r2', K, [{ at: 34, x: 480, y: 480, s: 1.15 }, { at: 34.2, dur: 0.6, x: 480, y: 480, s: 1.35 }]);
+      cam('#cam-r3', K, [{ at: 37, x: 380, y: 520, s: 1.15 }, { at: 37.2, dur: 0.6, x: 380, y: 520, s: 1.4 }]);
+      cam('#cam-r4', K, [{ at: 40, x: 450, y: 450, s: 1.15 }, { at: 40.2, dur: 0.6, x: 450, y: 450, s: 1.35 }]);
+      cam('#cam-r5', K, [{ at: 43, x: 420, y: 540, s: 1.15 }, { at: 43.2, dur: 0.6, x: 420, y: 540, s: 1.4 }]);
+      for (let i = 1; i <= 5; i++) slam(`#tag-r${i}`, 31 + (i - 1) * 3 + 0.1, 2.9);
+      block('#lt-range', 31.5, 14.3);
+
+      // ----------------------------------------------------------- 6 · phone --
+      tl.fromTo('#ph', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 46);
+      tl.to('#ph', { opacity: 0, duration: 0.35, ease: 'power2.in' }, 56.65);
+      cam('#cam-ph', 1, [{ at: 46, x: 195, y: 422, s: 1 }, { at: 46.9, dur: 1.1, x: 195, y: 480, s: 1.6 }, { at: 54.3, dur: 0.6, x: 195, y: 500, s: 1.05 }], { w: 390, h: 844 });
+      block('#ph-side', 46.3, 10.4);
+      tl.fromTo('#ph-chips', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 46.6);
+      tl.to('#ph-chips', { opacity: 0, duration: 0.3 }, 56.65);
+      tl.fromTo('#ph-div', { scaleX: 0, transformOrigin: '0 50%' }, { scaleX: 1, duration: 0.7, ease: 'power3.inOut' }, 46.2);
+      tl.fromTo('#badge-host', { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 46.5);
+      block('#ph-note', 46.8, 9.9);
+      tl.to('#badge-host, #ph-div', { opacity: 0, duration: 0.3 }, 56.65);
+      // the presses, from footage/phone.json (clip time 1.0 is scene time 46): the key on the badge and the chip light together
+      const PRESSES = [[1.549, 'DOWN'], [1.969, 'RIGHT'], [2.389, 'DOWN'], [2.809, 'LEFT'], [3.229, 'DOWN'], [3.649, 'DOWN'], [4.069, 'RIGHT'], [4.489, 'UP'], [4.909, 'UP'], [5.329, 'UP'], [5.749, 'RIGHT'], [6.169, 'RIGHT'], [6.589, 'RIGHT'], [7.009, 'DOWN'], [7.429, 'DOWN'], [7.849, 'DOWN'], [8.269, 'RIGHT'], [8.689, 'RIGHT'], [9.109, 'UP']];
+      for (const [t, k] of PRESSES) {
+        const at = 46 + (t - 1.0);
+        const cap = `#badge .key[data-key=${k}] .cap`, ink = `#badge .key[data-key=${k}] .glyph, #badge .key[data-key=${k}] text`, ring = `#badge .key[data-key=${k}] .ring`, chip = `#ph-chips span[data-k=${k}]`;
+        tl.fromTo(cap, { fill: PANEL2, stroke: LINE }, { fill: ACC, stroke: ACC, duration: 0.05, immediateRender: false }, at);
+        tl.to(cap, { fill: PANEL2, stroke: LINE, duration: 0.2, ease: 'power2.out' }, at + 0.18);
+        tl.fromTo(ink, { fill: DIM }, { fill: INK, duration: 0.05, immediateRender: false }, at);
+        tl.to(ink, { fill: DIM, duration: 0.2 }, at + 0.18);
+        tl.fromTo(ring, { opacity: 0.9, scale: 1, transformOrigin: '50% 50%' }, { opacity: 0, scale: 2.1, duration: 0.55, ease: 'power2.out', immediateRender: false }, at);
+        tl.fromTo(chip, { backgroundColor: PANEL2, color: DIM, borderColor: LINE }, { backgroundColor: ACC, color: INK, borderColor: ACC, duration: 0.05, immediateRender: false }, at);
+        tl.to(chip, { backgroundColor: PANEL2, color: DIM, borderColor: LINE, duration: 0.2, ease: 'power2.out' }, at + 0.18);
+      }
+      tl.fromTo('#badge .led', { opacity: 0.35 }, { opacity: 1, duration: 0.3, ease: 'power2.out', immediateRender: false }, 46 + (9.3 - 1.0));   // the door opened: the LED
+
+      // ----------------------------------------------------------- 7 · maker --
+      cam('#cam-m1', K, [{ at: 57, x: 640, y: 360, s: 1.15 }, { at: 57.4, dur: 0.6, x: 400, y: 300, s: 1.45 }]);
+      cam('#cam-m2', K, [{ at: 58.6, x: 360, y: 420, s: 1.3 }, { at: 58.7, dur: 0.5, x: 290, y: 400, s: 1.5 }, { at: 60.9, dur: 0.5, x: 320, y: 440, s: 1.5 }]);
+      cam('#cam-m3', K, [{ at: 63.2, x: 320, y: 480, s: 1.35 }, { at: 63.9, dur: 0.5, x: 300, y: 500, s: 1.5 }]);
+      cam('#cam-m4', K, [{ at: 65.4, x: 460, y: 380, s: 1.25 }, { at: 66.3, dur: 0.8, x: 420, y: 360, s: 1.35 }]);
+      cam('#cam-m5', K, [{ at: 69, x: 640, y: 380, s: 1.15 }, { at: 69.2, dur: 0.6, x: 640, y: 380, s: 1.3 }]);
+      cam('#cam-m6', K, [{ at: 71.2, x: 650, y: 360, s: 1.1 }, { at: 72.6, dur: 0.6, x: 430, y: 340, s: 1.35 }]);
+      block('#lt-m1', 57.3, 5.8);
+      block('#lt-m2', 63.4, 5.4);
+      block('#lt-m3', 69.2, 5.1);
+
+      // ------------------------------------------ 8 · flash, the themes, the looks --
+      cam('#cam-fl', K, [{ at: 74.5, x: 800, y: 400, s: 1.15 }, { at: 74.9, dur: 0.9, x: 1070, y: 440, s: 2.0 }]);
+      block('#lt-fl', 74.8, 3.1);
+      cam('#cam-th', K, [{ at: 78.1, x: 640, y: 380, s: 1 }, { at: 78.1, dur: 2.4, x: 640, y: 380, s: 1.08, ease: 'none' }]);
+      tl.fromTo('#th-kicker', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power3.out' }, 78.1);
+      for (let i = 1; i <= 6; i++) {
+        tl.fromTo(`#ch-${i}`, { opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1, duration: 0.18, ease: 'power4.out' }, 78.1 + (i - 1) * 0.4);
+        if (i < 6) tl.set(`#ch-${i}`, { opacity: 0 }, 78.1 + i * 0.4);
+      }
+      tl.fromTo('#lk-kicker', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.3, ease: 'power3.out' }, 80.5);
+      tl.fromTo('#lookrow img', { opacity: 0, y: 90, scale: 0.92 }, { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: 'back.out(1.4)', stagger: 0.1 }, 80.55);
+      tl.fromTo('#lk-labels span', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out', stagger: 0.1 }, 80.9);
+      tl.to('#lookrow img, #s-looks > *', { opacity: 0, duration: 0.3, ease: 'power2.in' }, 82.2);
+
+      // ----------------------------------------------------------- 9 · close --
+      tl.fromTo('#pcam2', { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.7, ease: 'back.out(1.6)' }, 82.6);
+      tl.fromTo('#c-kicker', { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 82.9);
+      tl.fromTo('#c-title', { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power4.out' }, 83.0);
+      tl.fromTo('#c-rule', { scaleX: 0, transformOrigin: '0 50%' }, { scaleX: 1, duration: 0.6, ease: 'power3.inOut' }, 83.3);
+      tl.fromTo('#c-url', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 83.5);
+      tl.fromTo('#c-meta', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 83.85);
+      tl.fromTo('#pcam2', { y: 0 }, { y: -10, duration: 4, ease: 'sine.inOut' }, 83.5);
+
+      window.__timelines['promo'] = tl;
+    </script>
+  </body>
+</html>

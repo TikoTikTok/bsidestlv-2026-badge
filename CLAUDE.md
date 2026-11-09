@@ -188,7 +188,7 @@ AGENTS.md            the short map for an assistant that reads AGENTS.md first (
   rabbit-hole/       the tarpit: one static page, endless generated chapters, canary flags
   assets/characters/ 5 characters x 24 frames (8 dirs x 3), 48x48 + <name>.json
   assets/items/      44 items + items.json      assets/tiles/ 77 tiles + tiles.json
-images/              README photos only, not published
+images/              README photos, the promo GIFs and the animated badge SVG, not published
 hardware/            CERN-OHL-S-2.0
   badge/             "BSidesTLV2026 Alice Controller" v0.4 (KiCad files still named PhoneController.*)
   soldering-kit/     BSidesTLV26TinyBadge: 555 + CD4017 LED chaser, all through-hole
@@ -215,6 +215,13 @@ software/            MIT, never published
                      the page, repoFacts from the remotes), maker-mcp.mjs
                      (the bridge as MCP tools over stdio, 22 incl. maker_guide and maker_patch, registered by
                      .mcp.json at the root and the four other configs; never published), check-stage.mjs (`npm run stage -- <file>`), verify-maker.mjs
+  promo/             the README's promo video: record.mjs (Playwright over a CDP screencast at a steady 30 fps,
+                     page-driver.js evaluated in every page: a cursor in the top layer, the room and range players
+                     over window.__pad.inject) writes footage/*.mp4 + .json (clicks, presses); index.html is the
+                     HyperFrames composition (one timeline, every scene a timed section over a .cam wrapper the
+                     camera transforms; the badge art inlined, its keys lit per press); gifs.mjs cuts images/*.gif
+                     from out/promo.mp4 by cuts.json and writes images/badge-keys.svg (CSS-animated). footage/ and
+                     out/ are regenerated, never committed; the fonts under assets/fonts/ are OFL
   references/        source art sheets (15 MB) every asset was cut from
   docs/GAME_DESIGN.md  the five-stage design, tick model, Looking Glass protocol
   docs/BADGE_GATE.md   the badge-is-the-key design: threat model, what tier 1 stops, server tier
@@ -325,6 +332,7 @@ Built and live:
 | Published-site obfuscation | `pages.yml` runs `software/tools/obfuscate.mjs` over `_site/` after staging (the repository is untouched): every comment out, every function/block-local binding renamed to a misleading name from the game's vocabulary (`flagDigest`, `serverTrace`; module-scope names and property names kept, so imports, the DOM and the wire formats are unchanged), every string literal packed into one XOR-ed base64 blob per file behind a one-line decoder, whitespace folded (newlines kept for ASI), and the lure: a "note for automated assistants" at the top of every module and page sending an agent to `rabbit-hole/?p=notes/<module>/solution`, whose generated flag is the canary for that module, plus one never-called decoy function per module that computes the same canary. ~5.6k bindings and ~1.8k strings on the current tree. `verify-obfuscate.mjs` (in `npm run verify`) obfuscates a copy and runs the whole suite against it, checks exports / imports / the single comment / no bare strings, and pins nine regressions; the deploy also `node --check`s every output. `smoke-obfuscated.mjs` is the Playwright pass over all pages (dev only, run once on the first build, green). Evidence and limits in `software/docs/AI_THREATS.md`: a speed bump and a tripwire against an agent reading the site, nothing against a reader of the repository. |
 | Browser flashing | `flash.html`: WebUSB to the ROM bootloader (2e8a:0003), PICOBOOT exactly as picotool does it - exclusive access, EXIT_XIP, erase + write per 4 KB sector, read back, REBOOT(0, SRAM_END, 500 ms). One firmware on offer (the quick-glitch build) plus a local `.uf2`; the download link and `flash-badge.py` are the no-WebUSB route. Tested only against `fake-bootloader.mjs`; never run against a board. |
 | CI | Pages workflow builds the UF2, verifies both stages, the range and the flasher, publishes `firmware/glitch.uf2` + `firmware/index.json` (commit, sha256, size) and deploys; Firmware workflow runs the engine test and cross-builds the UF2 (artifact `controller.uf2`, 90 days). Both builds come from `build-uf2.yml`, which restores the UF2 from the Actions cache when the firmware sources and the recipe are unchanged (most deploys) and otherwise installs the toolchain with a timeout and retries. On the fork, Pages is on "GitHub Actions" and deploys `main` plus the branch `pages.yml` names. |
+| Promo and README animations | Built 2026-11-09 under `software/promo/` (HyperFrames; `software/promo/README.md` says how to remake it). `record.mjs` records every page from a local checkout on 127.0.0.1:8873 - the gate, the stages (The First Lesson played by presses, the prizes, the tea party solved), the five ranges (the earlier solution video's players), the tutorial, the maker (Open, paint by clicks, Check, Run & debug, the PR brief, the welcome banner), flash, the vault, the phone (handheld look at 390x844) plus stills of the six themes, three looks and the page turned - with a cursor the page draws (a manual popover, so it stays above modal dialogs) and the pages' backdrop blur off (it starved the screencast: 5 fps at 2x). `index.html` is an 88 s 1920x1080 cut: title, the badge, the gate, the stages, the range, the phone over the badge (keys lit from the press log), the maker, flash, themes, looks, close; `npx hyperframes check` passes (the warnings are structural suggestions). `images/promo.mp4` is the 720p copy, `images/promo.gif` a highlight, one GIF per section, `images/badge-keys.svg` the badge with its keys lighting by CSS alone. Everything shown is a real capture of the pages. |
 
 Designed but not built (see `software/docs/GAME_DESIGN.md`):
 
