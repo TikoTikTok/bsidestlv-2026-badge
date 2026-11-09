@@ -142,6 +142,11 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
 // index.html (A Caucus Race) and glitch.html (Down the Rabbit Hole) each carry
 // a coach line above the panels and a Learn panel behind a Learn mode, drawn
 // by src/coach.js; the styles are styles.css's, once, not a page's own sheet.
+// In the classic look the panel sits beside the stage on every page (the
+// maker's too): a sticky column on a wide window, a drawer the coach line's
+// "learn" opens on a narrow one, "unpin" for the page - html[data-learn],
+// one breakpoint in styles.css and src/coach.js, the choice (alice.learn)
+// honoured before paint by src/look-boot.js.
 {
   for (const page of ['index.html', 'glitch.html']) {
     const html = readFileSync(resolve(root, page), 'utf8');
@@ -151,6 +156,14 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
     if (!/<section class="panel" id="learnPanel" data-mode="learn">/.test(html)) say(`${page}: the Learn panel is data-mode="learn"`);
     if (!/class="mode" data-mode="learn"/.test(html)) say(`${page}: the mode bar has a Learn button for everyone (not dev-only)`);
     if (!/<\/nav>\s*(<!--[^]*?-->\s*)?<div id="coach"/.test(html)) say(`${page}: the coach line sits between the mode bar and main`);
+    if (!/<html [^>]*data-learn="side"[^>]*>/.test(html) || /data-learn-host/.test(html)) say(`${page}: <html> opens with the guide beside the stage (data-learn="side") for everyone (no data-learn-host)`);
+  }
+  for (const page of ['index.html', 'glitch.html', 'maker.html']) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    if (!/id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false"/.test(html)) say(`${page}: the coach line's "learn" names the panel it opens (aria-controls="learnPanel" aria-expanded="false")`);
+    const h2 = /<section class="panel[^"]*" id="learnPanel" data-mode="learn">\s*<h2>([^]*?)<\/h2>/.exec(html)?.[1] ?? '';
+    if (!/<button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="[^"]+">unpin<\/button>/.test(h2)) say(`${page}: the Learn panel's heading carries #learnPin (class learn-pin, aria-pressed="true", "unpin")`);
+    if (!/<button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×<\/button>/.test(h2)) say(`${page}: the Learn panel's heading carries #learnClose (class learn-close, the ×)`);
   }
   const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
   for (const sel of ['.coach {', '.coach[hidden]', '.learn-now {', '.learn-steps {', '.keys {']) if (!css.includes(sel)) say(`styles.css: no ${sel} rule (the coach and the legend are every page's)`);
@@ -158,8 +171,28 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
   if (!/html\[data-look=classic\] \.coach \{ position: sticky; top: var\(--bar-h, 0px\)/.test(css)) say('styles.css: in the classic look the coach line sticks under the header (--bar-h)');
   if (!/html\[data-look=classic\] main > \.panel \{ scroll-margin-top: calc\(var\(--bar-h, 0px\) \+ var\(--coach-h, 0px\)/.test(css)) say('styles.css: a panel scrolled to in the classic look lands under the header and the coach line (scroll-margin-top)');
   if (!/setProperty\('--bar-h'/.test(readFileSync(resolve(root, 'src/looks.js'), 'utf8'))) say('src/looks.js: must measure the header into --bar-h (ResizeObserver)');
-  if (!/setProperty\('--coach-h'/.test(readFileSync(resolve(root, 'src/coach.js'), 'utf8'))) say('src/coach.js: must measure the coach line into --coach-h');
+  const coach = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
+  if (!/setProperty\('--coach-h'/.test(coach)) say('src/coach.js: must measure the coach line into --coach-h');
   if (/\.coach\b|\.learn-/.test(readFileSync(resolve(root, 'src/glitch.css'), 'utf8'))) say('src/glitch.css: the coach\'s rules belong in styles.css, both pages carry one');
+  // the guide beside the stage: the column, the drawer, the step first, the pin and the x - styles.css, keyed on html[data-learn], no host in it
+  for (const sel of ['html[data-look=classic][data-learn=side] main {', 'html[data-look=classic][data-learn=side] main > .panel { grid-column: 1;', 'html[data-look=classic][data-learn=side] #learnPanel {',
+                     'html[data-look=classic][data-learn=side][data-learn-open] #learnPanel {', 'html[data-look=classic][data-learn=side] .coach { display: none; }', 'html[data-look=classic][data-learn=side] .learn-close { display: inline-grid; }',
+                     'html[data-look=classic][data-learn=side] #learnPanel > .learn-now, html:not([data-look=classic]) #learnPanel > .learn-now { order: -4;',
+                     '#learnPanel { container-type: inline-size; }', '@container (max-width: 480px) {', '@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }',
+                     'html:not([data-look=classic]) #learnPanel.off { display: none; }', 'html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }',
+                     'body.touchpad-open { --pad-h: 16rem; padding-bottom: var(--pad-h); }', 'bottom: var(--pad-h, 0px);'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} (the guide beside the stage is every page's)`);
+  if (/data-host[^\n]*data-learn|data-learn[^\n]*data-host/.test(css)) say('styles.css: the guide\'s rules name no host: the maker alone keeps its guide to a checkout (data-learn-host, src/look-boot.js)');
+  const bp = /@media \(min-width: (\d+)px\) \{\s*html\[data-look=classic\]\[data-learn=side\] main \{/.exec(css)?.[1];
+  if (!bp || !new RegExp(`@media \\(max-width: ${bp - 1}\\.98px\\) \\{\\s*html\\[data-look=classic\\]\\[data-learn=side\\] #learnPanel \\{`).test(css) || !new RegExp(`LEARN_WIDE = '\\(min-width: ${bp}px\\)'`).test(coach))
+    say(`styles.css / src/coach.js: the column / drawer breakpoint (${bp ?? '?'}px) must be one number in both (LEARN_WIDE)`);
+  if (!/LEARN_KEY = 'alice\.learn'/.test(coach) || !/function openLearn\(/.test(coach) || !/function setLearn\(/.test(coach) || !/WIDE\.addEventListener\('change'/.test(coach)
+      || !/\$\('#learnClose'\)\?\.addEventListener\('click'/.test(coach) || !/pin\?\.addEventListener\('click'/.test(coach) || !/setAttribute\('aria-expanded'/.test(coach) || !/setLearn, openLearn, get learn\(\)/.test(coach))
+    say('src/coach.js: mountCoach wires the guide\'s place for every page (alice.learn, #learnPin, #learnClose, the drawer on the line\'s "learn" with aria-expanded, closed when the window crosses the breakpoint) and returns setLearn / openLearn / learn');
+  const boot = readFileSync(resolve(root, 'src/look-boot.js'), 'utf8');
+  if (!/localStorage\.getItem\('alice\.learn'\)/.test(boot) || !/if \(learn === 'page'\) html\.dataset\.learn = 'page';/.test(boot) || !/if \(!dev && html\.dataset\.learnHost === 'dev'\) delete html\.dataset\.learn;/.test(boot))
+    say('src/look-boot.js: must apply the remembered guide place (alice.learn -> data-learn="page") before paint, and drop data-learn on the site where it is the checkout\'s (data-learn-host="dev")');
+  if (!/data-learn="side" data-learn-host="dev"/.test(readFileSync(resolve(root, 'maker.html'), 'utf8'))) say('maker.html: its guide is the studio\'s - <html data-learn="side" data-learn-host="dev">, so the site\'s landing stays one column');
   for (const page of ['index.html', 'glitch.html']) {
     const html = readFileSync(resolve(root, page), 'utf8');
     const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
