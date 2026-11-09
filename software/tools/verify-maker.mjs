@@ -34,7 +34,7 @@ import { rangeBlank, RANGE_KINDS, RANGE_FILES, BUDGET } from '../../src/rangeche
 import { stageOf } from '../../src/seal.js';
 import { MAKER_TUTORIAL, MAKER_TUTORIALS, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
 import { startMaker, OPS, repoFacts } from './maker-server.mjs';
-import { GUIDE_MODES, GUIDE_IDS, GUIDE_OPS, GUIDE_RULES, PLATFORMS, modeById, guideSteps, guideStep, guideText, guideWelcome, applyAnswer, parseSize, fill, boardLine } from '../../src/guide.js';
+import { GUIDE_MODES, GUIDE_IDS, GUIDE_OPS, GUIDE_RULES, PLATFORMS, BROWSER_FIRST, modeById, guideSteps, guideStep, guideText, guideWelcome, applyAnswer, parseSize, fill, boardLine } from '../../src/guide.js';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
 import { RABBIT_WATCH } from '../../stages/rabbit-watch.js';
@@ -469,13 +469,19 @@ console.log("the White Rabbit's guide tells an assistant what to say, ask and do
   ok(applyAnswer(plan('fast', 9), 'The full tour', {}).then === 'mode:tutorial' && applyAnswer(plan('fast', 9), 'Another room', {}).then === 'restart' && applyAnswer(plan('tutorial', 13), 'A Room with a Gate', {}).then === 'tutorial:gate', 'the finish offers the other ways and the next build');
   // the text, worded for the platform
   ok(/use your option buttons \(AskUserQuestion\)/.test(guideText('fast', 1, { ...ctx, platform: 'claude' })) && /list the options numbered/.test(guideText('fast', 1, { ...ctx, platform: 'codex' })) && /list the options numbered/.test(guideText('fast', 1, ctx)), 'the ask is worded for the platform: buttons on Claude Code, a numbered list elsewhere and by default');
+  ok(GUIDE_IDS.every(id => [...Array(guideStep(id, 0, {}).of).keys()].every(i => typeof guideStep(id, i, {}).why === 'string' && guideStep(id, i, {}).why.length > 40)), 'every step of every way has a why: the page\'s card shows it, "why?" says it');
+  ok(/the page shows this step too/.test(guideText('fast', 1, ctx)) && /the page carries the step/.test(guideText('fast', 1, ctx)) && GUIDE_RULES.some(r => /Every step is on the page too/.test(r) && /Do it for me/.test(r) && /a line a step/.test(r)), 'the text and the rules say the page carries every step, so the assistant adds a line and does not repeat it');
+  ok(typeof BROWSER_FIRST === 'string' && /own browser pane first/.test(BROWSER_FIRST) && /default browser/.test(BROWSER_FIRST) && boardLine({ url: 'http://localhost:8090' }).includes('http://localhost:8090/maker.html') && boardLine({}).includes(BROWSER_FIRST) && /preview_start/.test(boardLine({})) && /maker_open \{ browser: true \}/.test(boardLine({})) && /http:\/\/localhost:8080\/maker\.html/.test(boardLine({})),
+     'with no page open the board line says where to open it: the assistant\'s own browser pane first, the person\'s browser last, the address');
   ok(/maker_guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /POST \/__maker\/guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /maker_guide \{"answer": "<what they said>", "at": 0\}/.test(guideText('fast', 0, ctx)) && /maker_guide \{"next": true\}/.test(guideText('fast', 8, ctx)), 'the text names both doors: the MCP tool and the HTTP route, for run, answer and next');
   ok(/page tutorial "rabbit" at 0 of 12/.test(boardLine(ctx)) && /checked: par 9 moves/.test(boardLine(ctx)) && /nothing reported yet/.test(boardLine({})), 'the board line says what is on the board');
   ok(fill('{name} in {theme}', { name: 'x', theme: 'y' }) === 'x in y' && fill('{gone}', {}) === '<gone?>', 'fill leaves a visible gap for an unknown placeholder');
   const welcome = guideWelcome(ctx);
   ok(GUIDE_MODES.every(m => welcome.includes(m.title)) && /waitMs/.test(welcome) && /the verifier/.test(welcome) && /HOW TO BEHAVE/.test(welcome), 'the welcome names the three ways, how to wait for the pick, who the assistant is, and the rules');
-  ok(PLATFORMS.length >= 8 && PLATFORMS.every(p => p.id && p.name && p.connect && p.ask && p.run && typeof p.buttons === 'boolean') && ['claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'chatgpt', 'any'].every(id => PLATFORMS.some(p => p.id === id)) && PLATFORMS.filter(p => p.buttons).map(p => p.id).join() === 'claude',
-     'every platform: how it connects, asks and runs the maker; Claude Code is the one with option buttons');
+  ok(PLATFORMS.length >= 8 && PLATFORMS.every(p => p.id && p.name && p.connect && p.ask && p.run && typeof p.browser === 'string' && p.browser.length > 20 && typeof p.buttons === 'boolean') && ['claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'chatgpt', 'any'].every(id => PLATFORMS.some(p => p.id === id)) && PLATFORMS.filter(p => p.buttons).map(p => p.id).join() === 'claude',
+     'every platform: how it connects, asks, runs the maker and which browser of its own opens the page; Claude Code is the one with option buttons');
+  ok(/preview_start/.test(PLATFORMS.find(p => p.id === 'claude').browser) && /Simple Browser/.test(PLATFORMS.find(p => p.id === 'cursor').browser) && /Simple Browser/.test(PLATFORMS.find(p => p.id === 'copilot').browser) && PLATFORMS.filter(p => /first/.test(p.run) && /--no-open/.test(p.run)).length >= 6 && PLATFORMS.filter(p => /default browser/.test(p.browser)).length >= 6,
+     'the pane first: Claude Code\'s built-in browser, the editors\' Simple Browser, --no-open then the page in its own browser on every platform that has one, the person\'s default browser last');
   for (const [id, file] of [['claude', '.mcp.json'], ['codex', '.codex/config.toml'], ['cursor', '.cursor/mcp.json'], ['copilot', '.vscode/mcp.json'], ['gemini', '.gemini/settings.json']])
     ok(PLATFORMS.find(p => p.id === id).connect.includes(file) && existsSync(resolve(root, file)), `${id}: its configuration file ${file} is named and in the repository`);
 }
@@ -493,6 +499,8 @@ console.log('the invitation and the pull-request brief tell an assistant everyth
      'the invitation says AGENTS.md is the map, names the banner and the three ways, and how to wait for the pick or pick');
   ok(/maker_guide \{"answer": "\.\.\."\}/.test(inv) && /\{"run": true\}/.test(inv) && /\{"help": true, "run": true\}/.test(inv) && /AskUserQuestion/.test(inv) && /numbered list/.test(inv) && /maker_say/.test(inv), 'and how to follow a step: the answer back, run, help, option buttons or a numbered list, the page\'s chat');
   for (const f of ['.mcp.json', '.cursor/mcp.json', '.codex/config.toml', '.gemini/settings.json', '.vscode/mcp.json']) ok(inv.includes(f), `the invitation names ${f}`);
+  ok(/npm run maker -- --no-open/.test(inv) && /YOUR OWN browser first/.test(inv) && /built-in browser pane/.test(inv) && /Simple Browser/.test(inv) && /maker_open \{"browser": true\}/.test(inv) && /my default browser/.test(inv) && /Every step is on the page too/.test(inv) && /a line a step/.test(inv),
+     'the invitation says to open the page in the assistant\'s own browser pane first (the person\'s browser only when it has none) and that every step is on the page');
   ok(/index\.html\?room=<id>/.test(inv) && /pull request on my fork/.test(inv) && /offers it to someone\/their-badge/.test(inv), 'and ends on their page, then the site');
   ok(pagesUrl('me', repo) === 'https://me.github.io/their-badge/' && roomUrl('me', repo, TEA_PARTY) === `https://me.github.io/their-badge/index.html?room=${idOf(TEA_PARTY)}` && roomUrl('me', repo, { name: 'x', range: 'lock' }) === 'https://me.github.io/their-badge/glitch.html', 'pagesUrl and roomUrl: where a fork\'s site is and where a room plays on it');
   ok(repoParts(repo).owner === 'someone' && repoParts(repo).repo === 'their-badge' && repoParts('https://github.com/a/b.git').repo === 'b' && repoParts('not a url') === null, 'repoParts reads owner and repository from the URL');
@@ -624,6 +632,7 @@ console.log('the bridge carries commands to a page and its answers back');
   await settle();
   ok(guided.length === 0, 'a pick from the page is not echoed back to it');
   ok(asked.length === 1 && asked[0].id === 'name' && asked[0].at === 0 && asked[0].of === 10 && asked[0].options.length === 3 && /call your room/.test(asked[0].q) && asked[0].other, 'the first question goes to the page as a card: the step, its options, room for their own words');
+  ok(/title on the stages page/.test(asked[0].why) && /^Board: /.test(asked[0].board) && asked[0].next === 'answer' && asked[0].before === false && Array.isArray(asked[0].does) && asked[0].work === null && asked[0].options.every(o => o.then === 'next'), 'and the whole step with it: the why, the board in a line, what moves on, what the assistant does, each option\'s then');
   r = await api('POST', '/guide', { mode: 'basic' });
   ok(r.body.did === 'already picked on the page' && r.body.mode === 'fast' && /picked "Drink Me" on the banner/.test(r.body.say), 'an assistant picking another way right after the person picked on the banner is told, not obeyed');
   r = await api('POST', '/guide', { answer: 'The Mad Hatter\'s Pantry' });
@@ -643,7 +652,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && r.body.vars.theme === 'hall' && r.body.step.id === 'paint' && Array.isArray(r.body.ranNext) && r.body.ranNext[0].op === 'generate' && generated.length === 1 && generated[0].gate === true, 'a press on the page answers the step and the paint plan runs before the page is asked to keep or roll');
   const pressed = (await api('GET', `/inbox?since=${n0}`)).body.messages.find(m => m.kind === 'answer');
   ok(pressed && pressed.data.option === 'The hall' && pressed.data.at === 3 && /pressed "The hall" on the page/.test(pressed.text), 'and the inbox tells the assistant what was pressed');
-  ok(asked.at(-1).id === 'paint' && asked.at(-1).options.map(o => o.label)[0] === 'Keep it ✓', 'the keep-or-roll question is on the page');
+  ok(asked.at(-1).id === 'paint' && asked.at(-1).options.map(o => o.label)[0] === 'Keep it ✓' && asked.at(-1).before === true && asked.at(-1).does.includes('generate') && /checked|not checked/.test(asked.at(-1).board) && asked.at(-1).options[1].then === 'again' && /dice/.test(asked.at(-1).help), 'the keep-or-roll question is on the page, with what the plan did, the board and the help');
   r = await api('POST', '/guide', { answer: 'The court', at: 3 });
   ok(r.body.did === 'moved' && /they answered "The hall" on the page/.test(r.body.say) && r.body.last.by === 'page' && r.body.last.answer === 'The hall', 'the assistant\'s late answer is told what the person chose on the page');
   r = await api('POST', '/guide', { answer: 'The court' });   // no at: the assistant answers the current step (paint) with a dressing - a wish, so the step rolls again
@@ -687,6 +696,15 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'help' && r.body.ran?.[0]?.op === 'patch' && patched.at(-1)?.name === 'The Pantry', 'a name told to the assistant on the Rabbit is typed in for them (help, run by default)');
   r = await api('POST', '/guide', { help: true });
   ok(r.body.did === 'help' && r.body.help.do[0].op === 'patch' && !r.body.ran, 'help without run only shows the plan');
+  // "Do it for me" pressed on the page: the help plan runs, the assistant is told; a stale card runs nothing
+  const nh = (await api('GET', '/inbox?since=0')).body.latest;
+  r = await api('POST', '/guide', { help: true, run: true, from: 'page', at: 1 });
+  await settle();
+  const helped = (await api('GET', `/inbox?since=${nh}`)).body.messages.find(m => m.kind === 'answer');
+  ok(r.body.did === 'help' && r.body.ran?.[0]?.op === 'patch' && helped?.data.option === 'Do it for me' && helped.data.then === 'help' && helped.data.ran?.[0] === 'patch' && /pressed "Do it for me" on the page/.test(helped.text), '"Do it for me" pressed on the page runs the help plan and tells the assistant in the inbox');
+  const np = patched.length;
+  r = await api('POST', '/guide', { help: true, run: true, from: 'page', at: 0 });
+  ok(r.body.did === 'moved' && /✓ A blank room/.test(r.body.say) && patched.length === np, 'Do it for me from the card of a step already passed runs nothing and says the step is done');
   r = await api('POST', '/guide', { answer: 'Why does this matter?' });
   ok(r.body.did === 'why' && /title on the stages page/.test(r.body.say), 'why: the step\'s why');
   r = await api('POST', '/guide', { next: true });
@@ -694,8 +712,11 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && seen.at(-1).op === 'tutorial' && seen.at(-1).args.skip === 1, 'next on a Rabbit step skips it on the page');
   lastTutorial = { id: 'rabbit', title: 'Follow the White Rabbit', step: 'done', at: 12, of: 12 };
   await api('POST', '/state', { level: TEA_PARTY, lint: [], report: null, tutorial: lastTutorial });
+  await api('POST', '/post', { text: '✓ Send it in (12 of 12)', kind: 'tutorial', data: { id: 'rabbit', step: 'export', at: 12, of: 12 } });
+  await settle();
   r = await api('GET', '/guide');
   ok(r.body.at === 12 && r.body.step.id === 'publish' && r.body.step.ask && r.body.step.work.length >= 5, 'the page\'s build done, the bridge\'s own steps follow: the person\'s page');
+  ok(asked.at(-1).id === 'publish' && asked.at(-1).work?.length >= 5 && asked.at(-1).does[0] === 'pr' && /pull request/.test(asked.at(-1).why) && asked.at(-1).q, 'the publish step reaches the page with the repository work spelled out');
   r = await api('POST', '/guide', { answer: 'Not now' });
   ok(r.body.step.id === 'finish', 'not now: the finish');
   r = await api('POST', '/guide', { answer: "That's all for now" });
@@ -764,7 +785,9 @@ console.log('the bridge carries commands to a page and its answers back');
   c = await call('tools/call', { name: 'maker_patch', arguments: { name: 'Patched' } });
   await settle();
   ok(!c.result.isError && seen.at(-1).op === 'patch' && seen.at(-1).args.name === 'Patched', 'mcp: maker_patch is the op patch');
-  ok(/maker_guide \{ waitMs: 120000 \}/.test(init.result.instructions) && /welcome banner/.test(init.result.instructions), 'mcp: the server\'s instructions send a new assistant to the guide');
+  ok(/maker_guide \{ waitMs: 120000 \}/.test(init.result.instructions) && /welcome banner/.test(init.result.instructions) && /own browser pane first/.test(init.result.instructions) && /a line a step/.test(init.result.instructions), 'mcp: the server\'s instructions send a new assistant to the guide, its own browser pane first, a line a step');
+  const openTool = tools.find(t => t.name === 'maker_open');
+  ok(openTool && openTool.inputSchema.properties.browser?.type === 'boolean' && /does NOT open a browser by itself/.test(openTool.description) && /browser: true/.test(openTool.description) && /preview_start/.test(openTool.description) && /Every step is shown on the page too/.test(guideTool.description), 'mcp: maker_open takes browser and says to open the page in the assistant\'s own pane first; maker_guide says the page carries every step');
   const unknown = await call('no/such');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
@@ -786,15 +809,34 @@ console.log('the bridge carries commands to a page and its answers back');
     ok(!c2.result.isError && st.up === false && /not the maker's bridge/.test(st.reason) && /Burp Suite/.test(st.reason) && /maker_open \{ port: \d+ \}/.test(st.hint), 'mcp: a proxy on the port is not taken for the bridge; the status names it and says to open on another port');
     c2 = await call2('tools/call', { name: 'maker_get', arguments: {} });
     ok(c2.result.isError && /not the maker's bridge/.test(c2.result.content[0].text), 'mcp: a tool behind the proxy fails with the same plain reason, not with a parse error');
-    // maker_open with the test bridge's port: the spawn finds the port taken (by this very bridge) and the poll finds the bridge - the session switches to it
+    // maker_open with the test bridge's port: the bridge is already there, so nothing is started (on Windows a second server would bind the busy port and linger) - the session switches to it
     c2 = await call2('tools/call', { name: 'maker_open', arguments: { port } });
     const opened = c2.result.isError ? null : JSON.parse(c2.result.content[0].text);
-    ok(opened && opened.bridge === 1 && opened.page === true && /held by another server/.test(opened.note) && new RegExp(`port ${port} and this session`).test(opened.note), 'mcp: maker_open with another port finds the bridge there and says the first port was held');
+    ok(opened && opened.bridge === 1 && opened.page === true && /already serving port/.test(opened.note) && /held by another server/.test(opened.note) && /talks to it from now on/.test(opened.note), 'mcp: maker_open with another port finds the bridge already there, starts nothing and says the first port was held');
     c2 = await call2('tools/call', { name: 'maker_get', arguments: {} });
     ok(!c2.result.isError && JSON.parse(c2.result.content[0].text).level.name === TEA_PARTY.name, 'mcp: and the tools talk to the new port from then on');
     mcp2.stdin.end();
     await new Promise(r => mcp2.on('close', r));
     await new Promise(r => proxy.close(r));
+  }
+  // a bridge with no page open: the status and maker_open name the page and say to open it in the assistant's own pane first; no browser is opened
+  {
+    const bare = await startMaker({ root, port: 0, log: () => {}, facts: {} });
+    const mcp3 = spawn(process.execPath, [resolve(root, 'software/tools/maker-mcp.mjs')], { env: { ...process.env, MAKER_URL: bare.url, MAKER_AGENT: 'the verifier with no page' } });
+    const replies3 = new Map(); let out3 = '';
+    mcp3.stdout.on('data', (d) => { out3 += d; let i; while ((i = out3.indexOf('\n')) >= 0) { const l = out3.slice(0, i); out3 = out3.slice(i + 1); if (l.trim()) { const m = JSON.parse(l); replies3.get(m.id)?.(m); } } });
+    let n3 = 0;
+    const call3 = (method, params) => new Promise((res) => { const id = ++n3; replies3.set(id, res); mcp3.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); });
+    await call3('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'verify', version: '0' } });
+    let c3 = await call3('tools/call', { name: 'maker_status', arguments: {} });
+    let st3 = JSON.parse(c3.result.content[0].text);
+    ok(!c3.result.isError && st3.bridge === 1 && st3.page === false && st3.url === `${bare.url}/maker.html` && st3.opened === null && /own browser pane first/.test(st3.hint) && /preview_start/.test(st3.hint) && /maker_open \{ browser: true \}/.test(st3.hint), 'mcp: the server up and no page: maker_status names the page and says to open it in the assistant\'s own pane first');
+    c3 = await call3('tools/call', { name: 'maker_open', arguments: {} });
+    st3 = JSON.parse(c3.result.content[0].text);
+    ok(!c3.result.isError && st3.bridge === 1 && st3.page === false && st3.opened === null && /own browser pane first/.test(st3.hint), 'mcp: maker_open without browser: true opens nothing and says the same');
+    mcp3.stdin.end();
+    await new Promise(r => mcp3.on('close', r));
+    await bare.close();
   }
   reader.cancel().catch(() => {});
   await pump.catch(() => {});
@@ -942,15 +984,20 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/tell\('export', \{ how: 'link', format: r\.format, chars: r\.chars, where: r\.where \}\)/.test(mod) && /tell\('export', \{ how: 'pr' \}\)/.test(mod.slice(mod.indexOf('  pr: ('))), 'a link or a brief taken by the assistant counts as the room sent in');
   ok(/if \(\/\^\(guide\|welcome\|rabbit\)\\W\*\$\/i\.test\(text\)\)/.test(mod) && /get\('guide'\) === '1'\) showGuide\(null, \{ again: true \}\)/.test(mod), '"guide" typed in the chat, or ?guide=1, brings the banner back');
   ok(/guide: \{ show: \(name, o\) => showGuide\(name, o\), pick: pickGuide, get mode\(\)/.test(mod), 'window.__maker.guide for headless checks');
+  ok(/self\.guideMode = cmd\.args\?\.guide \?\? null/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')) && /if \(b\.guideMode && b\.guideMode !== guideMode && modeById\(b\.guideMode\)\) adoptGuide\(b\.guideMode\)/.test(mod) && /^function adoptGuide\(mode\) \{/m.test(mod) && mod.indexOf('adoptGuide(b.guideMode)') < mod.indexOf('showGuide(b.agents.at(-1));     // an assistant was here before'),
+     'a page that (re)attaches mid-walk takes up the way the bridge holds before the banner would pop, so a reload neither asks again nor loses the walk');
   const guideJs = readFileSync(resolve(root, 'src/guide.js'), 'utf8');
   ok(!/document\.|window\.|fetch\(/.test(guideJs) && /from '\.\/tutor\.js'/.test(guideJs) && /from '\.\/level\.js'/.test(guideJs), 'src/guide.js is pure: no DOM, no fetch; it reads the page\'s builds and the starters');
   ok(/\.guide-picks \{/.test(makerCss) && /\.guide-pick \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.guide-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
   // the question on the page: op ask, a card with buttons, a press answered through the bridge
-  ok(OPS.includes('ask') && /^  ask: \(\{ mode, title, at, of, step, say, q, options = \[\], other, over \} = \{\}\) => \{/m.test(mod) && /className = 'btn ghost ask-pick'/.test(mod) && /bridge\?\.answer\(o\.label, at\)/.test(mod), 'src/maker.js draws the guide\'s question as a card of buttons and answers a press through the bridge');
-  ok(/async function answer\(text, at\)/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')) && /from: 'page', run: true/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')), 'src/bridge.js posts a press as the page\'s answer, with the step and run');
-  ok(/\.chat li\.ask \{/.test(makerCss) && /\.ask-row \{/.test(makerCss) && /\.chat li\.ask\.stale, \.chat li\.ask\.answered \{/.test(makerCss), 'src/maker.css styles the question card and dims one answered or superseded');
-  ok(GUIDE_RULES.some(r => /shown on the page too, as buttons/.test(r)) && /do not ask again/.test(guideText('fast', 1, {})), 'the rules and the text tell the assistant the person may answer on the page');
-  ok(/Fork, then clone\./.test(html) && /Follow the White Rabbit<\/b>/.test(html) && /Drink Me<\/b>/.test(html) && /Eat Me<\/b>/.test(html) && /fork the repository for you/.test(html), 'the landing says fork first and names the three ways; the dialog\'s note says what the assistant will do');
+  ok(OPS.includes('ask') && /^  ask: \(\{ mode, title, at, of, step, say, why, board, next, q, options = \[\], other, help, does = \[\], before, work, over \} = \{\}\) => \{/m.test(mod) && /className = 'btn ghost ask-pick'/.test(mod) && /bridge\?\.answer\(o\.label, at\)/.test(mod), 'src/maker.js draws the guide\'s step as a card with the question\'s buttons and answers a press through the bridge');
+  ok(/el\('span', 'ask-why', why\)/.test(mod) && /el\('span', 'ask-board'/.test(mod) && /className = 'ask-work'/.test(mod) && /className = 'btn ghost ask-help'/.test(mod) && /bridge\?\.help\(at\)/.test(mod) && /!options\.some\(o => o\.then === 'help' \|\| o\.then === 'again'\)/.test(mod) && /or type your own answer below/.test(mod) && /\['why', 'stay', 'not yet', 'help'\]\.includes\(r\.did\)/.test(mod),
+     'the card carries the why, the board, the repository work and Do it for me (unless an option is that already), and an answer that keeps the step leaves its buttons live');
+  const bridgeJs = readFileSync(resolve(root, 'src/bridge.js'), 'utf8');
+  ok(/async function answer\(text, at\)/.test(bridgeJs) && /from: 'page', run: true/.test(bridgeJs) && /async function help\(at\)/.test(bridgeJs) && /help: true, run: true, at, from: 'page'/.test(bridgeJs), 'src/bridge.js posts a press as the page\'s answer, with the step and run, and Do it for me as the step\'s help');
+  ok(/\.chat li\.ask \{/.test(makerCss) && /\.ask-row \{/.test(makerCss) && /\.chat li\.ask\.stale, \.chat li\.ask\.answered \{/.test(makerCss) && /\.chat li\.ask \.ask-why/.test(makerCss) && /\.ask-pick, \.ask-help \{/.test(makerCss) && /\.chat li\.ask\.busy::after/.test(makerCss), 'src/maker.css styles the step card - the why, the board, Do it for me, working… - and dims one answered or superseded');
+  ok(GUIDE_RULES.some(r => /Every step is on the page too/.test(r)) && /do not ask again/.test(guideText('fast', 1, {})), 'the rules and the text tell the assistant the person may answer on the page');
+  ok(/Fork, then clone\./.test(html) && /Follow the White Rabbit<\/b>/.test(html) && /Drink Me<\/b>/.test(html) && /Eat Me<\/b>/.test(html) && /fork the repository for you/.test(html) && /own browser pane/.test(html) && /every step is on the page/.test(html), 'the landing says fork first, the assistant\'s own browser pane, every step on the page, and names the three ways; the dialog\'s note says what the assistant will do');
   // the assistants' own doors
   const cursor = JSON.parse(readFileSync(resolve(root, '.cursor/mcp.json'), 'utf8')), gemini = JSON.parse(readFileSync(resolve(root, '.gemini/settings.json'), 'utf8')), vscode = JSON.parse(readFileSync(resolve(root, '.vscode/mcp.json'), 'utf8'));
   ok(cursor.mcpServers?.['alice-maker']?.args?.[0] === 'software/tools/maker-mcp.mjs' && gemini.mcpServers?.['alice-maker']?.args?.[0] === 'software/tools/maker-mcp.mjs' && vscode.servers?.['alice-maker']?.type === 'stdio' && vscode.servers['alice-maker'].args[0] === 'software/tools/maker-mcp.mjs', 'Cursor, Gemini CLI and VS Code Copilot register the same server');
@@ -960,9 +1007,9 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const pagesYml = readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8');
   ok(!/\.cursor|\.gemini|\.vscode|\.codex|AGENTS\.md/.test(pagesYml), 'pages.yml publishes none of the assistants\' files');
   const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
-  ok(/maker_guide/.test(agents) && /Fork first/.test(agents) && /gh repo fork/.test(agents) && /build_type=workflow/.test(agents) && /Follow the White Rabbit/.test(agents) && /npm run maker/.test(agents) && /CLAUDE\.md/.test(agents), 'AGENTS.md is the short map: fork first, the studio, the guide, the rules');
+  ok(/maker_guide/.test(agents) && /Fork first/.test(agents) && /gh repo fork/.test(agents) && /build_type=workflow/.test(agents) && /Follow the White Rabbit/.test(agents) && /npm run maker -- --no-open/.test(agents) && /own browser first/.test(agents) && /every step is on the page/i.test(agents) && /CLAUDE\.md/.test(agents), 'AGENTS.md is the short map: fork first, the studio in the assistant\'s own browser, the guide on the page, the rules');
   const doc = readFileSync(resolve(root, 'software/docs/LEVEL_MAKER.md'), 'utf8');
-  ok(/## Building with an AI, step by step/.test(doc) && /Follow the White Rabbit/.test(doc) && /\/__maker\/guide/.test(doc) && /maker_guide/.test(doc) && /gh repo fork/.test(doc) && PLATFORMS.every(p => doc.includes(p.name.split(' (')[0])), 'LEVEL_MAKER.md has the guided way, the endpoint, the tool, fork first, every platform');
+  ok(/## Building with an AI, step by step/.test(doc) && /Follow the White Rabbit/.test(doc) && /\/__maker\/guide/.test(doc) && /maker_guide/.test(doc) && /gh repo fork/.test(doc) && /--no-open/.test(doc) && /Its own browser/.test(doc) && /Do it for me/.test(doc) && PLATFORMS.every(p => doc.includes(p.name.split(' (')[0])), 'LEVEL_MAKER.md has the guided way, the endpoint, the tool, fork first, the pane first, the card, every platform with its browser');
 }
 
 // ------------------------------------------------------------- the community ----
