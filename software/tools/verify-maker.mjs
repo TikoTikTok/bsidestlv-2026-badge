@@ -26,7 +26,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { blank, setCell, resize, lint, check, kindOf, isGlitch, toModule, fromModule, encodeShare, decodeShare, shareUrl, shareInfo,
+import { blank, setCell, resize, lint, check, kindOf, isGlitch, toModule, fromModule, encodeShare, decodeShare, shareUrl, shareInfo, sharePage, SHARE_WHERE,
          SHARE_PARTS, SHARE_LONG, SHARE_TOO_LONG, idOf, normalize,
          lineCells, rectCells, regionCells, paintCells, mirrorCells, flipH, flipV, rotate, shift, analyse, difficulty,
          STARTERS, rng, generate, generateSolvable, lessonToText, lessonFromText } from '../../src/level.js';
@@ -34,7 +34,7 @@ import { rangeBlank, RANGE_KINDS, RANGE_FILES, BUDGET } from '../../src/rangeche
 import { stageOf } from '../../src/seal.js';
 import { MAKER_TUTORIAL, MAKER_TUTORIALS, Tutor, LESSON_EVENTS, LESSON_TITLES, lessonSteps } from '../../src/tutor.js';
 import { startMaker, OPS, repoFacts } from './maker-server.mjs';
-import { GUIDE_MODES, GUIDE_IDS, GUIDE_OPS, GUIDE_RULES, PLATFORMS, modeById, guideSteps, guideStep, guideText, guideWelcome, applyAnswer, parseSize, fill, boardLine } from '../../src/guide.js';
+import { GUIDE_MODES, GUIDE_IDS, GUIDE_OPS, GUIDE_RULES, PLATFORMS, BROWSER_FIRST, modeById, guideSteps, guideStep, guideText, guideWelcome, applyAnswer, parseSize, fill, boardLine } from '../../src/guide.js';
 import { TEA_PARTY } from '../../stages/tea-party.js';
 import { QUEENS_GAUNTLET } from '../../stages/queens-gauntlet.js';
 import { RABBIT_WATCH } from '../../stages/rabbit-watch.js';
@@ -199,6 +199,14 @@ console.log('a room in a link: both spellings, a pasted link, the old token, wha
   ok(long.length > SHARE_LONG && long.length <= SHARE_TOO_LONG && shareInfo(long).warnings.length === 1 && /cut/.test(shareInfo(long).warnings[0]), `a link of ${long.length} characters warns that chats and QR codes cut it`);
   ok(shareInfo('x'.repeat(SHARE_TOO_LONG + 1)).warnings.some(w => /not paste/.test(w)), `over ${SHARE_TOO_LONG} it may not paste at all`);
   ok(SHARE_LONG === 2000 && SHARE_TOO_LONG === 8000, 'the thresholds are 2,000 and 8,000 characters');
+  // sharePage: where a link opens - play (the default) is the page that plays the level
+  const lockLevel = rangeBlank('lock', 'Which way?'), door = (a, b) => JSON.stringify(a) === JSON.stringify(b);   // same() reads rooms; a door is { where, page }
+  ok(SHARE_WHERE.join() === 'play,studio,stages,range', 'the places a link may open: play (the default), studio, stages, range');
+  ok(door(sharePage(TEA_PARTY), { where: 'stages', page: 'index.html' }) && door(sharePage(TEA_PARTY, 'play'), { where: 'stages', page: 'index.html' }) && door(sharePage(TEA_PARTY, 'stages'), { where: 'stages', page: 'index.html' }), 'play, for a room, is the stages page');
+  ok(door(sharePage(lockLevel), { where: 'range', page: 'glitch.html' }) && door(sharePage(lockLevel, 'range'), { where: 'range', page: 'glitch.html' }), 'play, for a glitch level, is the range page');
+  ok(sharePage(TEA_PARTY, 'studio').page === 'maker.html' && sharePage(lockLevel, 'studio').page === 'maker.html', 'studio is maker.html for either');
+  for (const [lvl, where, re, what] of [[TEA_PARTY, 'range', /a room plays on the stages page/, 'a room sent to the range page'], [lockLevel, 'stages', /a glitch level plays on the range page/, 'a glitch level sent to the stages page'], [TEA_PARTY, 'landing', /no such place 'landing'/, 'a place that is not one']])
+    try { sharePage(lvl, where); fail(`${what} should be refused`); } catch (e) { ok(re.test(e.message), `${what} is refused: ${e.message}`); }
 }
 
 console.log('a blurb and a lesson travel with a room');
@@ -469,13 +477,19 @@ console.log("the White Rabbit's guide tells an assistant what to say, ask and do
   ok(applyAnswer(plan('fast', 9), 'The full tour', {}).then === 'mode:tutorial' && applyAnswer(plan('fast', 9), 'Another room', {}).then === 'restart' && applyAnswer(plan('tutorial', 13), 'A Room with a Gate', {}).then === 'tutorial:gate', 'the finish offers the other ways and the next build');
   // the text, worded for the platform
   ok(/use your option buttons \(AskUserQuestion\)/.test(guideText('fast', 1, { ...ctx, platform: 'claude' })) && /list the options numbered/.test(guideText('fast', 1, { ...ctx, platform: 'codex' })) && /list the options numbered/.test(guideText('fast', 1, ctx)), 'the ask is worded for the platform: buttons on Claude Code, a numbered list elsewhere and by default');
+  ok(GUIDE_IDS.every(id => [...Array(guideStep(id, 0, {}).of).keys()].every(i => typeof guideStep(id, i, {}).why === 'string' && guideStep(id, i, {}).why.length > 40)), 'every step of every way has a why: the page\'s card shows it, "why?" says it');
+  ok(/the page shows this step too/.test(guideText('fast', 1, ctx)) && /the page carries the step/.test(guideText('fast', 1, ctx)) && GUIDE_RULES.some(r => /Every step is on the page too/.test(r) && /Do it for me/.test(r) && /a line a step/.test(r)), 'the text and the rules say the page carries every step, so the assistant adds a line and does not repeat it');
+  ok(typeof BROWSER_FIRST === 'string' && /own browser pane first/.test(BROWSER_FIRST) && /default browser/.test(BROWSER_FIRST) && boardLine({ url: 'http://localhost:8090' }).includes('http://localhost:8090/maker.html') && boardLine({}).includes(BROWSER_FIRST) && /preview_start/.test(boardLine({})) && /maker_open \{ browser: true \}/.test(boardLine({})) && /http:\/\/localhost:8080\/maker\.html/.test(boardLine({})),
+     'with no page open the board line says where to open it: the assistant\'s own browser pane first, the person\'s browser last, the address');
   ok(/maker_guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /POST \/__maker\/guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /maker_guide \{"answer": "<what they said>", "at": 0\}/.test(guideText('fast', 0, ctx)) && /maker_guide \{"next": true\}/.test(guideText('fast', 8, ctx)), 'the text names both doors: the MCP tool and the HTTP route, for run, answer and next');
   ok(/page tutorial "rabbit" at 0 of 12/.test(boardLine(ctx)) && /checked: par 9 moves/.test(boardLine(ctx)) && /nothing reported yet/.test(boardLine({})), 'the board line says what is on the board');
   ok(fill('{name} in {theme}', { name: 'x', theme: 'y' }) === 'x in y' && fill('{gone}', {}) === '<gone?>', 'fill leaves a visible gap for an unknown placeholder');
   const welcome = guideWelcome(ctx);
   ok(GUIDE_MODES.every(m => welcome.includes(m.title)) && /waitMs/.test(welcome) && /the verifier/.test(welcome) && /HOW TO BEHAVE/.test(welcome), 'the welcome names the three ways, how to wait for the pick, who the assistant is, and the rules');
-  ok(PLATFORMS.length >= 8 && PLATFORMS.every(p => p.id && p.name && p.connect && p.ask && p.run && typeof p.buttons === 'boolean') && ['claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'chatgpt', 'any'].every(id => PLATFORMS.some(p => p.id === id)) && PLATFORMS.filter(p => p.buttons).map(p => p.id).join() === 'claude',
-     'every platform: how it connects, asks and runs the maker; Claude Code is the one with option buttons');
+  ok(PLATFORMS.length >= 8 && PLATFORMS.every(p => p.id && p.name && p.connect && p.ask && p.run && typeof p.browser === 'string' && p.browser.length > 20 && typeof p.buttons === 'boolean') && ['claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'chatgpt', 'any'].every(id => PLATFORMS.some(p => p.id === id)) && PLATFORMS.filter(p => p.buttons).map(p => p.id).join() === 'claude',
+     'every platform: how it connects, asks, runs the maker and which browser of its own opens the page; Claude Code is the one with option buttons');
+  ok(/preview_start/.test(PLATFORMS.find(p => p.id === 'claude').browser) && /Simple Browser/.test(PLATFORMS.find(p => p.id === 'cursor').browser) && /Simple Browser/.test(PLATFORMS.find(p => p.id === 'copilot').browser) && PLATFORMS.filter(p => /first/.test(p.run) && /--no-open/.test(p.run)).length >= 6 && PLATFORMS.filter(p => /default browser/.test(p.browser)).length >= 6,
+     'the pane first: Claude Code\'s built-in browser, the editors\' Simple Browser, --no-open then the page in its own browser on every platform that has one, the person\'s default browser last');
   for (const [id, file] of [['claude', '.mcp.json'], ['codex', '.codex/config.toml'], ['cursor', '.cursor/mcp.json'], ['copilot', '.vscode/mcp.json'], ['gemini', '.gemini/settings.json']])
     ok(PLATFORMS.find(p => p.id === id).connect.includes(file) && existsSync(resolve(root, file)), `${id}: its configuration file ${file} is named and in the repository`);
 }
@@ -493,6 +507,8 @@ console.log('the invitation and the pull-request brief tell an assistant everyth
      'the invitation says AGENTS.md is the map, names the banner and the three ways, and how to wait for the pick or pick');
   ok(/maker_guide \{"answer": "\.\.\."\}/.test(inv) && /\{"run": true\}/.test(inv) && /\{"help": true, "run": true\}/.test(inv) && /AskUserQuestion/.test(inv) && /numbered list/.test(inv) && /maker_say/.test(inv), 'and how to follow a step: the answer back, run, help, option buttons or a numbered list, the page\'s chat');
   for (const f of ['.mcp.json', '.cursor/mcp.json', '.codex/config.toml', '.gemini/settings.json', '.vscode/mcp.json']) ok(inv.includes(f), `the invitation names ${f}`);
+  ok(/npm run maker -- --no-open/.test(inv) && /YOUR OWN browser first/.test(inv) && /built-in browser pane/.test(inv) && /Simple Browser/.test(inv) && /maker_open \{"browser": true\}/.test(inv) && /my default browser/.test(inv) && /Every step is on the page too/.test(inv) && /a line a step/.test(inv),
+     'the invitation says to open the page in the assistant\'s own browser pane first (the person\'s browser only when it has none) and that every step is on the page');
   ok(/index\.html\?room=<id>/.test(inv) && /pull request on my fork/.test(inv) && /offers it to someone\/their-badge/.test(inv), 'and ends on their page, then the site');
   ok(pagesUrl('me', repo) === 'https://me.github.io/their-badge/' && roomUrl('me', repo, TEA_PARTY) === `https://me.github.io/their-badge/index.html?room=${idOf(TEA_PARTY)}` && roomUrl('me', repo, { name: 'x', range: 'lock' }) === 'https://me.github.io/their-badge/glitch.html', 'pagesUrl and roomUrl: where a fork\'s site is and where a room plays on it');
   ok(repoParts(repo).owner === 'someone' && repoParts(repo).repo === 'their-badge' && repoParts('https://github.com/a/b.git').repo === 'b' && repoParts('not a url') === null, 'repoParts reads owner and repository from the URL');
@@ -566,7 +582,7 @@ console.log('the bridge carries commands to a page and its answers back');
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
         else if (cmd.op === 'tutorial') await api('POST', '/reply', { id: cmd.id, result: { id: cmd.args?.id ?? 'roses', title: cmd.args?.id ?? 'Painting the Roses', step: 'blank', at: 0, of: 13 } });
         else if (cmd.op === 'check') await api('POST', '/reply', { id: cmd.id, error: 'the room is malformed' });
-        else if (cmd.op === 'share') { const url = shareUrl(`http://localhost/${cmd.args.where === 'stages' ? 'index' : 'maker'}.html`, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: cmd.args.where ?? 'studio' } }); }
+        else if (cmd.op === 'share') { const door = sharePage(TEA_PARTY, cmd.args.where ?? 'play'); const url = shareUrl(new URL(door.page, cmd.args.at === 'site' ? cmd.args.site : 'http://localhost/').href, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: door.where, at: cmd.args.at ?? 'here', page: door.page } }); }
         else if (cmd.op === 'pr') await api('POST', '/reply', { id: cmd.id, result: { ...prParts(TEA_PARTY, { author: cmd.args?.author }), brief: prPrompt('https://github.com/someone/their-badge', TEA_PARTY, { author: cmd.args?.author }) } });
         else if (cmd.op === 'patch') { patched.push(cmd.args); await api('POST', '/state', { level: { ...TEA_PARTY, ...cmd.args }, lint: [], report: null, tutorial: lastTutorial }); await api('POST', '/reply', { id: cmd.id, result: { level: { ...TEA_PARTY, ...cmd.args }, lint: [], kind: 'tea' } }); }
         else if (cmd.op === 'load') await api('POST', '/reply', { id: cmd.id, result: { level: blank(9, 7), lint: lint(blank(9, 7)) } });
@@ -624,6 +640,7 @@ console.log('the bridge carries commands to a page and its answers back');
   await settle();
   ok(guided.length === 0, 'a pick from the page is not echoed back to it');
   ok(asked.length === 1 && asked[0].id === 'name' && asked[0].at === 0 && asked[0].of === 10 && asked[0].options.length === 3 && /call your room/.test(asked[0].q) && asked[0].other, 'the first question goes to the page as a card: the step, its options, room for their own words');
+  ok(/title on the stages page/.test(asked[0].why) && /^Board: /.test(asked[0].board) && asked[0].next === 'answer' && asked[0].before === false && Array.isArray(asked[0].does) && asked[0].work === null && asked[0].options.every(o => o.then === 'next'), 'and the whole step with it: the why, the board in a line, what moves on, what the assistant does, each option\'s then');
   r = await api('POST', '/guide', { mode: 'basic' });
   ok(r.body.did === 'already picked on the page' && r.body.mode === 'fast' && /picked "Drink Me" on the banner/.test(r.body.say), 'an assistant picking another way right after the person picked on the banner is told, not obeyed');
   r = await api('POST', '/guide', { answer: 'The Mad Hatter\'s Pantry' });
@@ -643,7 +660,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && r.body.vars.theme === 'hall' && r.body.step.id === 'paint' && Array.isArray(r.body.ranNext) && r.body.ranNext[0].op === 'generate' && generated.length === 1 && generated[0].gate === true, 'a press on the page answers the step and the paint plan runs before the page is asked to keep or roll');
   const pressed = (await api('GET', `/inbox?since=${n0}`)).body.messages.find(m => m.kind === 'answer');
   ok(pressed && pressed.data.option === 'The hall' && pressed.data.at === 3 && /pressed "The hall" on the page/.test(pressed.text), 'and the inbox tells the assistant what was pressed');
-  ok(asked.at(-1).id === 'paint' && asked.at(-1).options.map(o => o.label)[0] === 'Keep it ✓', 'the keep-or-roll question is on the page');
+  ok(asked.at(-1).id === 'paint' && asked.at(-1).options.map(o => o.label)[0] === 'Keep it ✓' && asked.at(-1).before === true && asked.at(-1).does.includes('generate') && /checked|not checked/.test(asked.at(-1).board) && asked.at(-1).options[1].then === 'again' && /dice/.test(asked.at(-1).help), 'the keep-or-roll question is on the page, with what the plan did, the board and the help');
   r = await api('POST', '/guide', { answer: 'The court', at: 3 });
   ok(r.body.did === 'moved' && /they answered "The hall" on the page/.test(r.body.say) && r.body.last.by === 'page' && r.body.last.answer === 'The hall', 'the assistant\'s late answer is told what the person chose on the page');
   r = await api('POST', '/guide', { answer: 'The court' });   // no at: the assistant answers the current step (paint) with a dressing - a wish, so the step rolls again
@@ -662,7 +679,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && r.body.ran?.length === 1 && r.body.ran[0].op === 'patch' && patched.at(-1)?.blurb === 'A tiny room with a big idea.' && r.body.step.id === 'keep', 'run: the bridge does the step\'s plan through the page (patch) and moves on');
   ok(applyAnswer(guideStep('fast', 6, {}), 'Push, think, push again.', {}).vars.blurb === 'Push, think, push again. Mind the corners.', 'a prefix of an option is that option');
   r = await api('POST', '/guide', { run: true });
-  ok(r.body.did === 'ran' && r.body.ran[0].op === 'share' && r.body.ran[0].result.url.includes('index.html?level=') && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'run on a step with a plan before its ask: the share link, on the stages page');
+  ok(r.body.did === 'ran' && r.body.ran[0].op === 'share' && r.body.ran[0].result.url.startsWith('https://someone.github.io/their-badge/index.html?level=') && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'play' && seen.at(-1).args.at === 'site' && seen.at(-1).args.site === 'https://someone.github.io/their-badge/', 'run on a step with a plan before its ask: the share link, where the room plays, at the fork\'s published page');
   r = await api('POST', '/guide', { answer: 'Just the link for now' });
   ok(r.body.did === 'finish' && r.body.step.id === 'finish', 'Just the link skips to the finish');
   r = await api('POST', '/guide', { answer: 'The full tour' });
@@ -687,6 +704,15 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'help' && r.body.ran?.[0]?.op === 'patch' && patched.at(-1)?.name === 'The Pantry', 'a name told to the assistant on the Rabbit is typed in for them (help, run by default)');
   r = await api('POST', '/guide', { help: true });
   ok(r.body.did === 'help' && r.body.help.do[0].op === 'patch' && !r.body.ran, 'help without run only shows the plan');
+  // "Do it for me" pressed on the page: the help plan runs, the assistant is told; a stale card runs nothing
+  const nh = (await api('GET', '/inbox?since=0')).body.latest;
+  r = await api('POST', '/guide', { help: true, run: true, from: 'page', at: 1 });
+  await settle();
+  const helped = (await api('GET', `/inbox?since=${nh}`)).body.messages.find(m => m.kind === 'answer');
+  ok(r.body.did === 'help' && r.body.ran?.[0]?.op === 'patch' && helped?.data.option === 'Do it for me' && helped.data.then === 'help' && helped.data.ran?.[0] === 'patch' && /pressed "Do it for me" on the page/.test(helped.text), '"Do it for me" pressed on the page runs the help plan and tells the assistant in the inbox');
+  const np = patched.length;
+  r = await api('POST', '/guide', { help: true, run: true, from: 'page', at: 0 });
+  ok(r.body.did === 'moved' && /✓ A blank room/.test(r.body.say) && patched.length === np, 'Do it for me from the card of a step already passed runs nothing and says the step is done');
   r = await api('POST', '/guide', { answer: 'Why does this matter?' });
   ok(r.body.did === 'why' && /title on the stages page/.test(r.body.say), 'why: the step\'s why');
   r = await api('POST', '/guide', { next: true });
@@ -694,8 +720,11 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && seen.at(-1).op === 'tutorial' && seen.at(-1).args.skip === 1, 'next on a Rabbit step skips it on the page');
   lastTutorial = { id: 'rabbit', title: 'Follow the White Rabbit', step: 'done', at: 12, of: 12 };
   await api('POST', '/state', { level: TEA_PARTY, lint: [], report: null, tutorial: lastTutorial });
+  await api('POST', '/post', { text: '✓ Send it in (12 of 12)', kind: 'tutorial', data: { id: 'rabbit', step: 'export', at: 12, of: 12 } });
+  await settle();
   r = await api('GET', '/guide');
   ok(r.body.at === 12 && r.body.step.id === 'publish' && r.body.step.ask && r.body.step.work.length >= 5, 'the page\'s build done, the bridge\'s own steps follow: the person\'s page');
+  ok(asked.at(-1).id === 'publish' && asked.at(-1).work?.length >= 5 && asked.at(-1).does[0] === 'pr' && /pull request/.test(asked.at(-1).why) && asked.at(-1).q, 'the publish step reaches the page with the repository work spelled out');
   r = await api('POST', '/guide', { answer: 'Not now' });
   ok(r.body.step.id === 'finish', 'not now: the finish');
   r = await api('POST', '/guide', { answer: "That's all for now" });
@@ -730,7 +759,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(init.result?.serverInfo?.name === 'alice-maker' && init.result.capabilities.tools, 'mcp: initialize');
   const tools = (await call('tools/list')).result.tools;
   ok(tools.length >= 15 && tools.every(t => t.name.startsWith('maker_') && t.inputSchema?.type === 'object' && t.description), `mcp: ${tools.length} tools, all described`);
-  ok(tools.some(t => t.name === 'maker_share' && t.inputSchema.properties.format?.enum?.includes('json') && t.inputSchema.properties.where?.enum?.includes('stages') && t.inputSchema.properties.parts), 'mcp: maker_share is a tool, with the format, the place and the parts');
+  ok(tools.some(t => t.name === 'maker_share' && t.inputSchema.properties.format?.enum?.includes('json') && t.inputSchema.properties.where?.enum?.join() === 'play,studio,stages,range' && t.inputSchema.properties.at?.enum?.join() === 'here,site' && t.inputSchema.properties.site && t.inputSchema.properties.parts && /"play" \(the default\)/.test(t.description)), 'mcp: maker_share is a tool, with the format, the place (play by default), the address and the parts');
   let c = await call('tools/call', { name: 'maker_status', arguments: {} });
   ok(!c.result.isError && JSON.parse(c.result.content[0].text).page === true, 'mcp: maker_status sees the page');
   c = await call('tools/call', { name: 'maker_get', arguments: {} });
@@ -742,6 +771,9 @@ console.log('the bridge carries commands to a page and its answers back');
   c = await call('tools/call', { name: 'maker_share', arguments: { format: 'json', where: 'stages' } });
   const link = c.result.isError ? null : JSON.parse(c.result.content[0].text);
   ok(link && link.url.startsWith('http://localhost/index.html?level=') && link.format === 'json' && link.chars === link.url.length && same(decodeShare(link.url), TEA_PARTY) && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'mcp: maker_share asks the page for a link, and the link carries the room');
+  c = await call('tools/call', { name: 'maker_share', arguments: { at: 'site', site: 'https://someone.github.io/their-badge/' } });
+  const siteLink = c.result.isError ? null : JSON.parse(c.result.content[0].text);
+  ok(siteLink && siteLink.url.startsWith('https://someone.github.io/their-badge/index.html?level=') && siteLink.where === 'stages' && siteLink.at === 'site' && seen.at(-1).args.at === 'site', 'mcp: maker_share with nothing but the site makes the link where the room plays, at the published site');
   ok(tools.some(t => t.name === 'maker_pr_brief' && /pull request/.test(t.description) && t.inputSchema.properties.author), 'mcp: maker_pr_brief is offered, with the author');
   c = await call('tools/call', { name: 'maker_pr_brief', arguments: { author: 'the verifier over MCP' } });
   const pr = c.result.isError ? null : JSON.parse(c.result.content[0].text);
@@ -764,7 +796,9 @@ console.log('the bridge carries commands to a page and its answers back');
   c = await call('tools/call', { name: 'maker_patch', arguments: { name: 'Patched' } });
   await settle();
   ok(!c.result.isError && seen.at(-1).op === 'patch' && seen.at(-1).args.name === 'Patched', 'mcp: maker_patch is the op patch');
-  ok(/maker_guide \{ waitMs: 120000 \}/.test(init.result.instructions) && /welcome banner/.test(init.result.instructions), 'mcp: the server\'s instructions send a new assistant to the guide');
+  ok(/maker_guide \{ waitMs: 120000 \}/.test(init.result.instructions) && /welcome banner/.test(init.result.instructions) && /own browser pane first/.test(init.result.instructions) && /a line a step/.test(init.result.instructions), 'mcp: the server\'s instructions send a new assistant to the guide, its own browser pane first, a line a step');
+  const openTool = tools.find(t => t.name === 'maker_open');
+  ok(openTool && openTool.inputSchema.properties.browser?.type === 'boolean' && /does NOT open a browser by itself/.test(openTool.description) && /browser: true/.test(openTool.description) && /preview_start/.test(openTool.description) && /Every step is shown on the page too/.test(guideTool.description), 'mcp: maker_open takes browser and says to open the page in the assistant\'s own pane first; maker_guide says the page carries every step');
   const unknown = await call('no/such');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
@@ -786,15 +820,34 @@ console.log('the bridge carries commands to a page and its answers back');
     ok(!c2.result.isError && st.up === false && /not the maker's bridge/.test(st.reason) && /Burp Suite/.test(st.reason) && /maker_open \{ port: \d+ \}/.test(st.hint), 'mcp: a proxy on the port is not taken for the bridge; the status names it and says to open on another port');
     c2 = await call2('tools/call', { name: 'maker_get', arguments: {} });
     ok(c2.result.isError && /not the maker's bridge/.test(c2.result.content[0].text), 'mcp: a tool behind the proxy fails with the same plain reason, not with a parse error');
-    // maker_open with the test bridge's port: the spawn finds the port taken (by this very bridge) and the poll finds the bridge - the session switches to it
+    // maker_open with the test bridge's port: the bridge is already there, so nothing is started (on Windows a second server would bind the busy port and linger) - the session switches to it
     c2 = await call2('tools/call', { name: 'maker_open', arguments: { port } });
     const opened = c2.result.isError ? null : JSON.parse(c2.result.content[0].text);
-    ok(opened && opened.bridge === 1 && opened.page === true && /held by another server/.test(opened.note) && new RegExp(`port ${port} and this session`).test(opened.note), 'mcp: maker_open with another port finds the bridge there and says the first port was held');
+    ok(opened && opened.bridge === 1 && opened.page === true && /already serving port/.test(opened.note) && /held by another server/.test(opened.note) && /talks to it from now on/.test(opened.note), 'mcp: maker_open with another port finds the bridge already there, starts nothing and says the first port was held');
     c2 = await call2('tools/call', { name: 'maker_get', arguments: {} });
     ok(!c2.result.isError && JSON.parse(c2.result.content[0].text).level.name === TEA_PARTY.name, 'mcp: and the tools talk to the new port from then on');
     mcp2.stdin.end();
     await new Promise(r => mcp2.on('close', r));
     await new Promise(r => proxy.close(r));
+  }
+  // a bridge with no page open: the status and maker_open name the page and say to open it in the assistant's own pane first; no browser is opened
+  {
+    const bare = await startMaker({ root, port: 0, log: () => {}, facts: {} });
+    const mcp3 = spawn(process.execPath, [resolve(root, 'software/tools/maker-mcp.mjs')], { env: { ...process.env, MAKER_URL: bare.url, MAKER_AGENT: 'the verifier with no page' } });
+    const replies3 = new Map(); let out3 = '';
+    mcp3.stdout.on('data', (d) => { out3 += d; let i; while ((i = out3.indexOf('\n')) >= 0) { const l = out3.slice(0, i); out3 = out3.slice(i + 1); if (l.trim()) { const m = JSON.parse(l); replies3.get(m.id)?.(m); } } });
+    let n3 = 0;
+    const call3 = (method, params) => new Promise((res) => { const id = ++n3; replies3.set(id, res); mcp3.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); });
+    await call3('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'verify', version: '0' } });
+    let c3 = await call3('tools/call', { name: 'maker_status', arguments: {} });
+    let st3 = JSON.parse(c3.result.content[0].text);
+    ok(!c3.result.isError && st3.bridge === 1 && st3.page === false && st3.url === `${bare.url}/maker.html` && st3.opened === null && /own browser pane first/.test(st3.hint) && /preview_start/.test(st3.hint) && /maker_open \{ browser: true \}/.test(st3.hint), 'mcp: the server up and no page: maker_status names the page and says to open it in the assistant\'s own pane first');
+    c3 = await call3('tools/call', { name: 'maker_open', arguments: {} });
+    st3 = JSON.parse(c3.result.content[0].text);
+    ok(!c3.result.isError && st3.bridge === 1 && st3.page === false && st3.opened === null && /own browser pane first/.test(st3.hint), 'mcp: maker_open without browser: true opens nothing and says the same');
+    mcp3.stdin.end();
+    await new Promise(r => mcp3.on('close', r));
+    await bare.close();
   }
   reader.cancel().catch(() => {});
   await pump.catch(() => {});
@@ -854,12 +907,18 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/stages\/community\/index\.json/.test(js), 'the maker lists the community rooms');
   ok(/lessonFromText/.test(js) && /tell\('lesson'/.test(js), 'the studio edits the lesson as text and tells the tutorial');
   // a room in a link: the Share dialog (the studio's, at the end of the page), the landing's note, the studio's part
-  for (const id of ['shareBtn', 'shareDialog', 'shareUrl', 'shareCopy', 'shareOpen', 'sharePlay', 'shareStatus', 'shareJson', 'shareClose'])
+  for (const id of ['shareBtn', 'shareDialog', 'shareTitle', 'shareWhat', 'shareUrl', 'shareCopy', 'shareOpen', 'sharePlay', 'sharePlayPage', 'shareHere', 'shareSite', 'shareStatus', 'shareJson', 'shareClose'])
     ok(new RegExp(`id="${id}"`).test(html), `the Share dialog has #${id}`);
   ok(/<dialog id="shareDialog" class="ai share dev-only"/.test(html) && html.indexOf('id="shareDialog"') > html.indexOf('id="keysDialog"'), 'the Share dialog is the studio\'s (dev-only) and comes after the keys dialog, at the end of the page');
   for (const p of SHARE_PARTS) ok(new RegExp(`<input type="checkbox" data-part="${p}" checked>`).test(html), `the Share dialog offers the ${p}, on by default`);
   ok(/name="shareFormat" value="b64" checked/.test(html) && /name="shareFormat" value="json"/.test(html), 'the Share dialog offers the compact and the readable link, compact by default');
-  ok(/name="shareWhere" value="studio" checked/.test(html) && /name="shareWhere" value="stages"/.test(html), 'the Share dialog offers the studio and the stages page');
+  ok(/name="shareWhere" value="play" checked/.test(html) && /name="shareWhere" value="studio"/.test(html) && html.indexOf('name="shareWhere"') < html.indexOf('data-part="lesson"') && html.indexOf('name="shareWhere"') < html.indexOf('name="shareFormat"'), 'the Share dialog offers play it (the default) and edit it, before what goes in and how the link reads');
+  ok(/name="shareAt" value="here" checked/.test(html) && /name="shareAt" value="site"/.test(html) && /<input id="shareSite" type="text"/.test(html), 'the Share dialog offers this checkout\'s address (the default) and the published site\'s, with a box for the site');
+  ok(/<button type="button" id="shareBtn" class="btn ghost">Share a link<\/button>/.test(html) && /<h2 id="shareTitle">Share this room<\/h2>/.test(html) && /<b>Play it<\/b> is the\s+page the badge plays it on/.test(html), 'the export\'s button says Share a link, and the dialog says what play it and edit it mean');
+  ok(/function shareLink\(\{ format = 'b64', where = 'play', at = 'here', site, play = false, parts = \{\} \} = \{\}, room = level\)/.test(js) && /const door = sharePage\(room, where\);/.test(js) && /play: !!play && door\.where === 'studio'/.test(js), 'shareLink defaults to play it at this address, resolves the page through sharePage, and play=1 rides along for the studio only');
+  ok(/const SITE_URL = pagesUrl\(repoParts\(repo\)\?\.owner \?\? 'bsidestlv', repo\);/.test(js) && /prefs\.share = \{ at: 'here', site: ''/.test(js) && /if \(i\.name === 'shareAt'\) \{ prefs\.share\.at = i\.value; savePrefs\(\); \}/.test(js), 'the published site is the page\'s own, and the address picked is remembered');
+  ok(/\$\('#shareTitle'\)\.textContent = glitch \? 'Share this level' : 'Share this room';/.test(js) && /\$\('#sharePlayPage'\)\.textContent = glitch \? 'the range page' : 'the stages page';/.test(js) && /\$\('#sharePlay'\)\.disabled = o\.where !== 'studio';/.test(js) && /shareSiteEl\.disabled = o\.at !== 'site';/.test(js), 'the dialog\'s words follow the category, and Run & debug and the site\'s box are live only when they apply');
+  ok(/playLink\(`index\.html\?level=\$\{encodeURIComponent\(sharedToken\)\}`, 'Play it on the stages page'\)/.test(js) && /className: 'btn', textContent: text/.test(js), 'the landing\'s note makes Play it the button');
   ok(/<p id="sharedNote" class="note site-only[^"]*" hidden>/.test(html), '#sharedNote is the landing\'s (site-only), hidden until a link brings a room');
   ok(/shareUrl\(/.test(js) && /shareInfo\(/.test(js) && /decodeShare\(sharedToken\)/.test(js) && /SHARE_PARTS/.test(js), 'src/maker.js makes and reads the link through src/level.js');
   ok(/tell\('export', \{ how: 'link', format: /.test(js), 'the Share dialog tells the tutorial it made a link, with its format and length');
@@ -889,28 +948,35 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/base: 'stages\/community\/'/.test(glitch) && /stages\/community\/index\.json/.test(glitch) && /' · community'/.test(glitch) && /' · yours'/.test(glitch), 'src/glitch.js adds every listed range level as a "· community" tab and the address\'s as "· yours"');
   ok(glitch.indexOf('await openGate(') < glitch.indexOf("get('level')") && glitch.indexOf('window.__range.ready = ') > glitch.indexOf('requestAnimationFrame(tick);'), 'the token is read after the gate, and nothing on the page waits on it');
   ok(/community, shared, ready: null/.test(glitch), 'window.__range exposes community, shared and ready for headless checks');
+  ok(/'that is a room, not a glitch level'/.test(glitch) && /if \(level\?\.rows && !isGlitch\(level\)\) watchStatus\.append\(' - ', Object\.assign\(document\.createElement\('a'\), \{ href: `index\.html\?level=\$\{encodeURIComponent\(token\)\}`, textContent: 'play it on the stages page' \}\)\);/.test(glitch), 'a room\'s token on the range page is refused with a link to the stages page that plays it');
+  ok(/^\.status a \{ color: var\(--accent\); \}/m.test(css), 'styles.css colours a link inside a status line');
   for (const k of RANGE_KINDS) ok(new RegExp(`${k}: add${k[0].toUpperCase()}${k.slice(1)}Tab`).test(glitch), `src/glitch.js can add a ${k} tab`);
-  // the stages page plays the community's rooms
+  // the stages page plays the community's rooms: one player (src/room.js) for every level, the explorer lists them
   const stages = readFileSync(resolve(root, 'index.html'), 'utf8');
-  for (const id of ['roomsPanel', 'roomList', 'room', 'roomName', 'roomBlurb', 'roomLesson', 'roomStatus', 'roomUndo', 'roomReset', 'roomSolve'])
-    ok(new RegExp(`id="${id}"`).test(stages), `index.html has #${id} (the community's rooms)`);
+  for (const id of ['playPanel', 'levelsPanel', 'levelGroups', 'room', 'levelName', 'levelFacts', 'roomBlurb', 'roomLesson', 'roomStatus', 'roomUndo', 'roomReset', 'roomSolve', 'shareBtn'])
+    ok(new RegExp(`id="${id}"`).test(stages), `index.html has #${id} (the player and the explorer)`);
   const gallery = readFileSync(resolve(root, 'src/gallery.js'), 'utf8');
   ok(/from '\.\/room\.js'/.test(gallery) && /stages\/community\/index\.json/.test(gallery) && /base: 'stages\/community\/'/.test(gallery), 'src/gallery.js plays the listed rooms through src/room.js and src/seal.js');
+  ok(/mountRoom\(\{/.test(gallery) && !/parse\(TEA_PARTY\.rows\)/.test(gallery) && /entryOf\('tea-party', TEA_PARTY/.test(gallery) && /entryOf\('queens-gauntlet', QUEENS_GAUNTLET/.test(gallery), 'the two stages go through the same player as the community\'s rooms, as levels of the catalogue');
   // and a room that came in a link, as a card of its own
-  ok(/import \{ decodeShare, lint, kindOf, isGlitch \} from '\.\/level\.js'/.test(gallery) && /function openShared\(token\)/.test(gallery) && /openRoom, openShared \}/.test(gallery), 'src/gallery.js reads a ?level= link through src/level.js and exposes openShared');
-  ok(/id: 'shared', name: level\.name, author: 'a link', kind: kindOf\(level\), shared: true/.test(gallery) && /`Shared · \$\{r\.name\}`/.test(gallery) && /room-card\$\{r\.shared \? ' shared' : ''\}/.test(gallery), 'the shared room is a card "Shared · <name>", class room-card shared, in rooms as id shared');
-  ok(/q\.get\('level'\) !== null\) openShared\(q\.get\('level'\)\);\s*else if \(rooms\.some/.test(gallery), '?level= wins over ?room=');
-  // a range level is not a room: Rooms lists only the index's rooms, and a link that carries a glitch level is sent to the range page
+  ok(/import \{ decodeShare, lint, kindOf, isGlitch, shareUrl, shareInfo, analyse, difficulty \} from '\.\/level\.js'/.test(gallery) && /function openShared\(token\)/.test(gallery) && /levels, open, openShared, progress/.test(gallery), 'src/gallery.js reads a ?level= link through src/level.js and exposes open and openShared');
+  ok(/entryOf\('shared', level, \{ author: 'a link', group: 'shared' \}\)/.test(gallery) && /\['shared', 'Shared with you'/.test(gallery) && /level-card\$\{entry\.group === 'shared' \? ' shared' : ''\}/.test(gallery), 'the shared room is a card of its own group "Shared with you", class level-card shared, in levels as id shared');
+  ok(/q\.get\('level'\) !== null\) openShared\(q\.get\('level'\)\);\s*else if \(q\.get\('room'\) !== null\)/.test(gallery), '?level= wins over ?room=');
+  ok(gallery.includes("const say = (text, kind = '', link = null)") && gallery.includes("is a glitch level, not a room: `, 'hot', { href: 'glitch.html'") && gallery.includes('no level "${wanted}"'), '?room= naming a glitch level, or nothing in the index, is said so in the status - the range page linked');
+  // a range level is not a room: the explorer lists only the index's rooms, and a link that carries a glitch level is sent to the range page
   ok(/\.filter\(s => !s\.kind \|\| s\.kind === 'tea' \|\| s\.kind === 'chase'\)/.test(gallery), 'the stages page lists the index\'s rooms only: a range level (kind = its range) is glitch.html\'s');
-  ok(/if \(isGlitch\(level\)\) throw new Error\('it is a glitch range level/.test(gallery), 'a link that carries a glitch level is refused on the stages page, with where it does open');
+  ok(/if \(isGlitch\(level\)\) \{ say\(`the link carries a glitch level/.test(gallery) && /glitch\.html\?level=\$\{encodeURIComponent\(token\)\}/.test(gallery), 'a link that carries a glitch level is refused on the stages page, with a link to where it does open');
   ok(/const sharedGlitch = /.test(js) && /&& !sharedGlitch;/.test(js) && /glitch\.html\?level=\$\{encodeURIComponent\(sharedToken\)\}/.test(js), 'the landing sends a shared glitch level to the range page and keeps it out of the hero');
   {
     const index = JSON.parse(readFileSync(resolve(root, 'stages/community/index.json'), 'utf8'));
     const kept = (index.stages ?? []).filter(s => !s.kind || s.kind === 'tea' || s.kind === 'chase');
     ok(kept.length > 0 && kept.every(s => !RANGE_KINDS.includes(s.kind)) && (index.stages ?? []).some(s => RANGE_KINDS.includes(s.kind)), `the index holds ${kept.length} room(s) for the stages page and at least one range level it leaves to glitch.html`);
   }
-  ok(/the shared room could not be opened: \$\{e\.message\}`; \$\('#roomStatus'\)\.className = 'status hot'; return null;/.test(gallery), 'a link that is not a room is said so in #roomStatus (status hot) and nothing crashes');
-  ok(/\.room-card\.shared \{/.test(css) && css.indexOf('.room-card.shared {') > css.indexOf('.room-card {'), 'styles.css styles the shared card next to .room-card');
+  ok(/say\(`the shared room could not be opened: \$\{e\.message\}`, 'hot'\); return null;/.test(gallery), 'a link that is not a room is said so in #roomStatus (status hot) and nothing crashes');
+  ok(/\.level-card\.shared \{/.test(css) && css.indexOf('.level-card.shared {') > css.indexOf('.level-card {'), 'styles.css styles the shared card next to .level-card');
+  // the page shares a level both ways: played here, or carried on in the maker, with the same tokens the maker writes
+  ok(/shareUrl\(base\('index\.html'\), current\.level\)/.test(gallery) && /shareUrl\(base\('maker\.html'\), current\.level\)/.test(gallery) && /id="sharePlayUrl"/.test(stages) && /id="shareEditUrl"/.test(stages), 'the stages page\'s Share dialog makes the play link and the maker link through src/level.js shareUrl');
+  ok(/\$\('#shareBtn'\)\.hidden = entry\.sealed/.test(gallery) && /sealedIds\('stages\/'\)/.test(gallery), 'a sealed stage is never shared as a link (its plaintext stays on the badge)');
   ok(/data-part="lesson"/.test(html) && !/shareDialog/.test(readFileSync(resolve(root, 'src/tutor.js'), 'utf8')), 'the dialog is the page\'s; the tutorial only hears the export event');
   const roomJs = readFileSync(resolve(root, 'src/room.js'), 'utf8');
   ok(/lessonSteps/.test(roomJs) && /kind: 'room'/.test(roomJs), 'src/room.js shows the lesson and reports as kind room');
@@ -970,18 +1036,23 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/if \(from === 'page'\) bridge\?\.guide\(m\.id\)/.test(mod) && /if \(m\.tutorial\) \{ pickTutorial\(m\.tutorial\); if \(tutor\.done\) coach\.restart\(\); \}/.test(mod), 'a pick on the page goes up the bridge and puts the Rabbit\'s build under the coach; a pick from the assistant is not echoed');
   ok(/kind: 'tutorial', data: \{ id: picked, step: s\.id, at: tutor\.at, of: tutor\.steps\.length, done: tutor\.done \}/.test(mod) && /guideMode === 'tutorial' && bridge\?\.available/.test(mod), 'on the Rabbit a step done goes up the bridge as a line of kind tutorial');
   ok(/tutorial: tutorialSummary\(\), guide: guideMode \}/.test(mod), 'the mirror carries the page\'s tutorial and the way picked, so the bridge\'s Rabbit follows the page');
-  ok(/tell\('export', \{ how: 'link', format: r\.format, chars: r\.chars, where: r\.where \}\)/.test(mod) && /tell\('export', \{ how: 'pr' \}\)/.test(mod.slice(mod.indexOf('  pr: ('))), 'a link or a brief taken by the assistant counts as the room sent in');
+  ok(/tell\('export', \{ how: 'link', format: r\.format, chars: r\.chars, where: r\.where, at: r\.at \}\)/.test(mod) && /tell\('export', \{ how: 'pr' \}\)/.test(mod.slice(mod.indexOf('  pr: ('))), 'a link or a brief taken by the assistant counts as the room sent in');
   ok(/if \(\/\^\(guide\|welcome\|rabbit\)\\W\*\$\/i\.test\(text\)\)/.test(mod) && /get\('guide'\) === '1'\) showGuide\(null, \{ again: true \}\)/.test(mod), '"guide" typed in the chat, or ?guide=1, brings the banner back');
   ok(/guide: \{ show: \(name, o\) => showGuide\(name, o\), pick: pickGuide, get mode\(\)/.test(mod), 'window.__maker.guide for headless checks');
+  ok(/self\.guideMode = cmd\.args\?\.guide \?\? null/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')) && /if \(b\.guideMode && b\.guideMode !== guideMode && modeById\(b\.guideMode\)\) adoptGuide\(b\.guideMode\)/.test(mod) && /^function adoptGuide\(mode\) \{/m.test(mod) && mod.indexOf('adoptGuide(b.guideMode)') < mod.indexOf('showGuide(b.agents.at(-1));'),
+     'a page that (re)attaches mid-walk takes up the way the bridge holds before the banner would pop, so a reload neither asks again nor loses the walk');
   const guideJs = readFileSync(resolve(root, 'src/guide.js'), 'utf8');
   ok(!/document\.|window\.|fetch\(/.test(guideJs) && /from '\.\/tutor\.js'/.test(guideJs) && /from '\.\/level\.js'/.test(guideJs), 'src/guide.js is pure: no DOM, no fetch; it reads the page\'s builds and the starters');
   ok(/\.guide-picks \{/.test(makerCss) && /\.guide-pick \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.guide-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
   // the question on the page: op ask, a card with buttons, a press answered through the bridge
-  ok(OPS.includes('ask') && /^  ask: \(\{ mode, title, at, of, step, say, q, options = \[\], other, over \} = \{\}\) => \{/m.test(mod) && /className = 'btn ghost ask-pick'/.test(mod) && /bridge\?\.answer\(o\.label, at\)/.test(mod), 'src/maker.js draws the guide\'s question as a card of buttons and answers a press through the bridge');
-  ok(/async function answer\(text, at\)/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')) && /from: 'page', run: true/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')), 'src/bridge.js posts a press as the page\'s answer, with the step and run');
-  ok(/\.chat li\.ask \{/.test(makerCss) && /\.ask-row \{/.test(makerCss) && /\.chat li\.ask\.stale, \.chat li\.ask\.answered \{/.test(makerCss), 'src/maker.css styles the question card and dims one answered or superseded');
-  ok(GUIDE_RULES.some(r => /shown on the page too, as buttons/.test(r)) && /do not ask again/.test(guideText('fast', 1, {})), 'the rules and the text tell the assistant the person may answer on the page');
-  ok(/Fork, then clone\./.test(html) && /Follow the White Rabbit<\/b>/.test(html) && /Drink Me<\/b>/.test(html) && /Eat Me<\/b>/.test(html) && /fork the repository for you/.test(html), 'the landing says fork first and names the three ways; the dialog\'s note says what the assistant will do');
+  ok(OPS.includes('ask') && /^  ask: \(\{ mode, title, at, of, step, say, why, board, next, q, options = \[\], other, help, does = \[\], before, work, over \} = \{\}\) => \{/m.test(mod) && /className = 'btn ghost ask-pick'/.test(mod) && /bridge\?\.answer\(o\.label, at\)/.test(mod), 'src/maker.js draws the guide\'s step as a card with the question\'s buttons and answers a press through the bridge');
+  ok(/el\('span', 'ask-why', why\)/.test(mod) && /el\('span', 'ask-board'/.test(mod) && /className = 'ask-work'/.test(mod) && /className = 'btn ghost ask-help'/.test(mod) && /bridge\?\.help\(at\)/.test(mod) && /!options\.some\(o => o\.then === 'help' \|\| o\.then === 'again'\)/.test(mod) && /or type your own answer below/.test(mod) && /\['why', 'stay', 'not yet', 'help'\]\.includes\(r\.did\)/.test(mod),
+     'the card carries the why, the board, the repository work and Do it for me (unless an option is that already), and an answer that keeps the step leaves its buttons live');
+  const bridgeJs = readFileSync(resolve(root, 'src/bridge.js'), 'utf8');
+  ok(/async function answer\(text, at\)/.test(bridgeJs) && /from: 'page', run: true/.test(bridgeJs) && /async function help\(at\)/.test(bridgeJs) && /help: true, run: true, at, from: 'page'/.test(bridgeJs), 'src/bridge.js posts a press as the page\'s answer, with the step and run, and Do it for me as the step\'s help');
+  ok(/\.chat li\.ask \{/.test(makerCss) && /\.ask-row \{/.test(makerCss) && /\.chat li\.ask\.stale, \.chat li\.ask\.answered \{/.test(makerCss) && /\.chat li\.ask \.ask-why/.test(makerCss) && /\.ask-pick, \.ask-help \{/.test(makerCss) && /\.chat li\.ask\.busy::after/.test(makerCss), 'src/maker.css styles the step card - the why, the board, Do it for me, working… - and dims one answered or superseded');
+  ok(GUIDE_RULES.some(r => /Every step is on the page too/.test(r)) && /do not ask again/.test(guideText('fast', 1, {})), 'the rules and the text tell the assistant the person may answer on the page');
+  ok(/Fork, then clone\./.test(html) && /Follow the White Rabbit<\/b>/.test(html) && /Drink Me<\/b>/.test(html) && /Eat Me<\/b>/.test(html) && /fork the repository for you/.test(html) && /own browser pane/.test(html) && /every step is on the page/.test(html), 'the landing says fork first, the assistant\'s own browser pane, every step on the page, and names the three ways; the dialog\'s note says what the assistant will do');
   // the assistants' own doors
   const cursor = JSON.parse(readFileSync(resolve(root, '.cursor/mcp.json'), 'utf8')), gemini = JSON.parse(readFileSync(resolve(root, '.gemini/settings.json'), 'utf8')), vscode = JSON.parse(readFileSync(resolve(root, '.vscode/mcp.json'), 'utf8'));
   ok(cursor.mcpServers?.['alice-maker']?.args?.[0] === 'software/tools/maker-mcp.mjs' && gemini.mcpServers?.['alice-maker']?.args?.[0] === 'software/tools/maker-mcp.mjs' && vscode.servers?.['alice-maker']?.type === 'stdio' && vscode.servers['alice-maker'].args[0] === 'software/tools/maker-mcp.mjs', 'Cursor, Gemini CLI and VS Code Copilot register the same server');
@@ -991,9 +1062,9 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const pagesYml = readFileSync(resolve(root, '.github/workflows/pages.yml'), 'utf8');
   ok(!/\.cursor|\.gemini|\.vscode|\.codex|AGENTS\.md/.test(pagesYml), 'pages.yml publishes none of the assistants\' files');
   const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
-  ok(/maker_guide/.test(agents) && /Fork first/.test(agents) && /gh repo fork/.test(agents) && /build_type=workflow/.test(agents) && /Follow the White Rabbit/.test(agents) && /npm run maker/.test(agents) && /CLAUDE\.md/.test(agents), 'AGENTS.md is the short map: fork first, the studio, the guide, the rules');
+  ok(/maker_guide/.test(agents) && /Fork first/.test(agents) && /gh repo fork/.test(agents) && /build_type=workflow/.test(agents) && /Follow the White Rabbit/.test(agents) && /npm run maker -- --no-open/.test(agents) && /own browser first/.test(agents) && /every step is on the page/i.test(agents) && /CLAUDE\.md/.test(agents), 'AGENTS.md is the short map: fork first, the studio in the assistant\'s own browser, the guide on the page, the rules');
   const doc = readFileSync(resolve(root, 'software/docs/LEVEL_MAKER.md'), 'utf8');
-  ok(/## Building with an AI, step by step/.test(doc) && /Follow the White Rabbit/.test(doc) && /\/__maker\/guide/.test(doc) && /maker_guide/.test(doc) && /gh repo fork/.test(doc) && PLATFORMS.every(p => doc.includes(p.name.split(' (')[0])), 'LEVEL_MAKER.md has the guided way, the endpoint, the tool, fork first, every platform');
+  ok(/## Building with an AI, step by step/.test(doc) && /Follow the White Rabbit/.test(doc) && /\/__maker\/guide/.test(doc) && /maker_guide/.test(doc) && /gh repo fork/.test(doc) && /--no-open/.test(doc) && /Its own browser/.test(doc) && /Do it for me/.test(doc) && PLATFORMS.every(p => doc.includes(p.name.split(' (')[0])), 'LEVEL_MAKER.md has the guided way, the endpoint, the tool, fork first, the pane first, the card, every platform with its browser');
 }
 
 // ------------------------------------------------------------- the community ----
@@ -1098,6 +1169,28 @@ console.log('the community\'s rooms and range levels');
     ok(!check({ ...rangeBlank('dog'), openMs: 240, timeoutMs: 300 }).ok, 'a dog level marked hand with a 60 ms window is refused as a community level would be');
   }
   ok(true, `${listed.size} community level(s) listed`);
+}
+
+// ------------------------------------------------------------ open a level ----
+// The studio's picker: what to work on when it is not a new room - a copy of
+// a stage, one of the community's, the shelf, or a share link pasted in - from
+// Open… in the stage bar, the welcome banner, ?open=1 and a first visit.
+console.log('the studio opens an existing level to carry on');
+{
+  const html = readFileSync(resolve(root, 'maker.html'), 'utf8');
+  const js = readFileSync(resolve(root, 'src/maker.js'), 'utf8');
+  const css = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
+  for (const id of ['openDialog', 'openBtn', 'guideOpen', 'openNew', 'openStages', 'openCommunity', 'openShelf', 'openLink', 'openLinkBtn', 'openClose', 'openStatus'])
+    ok(new RegExp(`id="${id}"`).test(html), `maker.html has #${id} (the level picker)`);
+  ok(/<dialog id="openDialog" class="ai open-level dev-only"/.test(html), 'the picker is a dialog of the checkout\'s studio (dev-only)');
+  ok(html.indexOf('id="guideOpen"') > html.indexOf('id="guidePicks"') && html.indexOf('id="guideOpen"') < html.indexOf('id="guideLater"'), 'the welcome banner offers an existing level under the three ways');
+  ok(/function showOpen\(\)/.test(js) && /\$\('#openBtn'\)\.addEventListener\('click', showOpen\)/.test(js) && /\$\('#guideOpen'\)\.addEventListener\('click', showOpen\)/.test(js), 'Open… and the banner\'s button open the picker');
+  ok(/for \(const \[id, name\] of SHIPPED\) openPick\(/.test(js) && /for \(const s of community\) openPick\(/.test(js) && /for \(const item of shelf\) openPick\(/.test(js) && /for \(const kind of RANGE_KINDS\) openPick\(/.test(js), 'the picker lists a new room and a new level of each range, the shipped stages, the community\'s levels and the shelf');
+  ok(/const lv = decodeShare\(\$\('#openLink'\)\.value\)/.test(js) && /tell\('load', \{ id: idOf\(lv\), from: 'link' \}\)/.test(js), 'a share link pasted in opens through decodeShare, and the build hears a load from a link');
+  ok(/const firstVisit = sharedRoom === null && loadJson\(STORE, null\) === null/.test(js) && /q\.get\('open'\) === '1' \|\| \(firstVisit && q\.get\('guide'\) !== '1'\)\) showOpen\(\)/.test(js), 'the picker opens by itself on ?open=1 and on a device\'s first visit (unless the guide was asked for)');
+  ok(/if \(guideDialog\.open\) guideDialog\.close\(\);\s*if \(!openDialog\.open\) openDialog\.showModal\(\);/.test(js), 'the picker takes the banner\'s place, never stacks on it');
+  ok(/openLevel: showOpen/.test(js), 'window.__maker.openLevel opens the picker for a scripted check');
+  for (const sel of ['.open-level {', '.open-grid {', '.open-pick {', '.guide-else {', 'html:not([data-look=classic]) .open-grid {']) ok(css.includes(sel), `src/maker.css has ${sel}`);
 }
 
 if (failed) { console.error(`verify-maker: ${failed} failure(s)`); process.exit(1); }
