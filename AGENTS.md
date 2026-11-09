@@ -20,10 +20,18 @@ large one:
    (`gh workflow enable pages.yml`; `gh api -X POST repos/<login>/<repo>/pages
    -f build_type=workflow`). The invitation on the published page says the
    same.
-2. **Start the studio**: `npm run maker` (Node 20 or newer, no packages). It
-   serves this checkout on http://localhost:8080, opens `maker.html` in their
-   browser, and mounts your bridge at http://localhost:8080/__maker/
-   (loopback only).
+2. **Start the studio**: `npm run maker -- --no-open` (Node 20 or newer, no
+   packages; in the background). It serves this checkout on
+   http://localhost:8080 and mounts your bridge at
+   http://localhost:8080/__maker/ (loopback only). Then open
+   http://localhost:8080/maker.html **in your own browser first** - the pane
+   the person sees beside your chat (Claude Code: the built-in browser pane,
+   `preview_start` / `navigate`; Cursor and VS Code: the Simple Browser; any
+   browser tool you have) - so the whole walk happens on the page in front of
+   them. Only when you have no browser of your own, `npm run maker` (without
+   `--no-open`) opens it in their default browser. Over MCP, `maker_open`
+   starts the server and names the page for you to open; `maker_open
+   {"browser": true}` is the fallback that opens theirs.
 3. **Connect and say hello.** MCP: the server `alice-maker`
    (`node software/tools/maker-mcp.mjs`) is registered for Claude Code
    (`.mcp.json`), Cursor (`.cursor/mcp.json`), Codex (`.codex/config.toml`),
@@ -41,8 +49,11 @@ large one:
    list), what to DO on the board and when it is DONE. Pass every answer
    back (`maker_guide {"answer": "..."}`); `{"run": true}` lets the bridge
    do the step's work; `{"help": true, "run": true}` is for "do it for me".
-   When unsure, call `maker_guide` with no arguments and do what its text
-   says.
+   Every step is on the page too, as a card in the assistant panel - the
+   line, the why, what you are doing, the question's buttons, *Do it for
+   me* - so when the page is in a pane they can see, that is where they
+   follow: keep your own chat to a line a step. When unsure, call
+   `maker_guide` with no arguments and do what its text says.
 5. **Put it on their page.** The guide's last steps hand you the pull
    request brief (`maker_pr_brief`) and the commands: a branch
    `community/<id>`, one commit, a pull request on their fork, merged when
@@ -72,7 +83,8 @@ an AI, step by step" and "The bridge"). The playbook itself is
 ## Commands
 
 ```
-npm run maker                               # serve the checkout, open the studio, mount the bridge
+npm run maker -- --no-open                  # serve the checkout, mount the bridge; open maker.html in your own browser pane
+npm run maker                               # the same, and the studio opened in the person's default browser
 npm run stage -- stages/community/<id>.js   # the verdict on one level
 npm run verify                              # the whole suite, the CI gate
 node software/tools/maker-mcp.mjs           # the bridge as MCP tools over stdio

@@ -35,7 +35,7 @@ const kindOf = (level) => (level.hazards?.length || level.tickMs ? 'chase' : 'te
 
 export function mountRoom({ canvas, scene, pad, armed = () => true, status, lesson: lessonEl, keys = {}, feed = () => {}, keyboard = () => false, playMs = 120 }) {
   const ctx = canvas.getContext('2d');
-  let level = null, id = null, kind = 'tea', map = null, theme = THEMES.garden;
+  let level = null, id = null, kind = 'tea', map = null, theme = THEMES.garden, par = null;
   let state = null, facing = 'S', count = 0, history = [], hint = null, dead = false, waiting = true;
   let plan = null, planAt = 0, playTimer = null, clock = null, tickMs = 320, queued = null, paused = false;
   let lesson = null;
@@ -44,8 +44,12 @@ export function mountRoom({ canvas, scene, pad, armed = () => true, status, less
   const tell = (what, extra = {}) => {
     const ev = { kind: 'room', id, what, ...extra };
     feed(ev);
-    if (lesson && lesson.feed(ev)) showLesson();
+    if (lesson && lesson.feed(ev)) {
+      showLesson();
+      if (lesson.done) tell('lesson', { steps: lesson.steps.length });   // the room's lesson followed to its last line
+    }
   };
+  const parNote = () => (par ? ` (par ${par})` : '');
   const held = () => (state ? state.rocks.filter(r => map.buttons.has(r)).length : 0);
   const won = () => (state ? (kind === 'tea' ? teaGoal(map, state) : chaseGoal(map, state)) : false);
   const resetKey = () => (keyboard() ? 'START or R' : 'START');
@@ -66,7 +70,7 @@ export function mountRoom({ canvas, scene, pad, armed = () => true, status, less
     const buttons = `${held()}/${map.buttons.size} buttons`;
     if (kind === 'tea') {
       const n = `${buttons} · ${count} moves`;
-      if (won()) say(`solved in ${count} moves`, 'win');
+      if (won()) say(`solved in ${count} moves${parNote()}`, 'win');
       else if (plan) say(`playing the solution - move ${planAt} of ${plan.length}`, 'busy');
       else if (hint) say(`${hint} · ${n}`, 'hint');
       else if (stuck()) say(`a rock is stuck in a corner - ${undoKey()} takes a move back · ${n}`, 'hot');
@@ -74,7 +78,7 @@ export function mountRoom({ canvas, scene, pad, armed = () => true, status, less
     } else {
       const n = `tick ${count} · ${buttons}`;
       if (dead) say(`caught on tick ${count} - ${resetKey()} restarts`, 'hot');
-      else if (won()) say(`out in ${count} ticks`, 'win');
+      else if (won()) say(`out in ${count} ticks${parNote()}`, 'win');
       else if (waiting) say(`the room waits for your first press · ${n}`, 'hint');
       else say(`${n}${plan ? ' · solving' : ''}`, plan ? 'busy' : '');
     }
@@ -210,9 +214,9 @@ export function mountRoom({ canvas, scene, pad, armed = () => true, status, less
     if (kind === 'tea') tell('reset'); else tell('restart');
   }
 
-  /** Opens a room: parsed by its rules, drawn at once, its lesson from the top. */
-  function load(next, { id: nextId = null, tell: loud = true } = {}) {
-    level = next; id = nextId ?? next.name;
+  /** Opens a room: parsed by its rules, drawn at once, its lesson from the top. `par`, when known, is said with a win. */
+  function load(next, { id: nextId = null, tell: loud = true, par: nextPar = null } = {}) {
+    level = next; id = nextId ?? next.name; par = nextPar;
     kind = kindOf(level);
     map = kind === 'tea' ? parseTea(level.rows) : parseChase(level);
     theme = THEMES[level.theme] ?? THEMES.garden;
@@ -271,8 +275,10 @@ export function mountRoom({ canvas, scene, pad, armed = () => true, status, less
     load, reset, undo, solve, draw,
     pause(why) { paused = true; queued = null; say(`paused - the badge is ${why}`, 'hot'); },
     resume() { paused = false; refresh(); },
+    /** The par came later (the page works it out in a worker): the win line says it from now on. */
+    setPar(n) { par = n; refresh(); },
     get level() { return level; }, get id() { return id; }, get kind() { return kind; }, get map() { return map; }, get state() { return state; },
     get count() { return count; }, get dead() { return dead; }, get waiting() { return waiting; }, get history() { return history; },
-    get lesson() { return lesson; }, get plan() { return plan; },
+    get lesson() { return lesson; }, get plan() { return plan; }, get par() { return par; }, get won() { return won(); },
   };
 }
