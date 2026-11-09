@@ -244,11 +244,16 @@ or the bridge's `share` op) writes one and lets you choose:
   walks its solution when the solver finds one within 50,000 states, else
   the room is painted still) and says under it where to play it;
   `index.html?level=` is the stages page, where the room appears as a card
-  of its own, *Shared · name*, at the front of **Rooms**, opened and armed,
-  blurb and lesson with it, and played with the badge like any room
-  (`?level=` wins over `?room=`; a malformed link is reported in the
-  room's status and the page goes on). `shareUrl(base, level, { format,
-  play, parts })` builds the link, `shareInfo(url)` says how long it is.
+  of its own under *Shared with you* in **Levels**, opened and played with
+  the badge like any level, blurb and lesson with it, its par worked out
+  like the others' (`?level=` wins over `?room=`; a malformed link is
+  reported in the status and the page goes on). `shareUrl(base, level, {
+  format, play, parts })` builds the link, `shareInfo(url)` says how long
+  it is. The stages page makes the same two links itself: **Share** on any
+  level it plays (a shipped stage too, never a sealed one) offers *Play it*
+  (`index.html?level=`) and *Carry it on in the level maker*
+  (`maker.html?level=`), so a room can go round - played, edited, played
+  again - without a server.
 - **How long it is.** A room is a few hundred characters; a lesson of
   twelve long steps gets a link past 2,000, where some chats and QR codes
   cut it (the dialog warns), and past 8,000 it may not paste at all. The
@@ -257,8 +262,15 @@ or the bridge's `share` op) writes one and lets you choose:
 A link can carry a glitch level too (see *Glitch levels*): that one opens on
 `glitch.html?level=`, as a tab of its range. The stages page refuses it with a
 line that says where it does open, the landing points at the range page, and
-**Rooms** lists only the index's rooms - an entry whose `kind` is a range is
+**Levels** lists only the index's rooms - an entry whose `kind` is a range is
 the range page's.
+
+To carry on a level that already exists, the studio's **Open…** (beside
+New) opens the picker: a new room or a new level of any range, a copy of a
+shipped stage, one of the community's levels, one from the shelf, or a
+share link pasted in. The welcome banner offers the same under its three
+ways (*Open an existing level…*), `?open=1` opens it, and so does the first
+visit of a device, when nothing is kept yet.
 
 Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":false,"parts":{"lesson":false}}}`
 answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
@@ -509,14 +521,17 @@ Rooms are MIT like everything else under the site.
 `verify-maker.mjs` gates the deploy on every listed room, so a merged room
 is live at the next deploy, in two places: the maker's *Load* menu and
 *Start from…* list it beside the shipped stages, and the stages page
-(`index.html`) plays it. There, **Rooms** (a panel behind the mode bar, the
-third stage of the page) lists every room in the index as a card, in the
-index's order, opens one at a time (`?room=<id>` opens straight on one) and
-plays it with the badge by the rules of whichever stage it is like -
-`src/room.js`, one player for both rules, with the room's blurb beside it
-and its lesson under it. The stages' tutorial, *A Caucus Race*, ends in
-that panel: its third chapter opens a room and follows its lesson to the
-door. A community room can be sealed like any other (`npm run seal`,
+(`index.html`) plays it. There, **Levels** (the explorer under the player;
+a mode of its own on a phone) lists every room in the index as a card, in
+the index's order, under *The community's rooms* - the room drawn small,
+its kind, size and author, its par once the page has worked it out, and
+what the player has won in it - and a card opens it in the one player
+(`?room=<id>` opens straight on one), played with the badge by the rules of
+whichever stage it is like - `src/room.js`, one player for both rules, with
+the room's blurb beside it and its lesson under it; a win in par, a win
+without undo and a lesson followed to its end are prizes (`src/progress.js`).
+The stages' tutorial, *A Caucus Race*, ends there: its third chapter opens a
+room and follows its lesson to the door. A community room can be sealed like any other (`npm run seal`,
 `stages/community/sealed.json` is that folder's manifest) if an event
 wants it hidden until the day.
 
