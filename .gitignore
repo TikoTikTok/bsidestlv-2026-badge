@@ -8,7 +8,8 @@ Thumbs.db
 !.vscode/mcp.json
 
 # --- agent / tool local state ---
-.claude/settings.local.json
+# Everything an assistant keeps beside the checkout: settings, launch.json, its worktrees.
+.claude/
 
 # --- Python ---
 __pycache__/
