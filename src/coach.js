@@ -16,6 +16,7 @@
 //     prepare(step, { show }),     // a step came up; show: put its panel on screen too
 //     onRender(),                  // the checklist was redrawn: a step done or skipped, a swap
 //     learnMode: 'learn',          // the mode bar's name for the Learn panel
+//     open(),                      // the classic look's "learn": the page's way to the Learn panel (the maker's drawer); else it is scrolled to
 //   });
 //   coach.feed(ev);                // every event the page produces; renders on a completed step
 //   coach.render();
@@ -28,10 +29,16 @@ import { keyGlyphs, mountPrompt } from './prompt.js';
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
-export function mountCoach(first, { looks, title = '', chapters = {}, finish, prepare = () => {}, onRender = () => {}, learnMode = 'learn' } = {}) {
+export function mountCoach(first, { looks, title = '', chapters = {}, finish, prepare = () => {}, onRender = () => {}, learnMode = 'learn', open = null } = {}) {
   let tutor = first;            // the tutorial in use; use() swaps it, the buttons stay bound once
   let art = null;               // the Learn panel's badge, lit with the step's keys
   const classic = () => !looks || looks.look.id === 'classic';
+
+  // the line's height, for what sits under it in the classic look (a panel scrolled to, the maker's drawer): --coach-h on <html>, 0 while hidden
+  const line = $('#coach');
+  const measure = () => document.documentElement.style.setProperty('--coach-h', `${line.offsetHeight}px`);
+  measure();
+  if ('ResizeObserver' in window) new ResizeObserver(measure).observe(line);
 
   function render() {
     const n = tutor.steps.length;
@@ -101,7 +108,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
     // land on the range or stage the step after it arms. On a phone, follow
     // the tutorial to the next step's panel when it moves on.
     const next = tutor.step;
-    queueMicrotask(() => prepare(next, { show: !classic() && (next?.range ?? next?.stage) !== (s.range ?? s.stage) }));
+    queueMicrotask(() => prepare(next, { show: !classic() && (next?.range ?? next?.stage ?? next?.panel) !== (s.range ?? s.stage ?? s.panel) }));
     return s;
   }
 
@@ -118,6 +125,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
   $('#learnSkip').addEventListener('click', skip);
   $('#coachOpen').addEventListener('click', () => {
     if (!classic()) looks.setMode(learnMode);
+    else if (open) open();
     else $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   function restart() {
