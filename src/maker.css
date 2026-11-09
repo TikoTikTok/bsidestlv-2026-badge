@@ -302,6 +302,69 @@
 .guide .status { font-size: 11px; }
 @media (max-width: 720px) { .guide-picks { grid-template-columns: 1fr; } }
 
+/* --------------------------------------------- the guide beside the board -- */
+/* The Learn panel is the last panel of a long page, and a build followed from
+   there is followed away from the room. In the classic look on a checkout it
+   leaves the page instead - html[data-learn=side], the default, kept in
+   localStorage alice.maker.learn by src/maker.js:
+     a wide window   a column at the right of main, sticky under the header,
+                     scrolling on its own; the coach line stands down (the
+                     column says the step)
+     a narrow one    (a small window, the in-app browser's pane) a drawer over
+                     the right edge, under the header and the coach line, opened
+                     and closed by the line's "learn" (html[data-learn-open]) and
+                     the panel's x
+   "unpin" (#learnPin) is html[data-learn=page]: the panel back in the page,
+   last. The breakpoint is the one src/maker.js asks matchMedia about. The
+   phone looks need none of this: the maker has a mode bar there and Learn is
+   a mode. --bar-h and --coach-h are measured by src/looks.js and src/coach.js;
+   the panel's own width sizes its insides (a container query), so the column,
+   the drawer and the page each get the checklist in as many columns as fit. */
+
+#learnPanel { container-type: inline-size; }
+#learnPanel > h2 { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.learn-pin, .learn-close { font: inherit; cursor: pointer; color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: var(--r-xs); }
+.learn-pin { margin-left: auto; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; padding: .15rem .5rem; }
+.learn-close { display: none; width: 1.6rem; height: 1.6rem; padding: 0; font-size: 16px; line-height: 1; place-items: center; }
+.learn-pin:hover, .learn-close:hover { color: var(--text); border-color: var(--accent); }
+@container (max-width: 480px) {
+  #learnPanel .learn-steps { columns: 1; }
+  #learnPanel .learn-now .prompts { width: 104px; }
+}
+/* beside the board, and on a phone's one screen, the step comes first: the current one, skip / start over,
+   the checklist, then the cards and the note (in the page the panel reads top to bottom as written) */
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel, html:not([data-look=classic]) #learnPanel { display: flex; flex-direction: column; }
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel > h2, html:not([data-look=classic]) #learnPanel > h2 { order: -5; }
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel > .learn-now, html:not([data-look=classic]) #learnPanel > .learn-now { order: -4; margin: .4rem 0 .6rem; }
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel > .stage-bar, html:not([data-look=classic]) #learnPanel > .stage-bar { order: -3; margin: 0 0 .8rem; }
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel > .learn-steps, html:not([data-look=classic]) #learnPanel > .learn-steps { order: -2; }
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel > .learn-picks, html:not([data-look=classic]) #learnPanel > .learn-picks { order: -1; margin: 1rem 0 0; }
+html[data-look=classic][data-host=dev][data-learn=side] #learnPanel > .note, html:not([data-look=classic]) #learnPanel > .note { order: 0; margin: .8rem 0 0; }
+html:not([data-look=classic]) #learnPanel.off { display: none; }   /* the id outweighs styles.css's main > .panel.off: another mode still hides it */
+
+@media (min-width: 1000px) {
+  html[data-look=classic][data-host=dev][data-learn=side] main {
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 340px); gap: 0 1.25rem; align-items: start; max-width: 1540px;
+  }
+  html[data-look=classic][data-host=dev][data-learn=side] main > .panel { grid-column: 1; min-width: 0; margin: 2rem 0 0; }
+  html[data-look=classic][data-host=dev][data-learn=side] #learnPanel {
+    grid-column: 2; grid-row: 1 / span 12; position: sticky; top: calc(var(--bar-h, 64px) + 1rem);
+    max-height: calc(100dvh - var(--bar-h, 64px) - 2rem); overflow: auto; overscroll-behavior: contain;
+  }
+  html[data-look=classic][data-host=dev][data-learn=side] .coach { display: none; }
+}
+@media (max-width: 999.98px) {
+  html[data-look=classic][data-host=dev][data-learn=side] #learnPanel {
+    position: fixed; z-index: 9; right: 0; top: calc(var(--bar-h, 64px) + var(--coach-h, 0px) + 1rem); bottom: 0;
+    width: min(380px, 94vw); margin: 0; border-radius: var(--r) 0 0 var(--r); overflow: auto; overscroll-behavior: contain;
+    box-shadow: -12px 0 40px var(--shade); transform: translateX(100%); visibility: hidden;
+    transition: transform .2s ease, visibility 0s .2s;
+  }
+  html[data-look=classic][data-host=dev][data-learn=side][data-learn-open] #learnPanel { transform: none; visibility: visible; transition: transform .2s ease; }
+  html[data-look=classic][data-host=dev][data-learn=side] .learn-close { display: inline-grid; }
+}
+@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }
+
 /* ------------------------------------------------ in the phone looks -- */
 
 html:not([data-look=classic]) .hero { gap: .75rem; }
@@ -310,4 +373,5 @@ html:not([data-look=classic]) .maker, html:not([data-look=classic]) .maker-range
 html:not([data-look=classic]) .steps.three, html:not([data-look=classic]) .keys-grid, html:not([data-look=classic]) .starters, html:not([data-look=classic]) .knobs, html:not([data-look=classic]) .share-grid { grid-template-columns: 1fr; }
 html:not([data-look=classic]) .zoom { margin-left: 0; }
 html:not([data-look=classic]) .learn-picks { grid-template-columns: 1fr; }
+html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }   /* the panel's place is the mode bar's there */
 html:not([data-look=classic]) .guide-picks { grid-template-columns: 1fr; }

@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json -->
-<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench">
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-mode="home" data-learn="side">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -30,13 +30,26 @@
   </div>
 </header>
 
-<!-- the tutorial's coach line (a checkout only): the current step of the guided build chosen in the Learn panel; src/tutor.js + src/coach.js drive it -->
+<!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look, and the studio's
+     (dev-only): on the published site the landing is one page, every panel of it "home". The modes are
+     the panels' keys in src/maker.js (goTo), so a tutorial step that names its panel names its mode. -->
+<nav id="modes" class="modes dev-only" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="learn">Learn</button>
+  <button type="button" class="mode" data-mode="edit">Studio</button>
+  <button type="button" class="mode" data-mode="play">Play</button>
+  <button type="button" class="mode" data-mode="export">Send</button>
+  <button type="button" class="mode" data-mode="assistant">Chat</button>
+  <button type="button" class="mode help" data-mode="home" aria-label="the landing: what this page is, the keys">?</button>
+</nav>
+
+<!-- the tutorial's coach line (a checkout only): the current step of the guided build chosen in the Learn panel; src/tutor.js + src/coach.js drive it.
+     In the classic look it sticks under the header (styles.css); "learn" opens the Learn panel: the drawer on a narrow window, the panel itself otherwise. -->
 <div id="coach" class="coach dev-only" hidden>
   <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
   <span id="coachSay" class="coach-say"></span>
   <span class="coach-actions">
     <button type="button" id="coachSkip" class="btn ghost">skip</button>
-    <button type="button" id="coachOpen" class="btn ghost">learn</button>
+    <button type="button" id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false">learn</button>
   </span>
 </div>
 
@@ -44,7 +57,7 @@
   <!-- The landing: on the published site this is the whole page. On a local checkout
        (html[data-host=dev], src/look-boot.js) the studio and the run & debug bench below
        it are shown too; the site never carries them, only this invitation. -->
-  <section class="panel hero" id="hero">
+  <section class="panel hero" id="hero" data-mode="home">
     <div class="hero-room"><canvas id="heroCanvas" aria-label="a room painting itself, then Alice walking its solution"></canvas></div>
     <div class="hero-copy">
       <h1>Build a room for Alice</h1>
@@ -58,7 +71,7 @@
       </div>
       <p class="note site-only">The maker runs from a clone of the repository on your own machine, where the keyboard is
         allowed to play. This page is only the invitation; the published site plays from the badge alone.</p>
-      <p class="note dev-only">You are on a local checkout: the studio is below. <b>WASD</b> or the arrows move, <b>Z X C V</b> are
+      <p class="note dev-only">You are on a local checkout: the studio is below (behind <b>Studio</b> in the bar, on a phone). <b>WASD</b> or the arrows move, <b>Z X C V</b> are
         A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.
         New here? The line at the top walks you through your first room; <b>?</b> lists every key.</p>
       <!-- a room that came in a link (?level=): the landing paints it in the hero and says where it plays; src/maker.js fills this in -->
@@ -66,7 +79,7 @@
     </div>
   </section>
 
-  <section class="panel site-only">
+  <section class="panel site-only" data-mode="home">
     <h2>How it goes</h2>
     <ol class="steps three">
       <li><b>Fork, then clone.</b> A fork of your own is where your room lands first: its GitHub Pages site plays it the moment it
@@ -84,7 +97,7 @@
     </ol>
   </section>
 
-  <section class="panel site-only" id="format">
+  <section class="panel site-only" id="format" data-mode="home">
     <h2>What a stage is</h2>
     <div class="format">
 <pre><code>// Stage: "A Small Garden"
@@ -118,7 +131,7 @@ export const A_SMALL_GARDEN = {
     </div>
   </section>
 
-  <section class="panel site-only" id="byhand">
+  <section class="panel site-only" id="byhand" data-mode="home">
     <h2>By hand</h2>
 <pre><code>git clone <span id="repoClone">https://github.com/bsidestlv/bsidestlv-2026-badge</span>.git
 cd bsidestlv-2026-badge
@@ -129,7 +142,7 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
   </section>
 
   <!-- ------------------------------------------------------------------ the studio: a local checkout only -- -->
-  <section class="panel dev-only" id="editPanel">
+  <section class="panel dev-only" id="editPanel" data-mode="edit">
     <h2>The room <span id="editName" class="tag"></span></h2>
 
     <!-- The category: a room for the stages page, or a level for one of the glitch range's five games.
@@ -389,7 +402,7 @@ delay(n)      holds n ticks            ret      end</pre>
     <div id="verdict" class="verdict" hidden></div>
   </section>
 
-  <section class="panel dev-only" id="playPanel">
+  <section class="panel dev-only" id="playPanel" data-mode="play">
     <h2>Run &amp; debug <span class="armed-mark">● armed</span></h2>
     <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
     <div class="run">
@@ -410,7 +423,7 @@ delay(n)      holds n ticks            ret      end</pre>
     <ol id="runLog" class="log bench" reversed></ol>
   </section>
 
-  <section class="panel dev-only" id="exportPanel">
+  <section class="panel dev-only" id="exportPanel" data-mode="export">
     <h2>Send it in</h2>
     <div class="export">
       <div>
@@ -433,7 +446,7 @@ delay(n)      holds n ticks            ret      end</pre>
   </section>
 
   <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens. -->
-  <section class="panel dev-only" id="assistantPanel">
+  <section class="panel dev-only" id="assistantPanel" data-mode="assistant">
     <h2>The assistant <span id="bridgeState" class="tag">not connected</span></h2>
     <p class="note" id="bridgeNote">With <code>npm run maker</code> serving this page, an assistant on this machine can see the room, paint it,
       prove it, play it and answer you here. Hand it the prompt under the hero (it says how to connect: the MCP tools in
@@ -446,8 +459,13 @@ delay(n)      holds n ticks            ret      end</pre>
     </div>
   </section>
 
-  <section class="panel dev-only" id="learnPanel">
-    <h2><span id="learnTitle">Painting the Roses</span> <span id="learnProgress" class="armed-mark"></span></h2>
+  <!-- The guide. In the classic look on a checkout it sits beside the board (html[data-learn=side], src/maker.css): a column
+       at the right of a wide window, a drawer over the right edge of a narrow one (the coach line's "learn" and the × open
+       and close it); "unpin" puts it back in the page, last. In the phone looks it is the Learn mode. -->
+  <section class="panel dev-only" id="learnPanel" data-mode="learn">
+    <h2><span id="learnTitle">Painting the Roses</span> <span id="learnProgress" class="armed-mark"></span>
+      <button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="Beside the board, or in the page">unpin</button>
+      <button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×</button></h2>
     <p class="note">Guided builds, one step at a time: pick one below. Each leads to a finished room, and each step watches
       what you do and ticks itself off; the line at the top of the page says what comes next wherever you are. Progress
       is kept per build, so switch whenever you like. Skip what you like, it costs nothing.</p>

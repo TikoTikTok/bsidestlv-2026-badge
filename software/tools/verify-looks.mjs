@@ -154,6 +154,11 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
   }
   const css = readFileSync(resolve(root, 'styles.css'), 'utf8');
   for (const sel of ['.coach {', '.coach[hidden]', '.learn-now {', '.learn-steps {', '.keys {']) if (!css.includes(sel)) say(`styles.css: no ${sel} rule (the coach and the legend are every page's)`);
+  // the classic page scrolls: the line sticks under the header, and a panel scrolled to lands under both
+  if (!/html\[data-look=classic\] \.coach \{ position: sticky; top: var\(--bar-h, 0px\)/.test(css)) say('styles.css: in the classic look the coach line sticks under the header (--bar-h)');
+  if (!/html\[data-look=classic\] main > \.panel \{ scroll-margin-top: calc\(var\(--bar-h, 0px\) \+ var\(--coach-h, 0px\)/.test(css)) say('styles.css: a panel scrolled to in the classic look lands under the header and the coach line (scroll-margin-top)');
+  if (!/setProperty\('--bar-h'/.test(readFileSync(resolve(root, 'src/looks.js'), 'utf8'))) say('src/looks.js: must measure the header into --bar-h (ResizeObserver)');
+  if (!/setProperty\('--coach-h'/.test(readFileSync(resolve(root, 'src/coach.js'), 'utf8'))) say('src/coach.js: must measure the coach line into --coach-h');
   if (/\.coach\b|\.learn-/.test(readFileSync(resolve(root, 'src/glitch.css'), 'utf8'))) say('src/glitch.css: the coach\'s rules belong in styles.css, both pages carry one');
   for (const page of ['index.html', 'glitch.html']) {
     const html = readFileSync(resolve(root, page), 'utf8');

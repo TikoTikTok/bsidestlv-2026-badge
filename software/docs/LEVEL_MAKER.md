@@ -119,10 +119,23 @@ the site's pad with the badge as its only source; the studio builds a pad
 with every source on a dev host and none at all on the site).
 
 The first visit is guided, and there is a choice of guides: the Learn panel
-at the bottom offers the **guided builds** (`MAKER_TUTORIALS` in
-`src/tutor.js`, drawn by `src/coach.js` as the line at the top of the page
-and the panel's checklist) as cards; pick one and its steps watch what you
-do and tick themselves off. **Follow the White Rabbit** (12 steps) is the
+offers the **guided builds** (`MAKER_TUTORIALS` in `src/tutor.js`, drawn by
+`src/coach.js` as the coach line and the panel's checklist) as cards; pick
+one and its steps watch what you do and tick themselves off. The panel sits
+where the room is, whatever the window: in the classic look it is **beside
+the board** - a column at the right of a wide window, sticky under the
+header and scrolling on its own, the current step first; on a narrow window
+(a small browser, the in-app browser pane of an assistant) a **drawer** over
+the right edge that the coach line's *learn* and the panel's × open and
+close, the coach line itself sticking under the header so the step is always
+in view - and *unpin* in the panel's heading puts it back in the page, last
+(`alice.maker.learn`, `html[data-learn]`, `src/maker.css`). In the phone
+looks the maker has a **mode bar** like the other pages - Learn, Studio,
+Play, Send, Chat and ? (the landing) - one panel on screen at a time, the
+tutorial following a step to its panel, Run & debug and *Back to the editor*
+switching modes rather than scrolling; the page reopens on the mode it was
+left in (`alice.maker.mode`). On the published site the mode bar is not
+there (it is the studio's, `dev-only`): the landing is one page. **Follow the White Rabbit** (12 steps) is the
 first room from nothing - a blank, a name, a wall, a rock and its button,
 the lint green, Check, Run & debug, a step, the door, a blurb, sent in - and
 the build an assistant on the bridge coaches (*Building with an AI, step by
