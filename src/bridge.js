@@ -6,9 +6,11 @@
 // module is what the page does about it: it listens on the bridge's event
 // stream for commands { id, op, args }, runs each through the handlers the
 // page gives it, answers, mirrors the room back after every change, and
-// carries the chat both ways - and the guide's two lines: the person's pick
-// on the welcome banner goes up (guide), a step of the page's tutorial done
-// goes up as an event in the inbox (post with a kind). Where the page is
+// carries the chat both ways - and the guide's lines: the person's pick on
+// the welcome banner goes up (guide), a step of the page's tutorial done goes
+// up as an event in the inbox (post with a kind), and the way already picked
+// on the bridge comes down with the hello (self.guide), so a page that
+// (re)attaches mid-walk takes it up instead of asking again. Where the page is
 // served without the bridge (serve.sh, any other static server, the site)
 // the first probe says so and nothing else happens: the studio works alone.
 //
@@ -17,10 +19,11 @@
 //   bridge.post('text the person typed');                    // the chat, outbound
 //   bridge.post('✓ A rock', { kind: 'tutorial', data });     // an event the assistant reads in the inbox
 //   bridge.guide('fast');                                    // the pick on the welcome banner
-//   bridge.answer('Cosy', 1);                                // a button of the guide's question card pressed
+//   bridge.answer('Cosy', 1);                                // a button of the guide's step card pressed
+//   bridge.help(1);                                          // "Do it for me" on that card: the bridge runs the step's help plan
 
 export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onState = () => {}, onCommand = () => {} } = {}) {
-  const self = { available: null, connected: false, agents: [], post, state, guide: pickGuide, answer, close };
+  const self = { available: null, connected: false, agents: [], guideMode: null, post, state, guide: pickGuide, answer, help, close };
   let source = null, lastState = null, stateTimer = 0;
 
   async function probe() {
@@ -40,7 +43,7 @@ export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onSt
     source.onmessage = async (e) => {
       let cmd;
       try { cmd = JSON.parse(e.data); } catch { return; }
-      if (cmd.op === 'hello') { self.agents = cmd.args?.agents ?? []; if (cmd.args?.name) onHello(cmd.args.name); onState(self); return; }
+      if (cmd.op === 'hello') { self.agents = cmd.args?.agents ?? []; self.guideMode = cmd.args?.guide ?? null; if (cmd.args?.name) onHello(cmd.args.name); onState(self); return; }
       onCommand(cmd);
       let body;
       try {
@@ -78,6 +81,12 @@ export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onSt
   async function answer(text, at) {
     if (!self.available) return null;
     const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer: text, at, from: 'page', run: true }) });
+    return r.ok ? r.json() : null;
+  }
+  /** "Do it for me" pressed on step `at`'s card: the bridge runs the step's help plan through this page and tells the assistant. */
+  async function help(at) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ help: true, run: true, at, from: 'page' }) });
     return r.ok ? r.json() : null;
   }
   function close() { source?.close(); source = null; self.connected = false; }

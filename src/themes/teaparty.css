@@ -36,12 +36,7 @@ html[data-theme=teaparty] .brand b { font-weight: 700; letter-spacing: .08em; }
 html[data-theme=teaparty] .panel > h2 { font-size: 15px; letter-spacing: .06em; font-weight: 700; text-transform: none; font-variant: small-caps; }
 html[data-theme=teaparty] .panel { box-shadow: 0 2px 0 var(--line), 0 10px 30px rgba(90, 60, 20, .12); }
 html[data-theme=teaparty] .btn { font-weight: 700; }
-html[data-theme=teaparty] .gate, html[data-theme=teaparty] .look-sheet .sheet { box-shadow: 0 20px 60px var(--shade); }
-html[data-theme=teaparty] .swatchbox.checker {
-  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%), linear-gradient(-45deg, var(--line) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--line) 75%), linear-gradient(-45deg, transparent 75%, var(--line) 75%);
-  background-color: var(--ink-2);
-}
+html[data-theme=teaparty] .gate, html[data-theme=teaparty] .look-sheet .sheet, html[data-theme=teaparty] .share-sheet { box-shadow: 0 20px 60px var(--shade); }
 /* the teacup, left on the table */
 html[data-theme=teaparty] body::after {
   content: '☕'; position: fixed; right: -2vmin; bottom: -4vmin; z-index: -1; font-size: 42vmin; line-height: 1;
