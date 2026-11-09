@@ -220,7 +220,13 @@ every key.
 - **The assistant** is the chat the bridge carries (next section): what you
   type goes to whoever is connected, what they say comes back here, and
   everything they do to the room is listed as it happens. The header's chip
-  says who is on the bridge.
+  says who is on the bridge. In the classic look the panel is a **dock** at
+  the bottom right of the screen - the foot of the guide's column on a wide
+  window - folded to its heading until an assistant says hello or the guide
+  asks a question, so the board, the current step and the question are on
+  screen together; the heading folds and opens it, and counts what came in
+  while it was folded (`html[data-dock-open]`, the rules in `styles.css`).
+  In the phone looks it is the Chat mode.
 
 The room is kept in the browser (`localStorage` `alice.maker.level`, the
 shelf under `alice.maker.shelf`, the overlays and zoom under

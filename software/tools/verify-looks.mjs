@@ -193,6 +193,29 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
     if (named && sides !== 1) say(`${page}: <html data-learn="side"> wants exactly one <section class="panel side ..."> in main, found ${sides}`);
     if (!named && sides) say(`${page}: a side panel without data-learn="side" on <html> never leaves the page`);
   }
+  // the dock at the column's foot (the maker's assistant chat): class dock, styles.css's in the classic look only - folded to its
+  // heading until html[data-dock-open], the side panel's grid area beside the guide (end-aligned, sticky to the bottom), fixed over
+  // the right edge elsewhere; the column and the drawer stop above it (--dock-h, measured by the page); nothing in the phone looks
+  for (const sel of ['html[data-look=classic] .dock {', 'html[data-look=classic][data-learn=side] main > .dock {', 'html[data-look=classic]:not([data-dock-open]) .dock > :not(h2) { display: none; }',
+                     'html[data-look=classic][data-dock-open] .dock { max-height:', 'html[data-look=classic] .dock > h2 { margin: 0; cursor: pointer;', 'html[data-look=classic] .dock-fold { display: inline-grid; }',
+                     '.dock > h2 { display: flex;', '.dock-fold { display: none;', '.dock-new { display: none;'])
+    if (!css.includes(sel)) say(`styles.css: no ${sel} (the dock at the column's foot)`);
+  if (!/main > \.dock \{\s*position: sticky;[^}]*grid-column: 2; grid-row: 1 \/ span 12; align-self: end;/.test(css)) say('styles.css: beside the guide the dock shares the side panel\'s grid area, end-aligned and sticky to the bottom');
+  if (!/main > \.side \{[^}]*- var\(--dock-h, 0px\)/.test(css) || !/#learnPanel \{[^}]*bottom: calc\(var\(--pad-h, 0px\) \+ var\(--dock-h, 0px\)\)/.test(css)) say('styles.css: the column\'s max-height and the drawer\'s bottom leave the dock its room (--dock-h)');
+  if (!/html\[data-look=classic\] \.dock \{\s*position: fixed; right: 0; bottom: var\(--pad-h, 0px\);/.test(css)) say('styles.css: away from the column the dock is fixed over the right edge, above the on-screen pad');
+  if (/html:not\(\[data-look=classic\]\)[^\n]*\.dock/.test(css) || /\.dock[^\n]*data-flip|data-flip[^\n]*\.dock/.test(css)) say('styles.css: the dock has no rule in the phone looks (the chat is a mode there) and none under the turn');
+  // a dock is wired by its page (--dock-h measured, html[data-dock-open] set), is never the side panel, and a page has one at most
+  for (const page of PAGES) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const docks = html.match(/<section class="panel[^"]*\bdock\b[^"]*"/g) ?? [];
+    if (docks.length > 1) say(`${page}: one dock at most, found ${docks.length}`);
+    if (docks.some(d => /\bside\b/.test(d))) say(`${page}: a dock is never the side panel`);
+    if (docks.length) {
+      const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
+      const js = mod ? readFileSync(resolve(root, mod), 'utf8') : '';
+      if (!/setProperty\('--dock-h'/.test(js) || !/dataset\.dockOpen/.test(js)) say(`${page}: ${mod ?? 'its module'} must measure the dock into --dock-h and open it through html[data-dock-open]`);
+    }
+  }
   const flash = readFileSync(resolve(root, 'flash.html'), 'utf8');
   if (!/<section class="panel side" id="flashGuide">\s*<h2>Flash the badge from this page<\/h2>/.test(flash) || /data-learn-host/.test(flash)) say('flash.html: the steps panel is the page\'s guide (class side, #flashGuide), for everyone');
   if (/download<\/a> below/.test(flash)) say('flash.html: the steps stand beside the firmware on a wide window, so the note cannot say the download is "below"');
