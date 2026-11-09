@@ -223,9 +223,34 @@ link), `tool` / `setTool`, `brush` / `setBrush`, `symmetry` / `setSymmetry`,
 
 There is no server, so the only way to hand a room to someone is to put
 the whole room in the address: `?level=<token>` is that link, and nothing
-is uploaded. The **Share** dialog (*Send it in*, or `window.__maker.share`,
-or the bridge's `share` op) writes one and lets you choose:
+is uploaded. The **Share** dialog (*Share a link* under *Send it in*, or
+`window.__maker.share`, or the bridge's `share` op) writes one and lets you
+choose, the first two choices being the ones that matter:
 
+- **Where it opens.** *Play it* (the default) is the page that plays the
+  level: `index.html?level=` for a room, where it appears as a card of its
+  own, *Shared · name*, at the front of **Rooms**, opened and armed, blurb
+  and lesson with it, and played with the badge like any room (`?level=`
+  wins over `?room=`; a malformed link is reported in the room's status and
+  the page goes on); `glitch.html?level=` for a glitch level, the last tab of
+  its range, *· yours*. *Edit it* is `maker.html?level=`: on a checkout the
+  studio loads it (with `&play=1`, *straight into Run & debug*, it starts
+  playing it at once); on the published site it is the landing, which paints
+  the room in its hero (Alice walks its solution when the solver finds one
+  within 50,000 states, else the room is painted still) with a **Play it**
+  button under it. `sharePage(level, where)` in `src/level.js` is the rule:
+  `play` resolves to `stages` or `range` by the level, `studio` is the
+  maker, and a room sent to the range or a glitch level to the stages is
+  refused with the page that does play it. Either play page, handed the
+  other's token, says so in its status with a link to the right one.
+- **At which address.** *This checkout* (the default) is the page's own
+  address - `localhost`, so only whoever runs the checkout can open the
+  link; the status line says so. *The published site* is
+  `https://<owner>.github.io/<repo>/`: the fork's page when the maker is
+  served from one, else the official site, or whatever you type in the box
+  (remembered, like the choice). Anyone opens that one, and the badge plays
+  the room there. The guide's link steps ask for it when the bridge knows
+  the fork's page (`repoFacts`).
 - **How the link reads.** *Compact* is base64url of the room's JSON: short,
   safe in any chat, and the spelling every link made so far is, so old
   links keep working. *Readable JSON* is the JSON itself, percent-encoded
@@ -237,32 +262,25 @@ or the bridge's `share` op) writes one and lets you choose:
   **lesson**, the **blurb** and the **dressing** can be left out (`parts` in
   `shareUrl`). The JSON box shows exactly what the link carries; edit it and
   the link follows the edit until one of the parts is toggled again.
-- **Where it opens.** The same room, three doors: `maker.html?level=` on a
-  checkout is the studio, which loads it (with `&play=1`, "opens in Run &
-  debug", it starts playing it at once); `maker.html?level=` on the
-  published site is the landing, which paints that room in its hero (Alice
-  walks its solution when the solver finds one within 50,000 states, else
-  the room is painted still) and says under it where to play it;
-  `index.html?level=` is the stages page, where the room appears as a card
-  of its own, *Shared · name*, at the front of **Rooms**, opened and armed,
-  blurb and lesson with it, and played with the badge like any room
-  (`?level=` wins over `?room=`; a malformed link is reported in the
-  room's status and the page goes on). `shareUrl(base, level, { format,
-  play, parts })` builds the link, `shareInfo(url)` says how long it is.
-- **How long it is.** A room is a few hundred characters; a lesson of
+- **How long it is.** `shareUrl(base, level, { format, play, parts })`
+  builds the link, `shareInfo(url)` says how long it is. A room is a few hundred characters; a lesson of
   twelve long steps gets a link past 2,000, where some chats and QR codes
   cut it (the dialog warns), and past 8,000 it may not paste at all. The
   compact spelling, or fewer parts, makes it shorter.
 
-A link can carry a glitch level too (see *Glitch levels*): that one opens on
-`glitch.html?level=`, as a tab of its range. The stages page refuses it with a
-line that says where it does open, the landing points at the range page, and
-**Rooms** lists only the index's rooms - an entry whose `kind` is a range is
-the range page's.
+A link can carry a glitch level too (see *Glitch levels*): *play it* is
+`glitch.html?level=`, a tab of its range; the lesson, blurb and dressing
+boxes are greyed, a glitch level having none. The stages page refuses its
+token with a line that links to the range page, the landing's button points
+there, and **Rooms** lists only the index's rooms - an entry whose `kind` is
+a range is the range page's; `index.html?room=` naming one says so, with the
+link, and naming no room at all says that too.
 
-Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":false,"parts":{"lesson":false}}}`
-answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
-`maker_share`.
+Over the bridge, `{"op":"share","args":{"where":"play","at":"site","format":"json","parts":{"lesson":false}}}`
+answers `{ url, token, chars, format, where, at, page, warnings }` with
+`where` resolved (`stages` here); `where` defaults to `play`, `at` to
+`here`, and `site` names a published site of your own. The MCP tool is
+`maker_share`, with the same arguments.
 
 ## Building with an AI, step by step
 

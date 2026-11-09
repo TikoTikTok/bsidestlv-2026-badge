@@ -26,7 +26,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { request } from 'node:http';
-import { blank, setCell, resize, lint, check, kindOf, isGlitch, toModule, fromModule, encodeShare, decodeShare, shareUrl, shareInfo,
+import { blank, setCell, resize, lint, check, kindOf, isGlitch, toModule, fromModule, encodeShare, decodeShare, shareUrl, shareInfo, sharePage, SHARE_WHERE,
          SHARE_PARTS, SHARE_LONG, SHARE_TOO_LONG, idOf, normalize,
          lineCells, rectCells, regionCells, paintCells, mirrorCells, flipH, flipV, rotate, shift, analyse, difficulty,
          STARTERS, rng, generate, generateSolvable, lessonToText, lessonFromText } from '../../src/level.js';
@@ -199,6 +199,14 @@ console.log('a room in a link: both spellings, a pasted link, the old token, wha
   ok(long.length > SHARE_LONG && long.length <= SHARE_TOO_LONG && shareInfo(long).warnings.length === 1 && /cut/.test(shareInfo(long).warnings[0]), `a link of ${long.length} characters warns that chats and QR codes cut it`);
   ok(shareInfo('x'.repeat(SHARE_TOO_LONG + 1)).warnings.some(w => /not paste/.test(w)), `over ${SHARE_TOO_LONG} it may not paste at all`);
   ok(SHARE_LONG === 2000 && SHARE_TOO_LONG === 8000, 'the thresholds are 2,000 and 8,000 characters');
+  // sharePage: where a link opens - play (the default) is the page that plays the level
+  const lockLevel = rangeBlank('lock', 'Which way?'), door = (a, b) => JSON.stringify(a) === JSON.stringify(b);   // same() reads rooms; a door is { where, page }
+  ok(SHARE_WHERE.join() === 'play,studio,stages,range', 'the places a link may open: play (the default), studio, stages, range');
+  ok(door(sharePage(TEA_PARTY), { where: 'stages', page: 'index.html' }) && door(sharePage(TEA_PARTY, 'play'), { where: 'stages', page: 'index.html' }) && door(sharePage(TEA_PARTY, 'stages'), { where: 'stages', page: 'index.html' }), 'play, for a room, is the stages page');
+  ok(door(sharePage(lockLevel), { where: 'range', page: 'glitch.html' }) && door(sharePage(lockLevel, 'range'), { where: 'range', page: 'glitch.html' }), 'play, for a glitch level, is the range page');
+  ok(sharePage(TEA_PARTY, 'studio').page === 'maker.html' && sharePage(lockLevel, 'studio').page === 'maker.html', 'studio is maker.html for either');
+  for (const [lvl, where, re, what] of [[TEA_PARTY, 'range', /a room plays on the stages page/, 'a room sent to the range page'], [lockLevel, 'stages', /a glitch level plays on the range page/, 'a glitch level sent to the stages page'], [TEA_PARTY, 'landing', /no such place 'landing'/, 'a place that is not one']])
+    try { sharePage(lvl, where); fail(`${what} should be refused`); } catch (e) { ok(re.test(e.message), `${what} is refused: ${e.message}`); }
 }
 
 console.log('a blurb and a lesson travel with a room');
@@ -566,7 +574,7 @@ console.log('the bridge carries commands to a page and its answers back');
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
         else if (cmd.op === 'tutorial') await api('POST', '/reply', { id: cmd.id, result: { id: cmd.args?.id ?? 'roses', title: cmd.args?.id ?? 'Painting the Roses', step: 'blank', at: 0, of: 13 } });
         else if (cmd.op === 'check') await api('POST', '/reply', { id: cmd.id, error: 'the room is malformed' });
-        else if (cmd.op === 'share') { const url = shareUrl(`http://localhost/${cmd.args.where === 'stages' ? 'index' : 'maker'}.html`, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: cmd.args.where ?? 'studio' } }); }
+        else if (cmd.op === 'share') { const door = sharePage(TEA_PARTY, cmd.args.where ?? 'play'); const url = shareUrl(new URL(door.page, cmd.args.at === 'site' ? cmd.args.site : 'http://localhost/').href, TEA_PARTY, cmd.args); await api('POST', '/reply', { id: cmd.id, result: { url, token: new URL(url).searchParams.get('level'), ...shareInfo(url), where: door.where, at: cmd.args.at ?? 'here', page: door.page } }); }
         else if (cmd.op === 'pr') await api('POST', '/reply', { id: cmd.id, result: { ...prParts(TEA_PARTY, { author: cmd.args?.author }), brief: prPrompt('https://github.com/someone/their-badge', TEA_PARTY, { author: cmd.args?.author }) } });
         else if (cmd.op === 'patch') { patched.push(cmd.args); await api('POST', '/state', { level: { ...TEA_PARTY, ...cmd.args }, lint: [], report: null, tutorial: lastTutorial }); await api('POST', '/reply', { id: cmd.id, result: { level: { ...TEA_PARTY, ...cmd.args }, lint: [], kind: 'tea' } }); }
         else if (cmd.op === 'load') await api('POST', '/reply', { id: cmd.id, result: { level: blank(9, 7), lint: lint(blank(9, 7)) } });
@@ -662,7 +670,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && r.body.ran?.length === 1 && r.body.ran[0].op === 'patch' && patched.at(-1)?.blurb === 'A tiny room with a big idea.' && r.body.step.id === 'keep', 'run: the bridge does the step\'s plan through the page (patch) and moves on');
   ok(applyAnswer(guideStep('fast', 6, {}), 'Push, think, push again.', {}).vars.blurb === 'Push, think, push again. Mind the corners.', 'a prefix of an option is that option');
   r = await api('POST', '/guide', { run: true });
-  ok(r.body.did === 'ran' && r.body.ran[0].op === 'share' && r.body.ran[0].result.url.includes('index.html?level=') && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'run on a step with a plan before its ask: the share link, on the stages page');
+  ok(r.body.did === 'ran' && r.body.ran[0].op === 'share' && r.body.ran[0].result.url.startsWith('https://someone.github.io/their-badge/index.html?level=') && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'play' && seen.at(-1).args.at === 'site' && seen.at(-1).args.site === 'https://someone.github.io/their-badge/', 'run on a step with a plan before its ask: the share link, where the room plays, at the fork\'s published page');
   r = await api('POST', '/guide', { answer: 'Just the link for now' });
   ok(r.body.did === 'finish' && r.body.step.id === 'finish', 'Just the link skips to the finish');
   r = await api('POST', '/guide', { answer: 'The full tour' });
@@ -730,7 +738,7 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(init.result?.serverInfo?.name === 'alice-maker' && init.result.capabilities.tools, 'mcp: initialize');
   const tools = (await call('tools/list')).result.tools;
   ok(tools.length >= 15 && tools.every(t => t.name.startsWith('maker_') && t.inputSchema?.type === 'object' && t.description), `mcp: ${tools.length} tools, all described`);
-  ok(tools.some(t => t.name === 'maker_share' && t.inputSchema.properties.format?.enum?.includes('json') && t.inputSchema.properties.where?.enum?.includes('stages') && t.inputSchema.properties.parts), 'mcp: maker_share is a tool, with the format, the place and the parts');
+  ok(tools.some(t => t.name === 'maker_share' && t.inputSchema.properties.format?.enum?.includes('json') && t.inputSchema.properties.where?.enum?.join() === 'play,studio,stages,range' && t.inputSchema.properties.at?.enum?.join() === 'here,site' && t.inputSchema.properties.site && t.inputSchema.properties.parts && /"play" \(the default\)/.test(t.description)), 'mcp: maker_share is a tool, with the format, the place (play by default), the address and the parts');
   let c = await call('tools/call', { name: 'maker_status', arguments: {} });
   ok(!c.result.isError && JSON.parse(c.result.content[0].text).page === true, 'mcp: maker_status sees the page');
   c = await call('tools/call', { name: 'maker_get', arguments: {} });
@@ -742,6 +750,9 @@ console.log('the bridge carries commands to a page and its answers back');
   c = await call('tools/call', { name: 'maker_share', arguments: { format: 'json', where: 'stages' } });
   const link = c.result.isError ? null : JSON.parse(c.result.content[0].text);
   ok(link && link.url.startsWith('http://localhost/index.html?level=') && link.format === 'json' && link.chars === link.url.length && same(decodeShare(link.url), TEA_PARTY) && seen.at(-1).op === 'share' && seen.at(-1).args.where === 'stages', 'mcp: maker_share asks the page for a link, and the link carries the room');
+  c = await call('tools/call', { name: 'maker_share', arguments: { at: 'site', site: 'https://someone.github.io/their-badge/' } });
+  const siteLink = c.result.isError ? null : JSON.parse(c.result.content[0].text);
+  ok(siteLink && siteLink.url.startsWith('https://someone.github.io/their-badge/index.html?level=') && siteLink.where === 'stages' && siteLink.at === 'site' && seen.at(-1).args.at === 'site', 'mcp: maker_share with nothing but the site makes the link where the room plays, at the published site');
   ok(tools.some(t => t.name === 'maker_pr_brief' && /pull request/.test(t.description) && t.inputSchema.properties.author), 'mcp: maker_pr_brief is offered, with the author');
   c = await call('tools/call', { name: 'maker_pr_brief', arguments: { author: 'the verifier over MCP' } });
   const pr = c.result.isError ? null : JSON.parse(c.result.content[0].text);
@@ -847,12 +858,18 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/stages\/community\/index\.json/.test(js), 'the maker lists the community rooms');
   ok(/lessonFromText/.test(js) && /tell\('lesson'/.test(js), 'the studio edits the lesson as text and tells the tutorial');
   // a room in a link: the Share dialog (the studio's, at the end of the page), the landing's note, the studio's part
-  for (const id of ['shareBtn', 'shareDialog', 'shareUrl', 'shareCopy', 'shareOpen', 'sharePlay', 'shareStatus', 'shareJson', 'shareClose'])
+  for (const id of ['shareBtn', 'shareDialog', 'shareTitle', 'shareWhat', 'shareUrl', 'shareCopy', 'shareOpen', 'sharePlay', 'sharePlayPage', 'shareHere', 'shareSite', 'shareStatus', 'shareJson', 'shareClose'])
     ok(new RegExp(`id="${id}"`).test(html), `the Share dialog has #${id}`);
   ok(/<dialog id="shareDialog" class="ai share dev-only"/.test(html) && html.indexOf('id="shareDialog"') > html.indexOf('id="keysDialog"'), 'the Share dialog is the studio\'s (dev-only) and comes after the keys dialog, at the end of the page');
   for (const p of SHARE_PARTS) ok(new RegExp(`<input type="checkbox" data-part="${p}" checked>`).test(html), `the Share dialog offers the ${p}, on by default`);
   ok(/name="shareFormat" value="b64" checked/.test(html) && /name="shareFormat" value="json"/.test(html), 'the Share dialog offers the compact and the readable link, compact by default');
-  ok(/name="shareWhere" value="studio" checked/.test(html) && /name="shareWhere" value="stages"/.test(html), 'the Share dialog offers the studio and the stages page');
+  ok(/name="shareWhere" value="play" checked/.test(html) && /name="shareWhere" value="studio"/.test(html) && html.indexOf('name="shareWhere"') < html.indexOf('data-part="lesson"') && html.indexOf('name="shareWhere"') < html.indexOf('name="shareFormat"'), 'the Share dialog offers play it (the default) and edit it, before what goes in and how the link reads');
+  ok(/name="shareAt" value="here" checked/.test(html) && /name="shareAt" value="site"/.test(html) && /<input id="shareSite" type="text"/.test(html), 'the Share dialog offers this checkout\'s address (the default) and the published site\'s, with a box for the site');
+  ok(/<button type="button" id="shareBtn" class="btn ghost">Share a link<\/button>/.test(html) && /<h2 id="shareTitle">Share this room<\/h2>/.test(html) && /<b>Play it<\/b> is the\s+page the badge plays it on/.test(html), 'the export\'s button says Share a link, and the dialog says what play it and edit it mean');
+  ok(/function shareLink\(\{ format = 'b64', where = 'play', at = 'here', site, play = false, parts = \{\} \} = \{\}, room = level\)/.test(js) && /const door = sharePage\(room, where\);/.test(js) && /play: !!play && door\.where === 'studio'/.test(js), 'shareLink defaults to play it at this address, resolves the page through sharePage, and play=1 rides along for the studio only');
+  ok(/const SITE_URL = pagesUrl\(repoParts\(repo\)\?\.owner \?\? 'bsidestlv', repo\);/.test(js) && /prefs\.share = \{ at: 'here', site: ''/.test(js) && /if \(i\.name === 'shareAt'\) \{ prefs\.share\.at = i\.value; savePrefs\(\); \}/.test(js), 'the published site is the page\'s own, and the address picked is remembered');
+  ok(/\$\('#shareTitle'\)\.textContent = glitch \? 'Share this level' : 'Share this room';/.test(js) && /\$\('#sharePlayPage'\)\.textContent = glitch \? 'the range page' : 'the stages page';/.test(js) && /\$\('#sharePlay'\)\.disabled = o\.where !== 'studio';/.test(js) && /shareSiteEl\.disabled = o\.at !== 'site';/.test(js), 'the dialog\'s words follow the category, and Run & debug and the site\'s box are live only when they apply');
+  ok(/playLink\(`index\.html\?level=\$\{encodeURIComponent\(sharedToken\)\}`, 'Play it on the stages page'\)/.test(js) && /className: 'btn', textContent: text/.test(js), 'the landing\'s note makes Play it the button');
   ok(/<p id="sharedNote" class="note site-only[^"]*" hidden>/.test(html), '#sharedNote is the landing\'s (site-only), hidden until a link brings a room');
   ok(/shareUrl\(/.test(js) && /shareInfo\(/.test(js) && /decodeShare\(sharedToken\)/.test(js) && /SHARE_PARTS/.test(js), 'src/maker.js makes and reads the link through src/level.js');
   ok(/tell\('export', \{ how: 'link', format: /.test(js), 'the Share dialog tells the tutorial it made a link, with its format and length');
@@ -882,6 +899,8 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/base: 'stages\/community\/'/.test(glitch) && /stages\/community\/index\.json/.test(glitch) && /' · community'/.test(glitch) && /' · yours'/.test(glitch), 'src/glitch.js adds every listed range level as a "· community" tab and the address\'s as "· yours"');
   ok(glitch.indexOf('await openGate(') < glitch.indexOf("get('level')") && glitch.indexOf('window.__range.ready = ') > glitch.indexOf('requestAnimationFrame(tick);'), 'the token is read after the gate, and nothing on the page waits on it');
   ok(/community, shared, ready: null/.test(glitch), 'window.__range exposes community, shared and ready for headless checks');
+  ok(/'that is a room, not a glitch level'/.test(glitch) && /if \(level\?\.rows && !isGlitch\(level\)\) watchStatus\.append\(' - ', Object\.assign\(document\.createElement\('a'\), \{ href: `index\.html\?level=\$\{encodeURIComponent\(token\)\}`, textContent: 'play it on the stages page' \}\)\);/.test(glitch), 'a room\'s token on the range page is refused with a link to the stages page that plays it');
+  ok(/^\.status a \{ color: var\(--accent\); \}/m.test(css), 'styles.css colours a link inside a status line');
   for (const k of RANGE_KINDS) ok(new RegExp(`${k}: add${k[0].toUpperCase()}${k.slice(1)}Tab`).test(glitch), `src/glitch.js can add a ${k} tab`);
   // the stages page plays the community's rooms
   const stages = readFileSync(resolve(root, 'index.html'), 'utf8');
@@ -892,17 +911,18 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   // and a room that came in a link, as a card of its own
   ok(/import \{ decodeShare, lint, kindOf, isGlitch \} from '\.\/level\.js'/.test(gallery) && /function openShared\(token\)/.test(gallery) && /openRoom, openShared \}/.test(gallery), 'src/gallery.js reads a ?level= link through src/level.js and exposes openShared');
   ok(/id: 'shared', name: level\.name, author: 'a link', kind: kindOf\(level\), shared: true/.test(gallery) && /`Shared · \$\{r\.name\}`/.test(gallery) && /room-card\$\{r\.shared \? ' shared' : ''\}/.test(gallery), 'the shared room is a card "Shared · <name>", class room-card shared, in rooms as id shared');
-  ok(/q\.get\('level'\) !== null\) openShared\(q\.get\('level'\)\);\s*else if \(rooms\.some/.test(gallery), '?level= wins over ?room=');
+  ok(/q\.get\('level'\) !== null\) openShared\(q\.get\('level'\)\);\s*else if \(q\.get\('room'\) !== null\)/.test(gallery), '?level= wins over ?room=, and any ?room= shows the Rooms panel, where the status says what it named');
+  ok(/const roomSay = \(text, kind = '', link = null\)/.test(gallery) && /"\$\{glitch\.name \?\? wanted\}" is a glitch level, not a room: `, 'hot', \{ href: 'glitch\.html'/.test(gallery) && /no community room "\$\{wanted\}"/.test(gallery), '?room= naming a glitch level, or nothing in the index, is said so in the status - the range page linked');
   // a range level is not a room: Rooms lists only the index's rooms, and a link that carries a glitch level is sent to the range page
   ok(/\.filter\(s => !s\.kind \|\| s\.kind === 'tea' \|\| s\.kind === 'chase'\)/.test(gallery), 'the stages page lists the index\'s rooms only: a range level (kind = its range) is glitch.html\'s');
-  ok(/if \(isGlitch\(level\)\) throw new Error\('it is a glitch range level/.test(gallery), 'a link that carries a glitch level is refused on the stages page, with where it does open');
+  ok(/if \(isGlitch\(level\)\) \{ roomSay\(`the link carries a glitch level, "\$\{level\.name\}", not a room: `, 'hot', \{ href: `glitch\.html\?level=\$\{encodeURIComponent\(token\)\}`, text: 'play it on the range page' \}\); return null; \}/.test(gallery), 'a link that carries a glitch level is refused on the stages page, with a link to the range page that plays it');
   ok(/const sharedGlitch = /.test(js) && /&& !sharedGlitch;/.test(js) && /glitch\.html\?level=\$\{encodeURIComponent\(sharedToken\)\}/.test(js), 'the landing sends a shared glitch level to the range page and keeps it out of the hero');
   {
     const index = JSON.parse(readFileSync(resolve(root, 'stages/community/index.json'), 'utf8'));
     const kept = (index.stages ?? []).filter(s => !s.kind || s.kind === 'tea' || s.kind === 'chase');
     ok(kept.length > 0 && kept.every(s => !RANGE_KINDS.includes(s.kind)) && (index.stages ?? []).some(s => RANGE_KINDS.includes(s.kind)), `the index holds ${kept.length} room(s) for the stages page and at least one range level it leaves to glitch.html`);
   }
-  ok(/the shared room could not be opened: \$\{e\.message\}`; \$\('#roomStatus'\)\.className = 'status hot'; return null;/.test(gallery), 'a link that is not a room is said so in #roomStatus (status hot) and nothing crashes');
+  ok(/catch \(e\) \{ roomSay\(`the shared room could not be opened: \$\{e\.message\}`, 'hot'\); return null; \}/.test(gallery), 'a link that is not a room is said so in #roomStatus (status hot) and nothing crashes');
   ok(/\.room-card\.shared \{/.test(css) && css.indexOf('.room-card.shared {') > css.indexOf('.room-card {'), 'styles.css styles the shared card next to .room-card');
   ok(/data-part="lesson"/.test(html) && !/shareDialog/.test(readFileSync(resolve(root, 'src/tutor.js'), 'utf8')), 'the dialog is the page\'s; the tutorial only hears the export event');
   const roomJs = readFileSync(resolve(root, 'src/room.js'), 'utf8');
@@ -935,7 +955,7 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/if \(from === 'page'\) bridge\?\.guide\(m\.id\)/.test(mod) && /if \(m\.tutorial\) \{ pickTutorial\(m\.tutorial\); if \(tutor\.done\) coach\.restart\(\); \}/.test(mod), 'a pick on the page goes up the bridge and puts the Rabbit\'s build under the coach; a pick from the assistant is not echoed');
   ok(/kind: 'tutorial', data: \{ id: picked, step: s\.id, at: tutor\.at, of: tutor\.steps\.length, done: tutor\.done \}/.test(mod) && /guideMode === 'tutorial' && bridge\?\.available/.test(mod), 'on the Rabbit a step done goes up the bridge as a line of kind tutorial');
   ok(/tutorial: tutorialSummary\(\), guide: guideMode \}/.test(mod), 'the mirror carries the page\'s tutorial and the way picked, so the bridge\'s Rabbit follows the page');
-  ok(/tell\('export', \{ how: 'link', format: r\.format, chars: r\.chars, where: r\.where \}\)/.test(mod) && /tell\('export', \{ how: 'pr' \}\)/.test(mod.slice(mod.indexOf('  pr: ('))), 'a link or a brief taken by the assistant counts as the room sent in');
+  ok(/tell\('export', \{ how: 'link', format: r\.format, chars: r\.chars, where: r\.where, at: r\.at \}\)/.test(mod) && /tell\('export', \{ how: 'pr' \}\)/.test(mod.slice(mod.indexOf('  pr: ('))), 'a link or a brief taken by the assistant counts as the room sent in');
   ok(/if \(\/\^\(guide\|welcome\|rabbit\)\\W\*\$\/i\.test\(text\)\)/.test(mod) && /get\('guide'\) === '1'\) showGuide\(null, \{ again: true \}\)/.test(mod), '"guide" typed in the chat, or ?guide=1, brings the banner back');
   ok(/guide: \{ show: \(name, o\) => showGuide\(name, o\), pick: pickGuide, get mode\(\)/.test(mod), 'window.__maker.guide for headless checks');
   const guideJs = readFileSync(resolve(root, 'src/guide.js'), 'utf8');
