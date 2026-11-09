@@ -251,12 +251,18 @@
 /* the landing's line under the hero when a link brought a room */
 .shared-note { border-left: 3px solid var(--accent); padding-left: .7rem; }
 .shared-note b { color: var(--text); }
+.shared-note .btn { display: block; width: max-content; max-width: 100%; margin: .5rem 0 .4rem; }   /* the one thing to press, on a line of its own */
 
 /* ------------------------------------------------------------ the share -- */
-/* the Share dialog: what goes in, how the link reads, where it opens, the link, the room's JSON */
+/* the Share dialog: where it opens and at which address (the row that matters), what goes in, how the link reads, the link, the level's JSON */
 
 .share { width: min(760px, 94vw); }
-.share-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin: .7rem 0 .8rem; }
+.share-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin: .7rem 0 .8rem; }
+.share .share-sub { margin-left: 1.3rem; color: var(--dim); }
+.share .share-sub:has(:disabled) { opacity: .5; }
+.share fieldset label:has(:disabled) { opacity: .5; cursor: default; }
+#shareSite { width: 100%; margin-top: .3rem; font: 11px/1.4 var(--font); letter-spacing: 0; }
+#shareSite:disabled { opacity: .5; }
 .share fieldset { margin: 0; padding: .4rem .7rem .55rem; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); min-width: 0; }
 .share legend { padding: 0 .3rem; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 .share fieldset label { display: flex; align-items: center; gap: .45rem; padding: .15rem 0; font-size: 12px; color: var(--text); cursor: pointer; }

@@ -38,13 +38,13 @@ import { TILE, THEMES, HAZARD_CAST, loadScene, drawCell, drawRoom } from './scen
 import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } from './chase.js';
 import { CHARS, BRUSHES, kindOf, isGlitch, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
-         idOf, encodeShare, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
+         idOf, encodeShare, decodeShare, shareUrl, shareInfo, sharePage, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
          flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
 import { MAKER_TUTORIALS, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
 import { GUIDE_MODES, modeById } from './guide.js';
-import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
+import { aiPrompt, prPrompt, prParts, prShort, repoParts, pagesUrl } from './invite.js';
 import { RANGE_KINDS, RANGE_NAMES, RANGE_FILES, RANGE_MAPS, RANGE_GLYPHS, POOL_BUTTONS, BUDGET, rangeBlank, wallListing, takeFor } from './rangecheck.js';
 import { loadStage, stageOf } from './seal.js';
 import { comboSequence, buildLevel, idealOffsetMs } from './range.js';
@@ -153,15 +153,16 @@ const sharedGlitch = !!sharedRoom && !sharedError && isGlitch(sharedRoom);   // 
 const sharedOk = !!sharedRoom && !sharedError && !sharedGlitch;
 {
   const note = $('#sharedNote');
+  const playLink = (href, text) => Object.assign(document.createElement('a'), { href, className: 'btn', textContent: text });   // the one thing to press
   if (sharedOk) {
     note.append('Someone shared a room with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
-                Object.assign(document.createElement('a'), { href: `index.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the stages page' }),
-                ', or open this same link in the studio of a checkout.');
+                playLink(`index.html?level=${encodeURIComponent(sharedToken)}`, 'Play it on the stages page'),
+                ' The badge plays it there like any room. This page only shows it; to edit it, open this same link in the studio of a checkout.');
     note.hidden = false;
   } else if (sharedGlitch) {
     note.append('Someone shared a glitch level with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
-                Object.assign(document.createElement('a'), { href: `glitch.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the range page' }),
-                ', or open this same link in the studio of a checkout.');
+                playLink(`glitch.html?level=${encodeURIComponent(sharedToken)}`, 'Play it on the range page'),
+                ' It is the last tab of its range there. To edit it, open this same link in the studio of a checkout.');
     note.hidden = false;
   } else if (sharedToken !== null) {
     note.textContent = `The link carries a room this page could not ${sharedRoom ? 'show' : 'read'}: ${sharedError}.`;
@@ -1312,65 +1313,114 @@ void KEYS;
 }
 
 // ----------------------------------------------------------------- the share ----
-// The room as one link (src/level.js shareUrl): nothing is uploaded, the whole
-// room travels in the address, so the same link opens it in the studio of any
-// checkout, as a playable card on the stages page (index.html?level=) and as
-// the hero of the published landing. The dialog (#shareDialog) lets the person
-// pick what goes in (the lesson, the blurb, the dressing), how the link reads
-// (compact base64url, or the JSON itself) and where it opens, shows the
-// room's JSON and follows an edit of it until the parts change, and says how
-// long the link is and when that is a problem. shareLink is the one answer:
-// the dialog, window.__maker.share and the bridge's op all go through it.
+// The level as one link (src/level.js shareUrl): nothing is uploaded, the
+// whole level travels in the address. Two choices decide the link, and the
+// first is the one that matters. WHERE it opens: "play it" (the default) is
+// the page that plays the level - index.html for a room, a card in Rooms the
+// badge plays, glitch.html for a glitch level, a tab of its range; "edit it"
+// is maker.html, the studio of a checkout, which on the published site is the
+// landing with the room in its hero (src/level.js sharePage). AT which
+// address: this page's (a checkout: localhost, so only whoever runs it can
+// open the link) or the published site's, which anyone opens - the fork's
+// page when this page is served from one, else the official site's, or
+// whatever the dialog's box says (remembered). Then what goes in (the lesson,
+// the blurb, the dressing) and how the link reads (compact base64url, or the
+// JSON itself). The dialog (#shareDialog) shows the level's JSON and follows
+// an edit of it until the parts change, and says how long the link is and
+// when that is a problem. shareLink is the one answer: the dialog,
+// window.__maker.share and the bridge's op all go through it.
 
 const shareDialog = $('#shareDialog');
-const shareUrlEl = $('#shareUrl'), shareJsonEl = $('#shareJson'), shareStatus = $('#shareStatus'), shareOpen = $('#shareOpen');
+const shareUrlEl = $('#shareUrl'), shareJsonEl = $('#shareJson'), shareStatus = $('#shareStatus'), shareOpen = $('#shareOpen'), shareSiteEl = $('#shareSite');
 let shareEdited = false, shareLast = null;      // the JSON box was edited by hand: the link follows it until the parts change
-const shareBase = (where) => new URL(where === 'stages' ? 'index.html' : 'maker.html', location.href).href;
-/** The link for `room` (the one on the board unless given) under { format, play, where, parts }: { url, token, chars, format, where, warnings }. */
-function shareLink({ format = 'b64', where = 'studio', play = false, parts = {} } = {}, room = level) {
-  if (where !== 'studio' && where !== 'stages') throw new Error(`no such place '${where}' (studio or stages)`);
-  const url = shareUrl(shareBase(where), room, { format, play: !!play, parts: parts ?? {} });
+const SITE_URL = pagesUrl(repoParts(repo)?.owner ?? 'bsidestlv', repo);     // where the site this page belongs to is published
+prefs.share = { at: 'here', site: '', ...(prefs.share ?? {}) };              // the address picked last time, and a site of one's own
+/** The published site's address as a base for a page: a scheme when none was typed, a file name dropped, a slash at the end. */
+function siteUrl(given) {
+  const s = String(given ?? prefs.share.site ?? '').trim() || SITE_URL;
+  const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s}`);
+  u.pathname = u.pathname.replace(/[^/]*\.html?$/i, '');
+  if (!u.pathname.endsWith('/')) u.pathname += '/';
+  u.search = ''; u.hash = '';
+  return u.href;
+}
+const shareBase = (page, at, site) => new URL(page, at === 'site' ? siteUrl(site) : location.href).href;
+/**
+ * The link for `room` (the level on the board unless given) under { where, at, site, format, play, parts }:
+ * { url, token, chars, format, where, at, page, warnings }. `where` is play (the default) / studio / stages / range
+ * (src/level.js sharePage; it comes back resolved), `at` here (this page's address) or site (the published site's,
+ * `site` naming another), `play` adds play=1 for the studio only, `parts` says which optional fields travel.
+ */
+function shareLink({ format = 'b64', where = 'play', at = 'here', site, play = false, parts = {} } = {}, room = level) {
+  if (at !== 'here' && at !== 'site') throw new Error(`no such address '${at}' (here: this page's, or site: the published site's)`);
+  const door = sharePage(room, where);
+  let base;
+  try { base = shareBase(door.page, at, site); } catch { throw new Error(`the site's address is not a URL: ${site ?? prefs.share.site}`); }
+  const url = shareUrl(base, room, { format, play: !!play && door.where === 'studio', parts: parts ?? {} });
   const info = shareInfo(url);
-  return { url, token: new URL(url).searchParams.get('level'), chars: info.chars, format: info.format, where, warnings: info.warnings };
+  return { url, token: new URL(url).searchParams.get('level'), chars: info.chars, format: info.format, where: door.where, at, page: door.page, warnings: info.warnings };
 }
 {
   const opts = () => ({
     format: shareDialog.querySelector('input[name="shareFormat"]:checked')?.value ?? 'b64',
-    where: shareDialog.querySelector('input[name="shareWhere"]:checked')?.value ?? 'studio',
+    where: shareDialog.querySelector('input[name="shareWhere"]:checked')?.value ?? 'play',
+    at: shareDialog.querySelector('input[name="shareAt"]:checked')?.value ?? 'here',
     play: $('#sharePlay').checked,
     parts: Object.fromEntries([...shareDialog.querySelectorAll('[data-part]')].map(i => [i.dataset.part, i.checked])),
   });
+  const DOOR = {   // the status line's first words: where the link opens
+    stages: 'opens on the stages page, where the badge plays it', range: 'opens on the range page, as the last tab of its range',
+    studio: 'opens in the studio of a checkout (the published site shows it on the landing)', debug: 'opens in Run & debug, in the studio of a checkout',
+  };
   function refresh() {
     const o = opts();
+    const glitch = isGlitch(level);
+    // the dialog's words follow the category and the choices
+    $('#shareTitle').textContent = glitch ? 'Share this level' : 'Share this room';
+    $('#shareWhat').textContent = glitch ? 'level in its address - every field of it' : 'room in its address - the map, its clock and cast, and whatever you tick below';
+    $('#sharePlayPage').textContent = glitch ? 'the range page' : 'the stages page';
+    $('#sharePlayPage').closest('label').title = glitch ? 'glitch.html: the last tab of its range, "· yours", armed' : 'index.html: a card in Rooms, "Shared · its name", armed; the badge plays it';
+    $('#sharePlay').disabled = o.where !== 'studio';
+    $('#shareHere').textContent = location.host || 'this page';
+    shareSiteEl.disabled = o.at !== 'site';
+    for (const i of shareDialog.querySelectorAll('[data-part]')) i.disabled = glitch;   // a glitch level has no lesson, blurb or dressing
     try {
       let room;
       if (shareEdited) room = decodeShare(shareJsonEl.value);
       else {
         room = normalize(level);
-        for (const p of SHARE_PARTS) if (!o.parts[p]) delete room[p];
+        if (!glitch) for (const p of SHARE_PARTS) if (!o.parts[p]) delete room[p];
         shareJsonEl.value = JSON.stringify(room, null, 2);
       }
       shareLast = shareLink({ ...o, parts: {} }, room);        // the parts are already out of `room`; an edit decides for itself
       shareUrlEl.value = shareLast.url;
       shareOpen.href = shareLast.url;
-      const bits = [`${shareLast.chars} characters`, o.format === 'json' ? 'readable JSON' : 'compact',
-                    o.where === 'stages' ? 'opens on the stages page' : o.play ? 'opens in Run & debug' : 'opens in the studio'];
+      const host = new URL(shareLast.url).host;
+      const bits = [DOOR[shareLast.where === 'studio' && o.play ? 'debug' : shareLast.where],
+                    o.at === 'site' ? `at ${host}, the published site: anyone opens it` : `at ${host}, this checkout: only whoever runs it opens it - pick the published site for anyone else`,
+                    `${shareLast.chars} characters`, o.format === 'json' ? 'readable JSON' : 'compact'];
       if (room.hazards?.length) bits.push(`${room.hazards.length} in the cast`);
       if (room.blurb) bits.push('the blurb');
       if (room.lesson?.length) bits.push(`a lesson of ${room.lesson.length}`);
       const problems = lint(room);
-      const warn = [...(problems.length ? [`the room is malformed: ${problems[0]}`] : []), ...shareLast.warnings];
+      const warn = [...(problems.length ? [`the ${glitch ? 'level' : 'room'} is malformed: ${problems[0]}`] : []), ...shareLast.warnings];
       shareStatus.textContent = [...bits, ...warn].join(' · ');
       shareStatus.className = `status${warn.length ? ' hot' : ''}`;
     } catch (e) {
       shareLast = null; shareUrlEl.value = ''; shareOpen.removeAttribute('href');
-      shareStatus.textContent = `the room: ${e.message}`; shareStatus.className = 'status hot';
+      shareStatus.textContent = `the link: ${e.message}`; shareStatus.className = 'status hot';
     }
   }
-  const told = () => tell('export', { how: 'link', format: shareLast?.format ?? 'b64', chars: shareLast?.chars ?? 0, where: shareLast?.where ?? 'studio' });
-  $('#shareBtn').addEventListener('click', () => { shareEdited = false; refresh(); shareDialog.showModal(); shareUrlEl.focus(); told(); });
-  for (const i of shareDialog.querySelectorAll('[data-part], input[name="shareFormat"], input[name="shareWhere"], #sharePlay'))
-    i.addEventListener('change', () => { if (i.dataset.part) shareEdited = false; refresh(); });
+  const told = () => tell('export', { how: 'link', format: shareLast?.format ?? 'b64', chars: shareLast?.chars ?? 0, where: shareLast?.where ?? 'play', at: shareLast?.at ?? 'here' });
+  $('#shareBtn').addEventListener('click', () => {
+    shareEdited = false;
+    shareDialog.querySelector(`input[name="shareAt"][value="${prefs.share.at === 'site' ? 'site' : 'here'}"]`).checked = true;   // the address is remembered; where it opens starts at play
+    shareSiteEl.value = prefs.share.site || SITE_URL;
+    refresh(); shareDialog.showModal(); shareUrlEl.focus(); told();
+  });
+  for (const i of shareDialog.querySelectorAll('[data-part], input[name="shareFormat"], input[name="shareWhere"], input[name="shareAt"], #sharePlay'))
+    i.addEventListener('change', () => { if (i.dataset.part) shareEdited = false; if (i.name === 'shareAt') { prefs.share.at = i.value; savePrefs(); } refresh(); });
+  shareSiteEl.addEventListener('input', () => { const v = shareSiteEl.value.trim(); prefs.share.site = v === SITE_URL ? '' : v; savePrefs(); refresh(); });
   shareJsonEl.addEventListener('input', () => { shareEdited = true; refresh(); });
   $('#shareCopy').addEventListener('click', async () => {
     if (!shareLast) return;
@@ -1532,8 +1582,8 @@ const ops = {
   },
   share: (a = {}) => {
     const r = shareLink(a);
-    tell('export', { how: 'link', format: r.format, chars: r.chars, where: r.where });
-    chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'stages' ? 'on the stages page' : 'in the studio'}`, 'act');
+    tell('export', { how: 'link', format: r.format, chars: r.chars, where: r.where, at: r.at });
+    chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'studio' ? 'in the studio' : `on the ${r.where} page`}, at ${r.at === 'site' ? 'the published site' : 'this checkout\'s address'}`, 'act');
     return r;
   },
   tutorial: ({ id, skip, restart } = {}) => {

@@ -621,12 +621,17 @@ const room = mountRoom({
 });
 const rooms = [];   // the index: { id, name, author, kind }; a room that came in a link sits at the front as { id: 'shared', ..., shared: true, level }
 const roomList = $('#roomList');
+/** The room's status line; `link` { href, text } when the answer is on another page, so the line takes the player there. */
+const roomSay = (text, kind = '', link = null) => {
+  const el = $('#roomStatus'); el.textContent = text; el.className = `status ${kind}`.trim();
+  if (link) el.append(Object.assign(document.createElement('a'), { href: link.href, textContent: link.text }));
+};
 const roomCard = (r) => {
   const b = document.createElement('button');
   b.type = 'button'; b.className = `room-card${r.shared ? ' shared' : ''}`; b.dataset.id = r.id;
   b.append(Object.assign(document.createElement('b'), { textContent: r.shared ? `Shared · ${r.name}` : r.name }),
            Object.assign(document.createElement('small'), { textContent: `${r.kind === 'chase' ? 'timed' : 'untimed'} · ${r.author}` }));
-  b.addEventListener('click', () => { armStage('rooms'); openRoom(r.id).catch((e) => { $('#roomStatus').textContent = `could not open ${r.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; }); });
+  b.addEventListener('click', () => { armStage('rooms'); openRoom(r.id).catch((e) => roomSay(`could not open ${r.id}: ${e.message}`, 'hot')); });
   return b;
 };
 async function openRoom(id, { tell = true } = {}) {
@@ -646,40 +651,49 @@ async function openRoom(id, { tell = true } = {}) {
  * maker's Share dialog writes one - as a card of its own at the front,
  * "Shared · <name>", opened and armed like any room, its blurb and lesson
  * with it; the badge plays it through the same player. A link that is not a
- * room is said so in the status and nothing else changes. Solve stays the
- * bench's. Returns the room, or null.
+ * room is said so in the status and nothing else changes - a glitch level's
+ * token is the range page's, and the status carries the link there. Solve
+ * stays the bench's. Returns the room, or null.
  */
 function openShared(token) {
   let level;
   try {
     level = decodeShare(token);
-    // a glitch range level is not a room: the same link opens it on the range page
-    if (isGlitch(level)) throw new Error('it is a glitch range level - open the same link on glitch.html');
-    const problems = lint(level); if (problems.length) throw new Error(problems.join('; '));
-  } catch (e) { $('#roomStatus').textContent = `the shared room could not be opened: ${e.message}`; $('#roomStatus').className = 'status hot'; return null; }
+    if (!isGlitch(level)) { const problems = lint(level); if (problems.length) throw new Error(problems.join('; ')); }
+  } catch (e) { roomSay(`the shared room could not be opened: ${e.message}`, 'hot'); return null; }
+  armStage('rooms');
+  if (looks.look.id !== 'classic') looks.setMode('rooms');
+  // a glitch range level is not a room: the same token opens it on the range page, and the status takes the player there
+  if (isGlitch(level)) { roomSay(`the link carries a glitch level, "${level.name}", not a room: `, 'hot', { href: `glitch.html?level=${encodeURIComponent(token)}`, text: 'play it on the range page' }); return null; }
   const entry = { id: 'shared', name: level.name, author: 'a link', kind: kindOf(level), shared: true, level };
   const old = rooms.findIndex(r => r.id === 'shared');
   if (old >= 0) rooms.splice(old, 1);
   rooms.unshift(entry);
   roomList.querySelector('.room-card.shared')?.remove();
   roomList.prepend(roomCard(entry));
-  openRoom('shared', { tell: false }).catch((e) => { $('#roomStatus').textContent = `the shared room could not be opened: ${e.message}`; $('#roomStatus').className = 'status hot'; });
-  armStage('rooms');
-  if (looks.look.id !== 'classic') looks.setMode('rooms');
+  openRoom('shared', { tell: false }).catch((e) => roomSay(`the shared room could not be opened: ${e.message}`, 'hot'));
   return level;
 }
 {
   const list = roomList;
+  let listed = [];   // every entry of the index, the glitch levels too
   try {
     const m = await (await fetch('stages/community/index.json', { cache: 'no-cache' })).json();
+    listed = m.stages ?? [];
     // the index also lists the community's glitch range levels (kind = the range): glitch.html plays those, not this panel
-    rooms.push(...(m.stages ?? []).filter(s => !s.kind || s.kind === 'tea' || s.kind === 'chase'));
+    rooms.push(...listed.filter(s => !s.kind || s.kind === 'tea' || s.kind === 'chase'));
   } catch { /* no index: the panel says so below */ }
   if (!rooms.length) list.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'No rooms yet. The level maker is where the first one is made.' }));
   for (const r of rooms) list.append(roomCard(r));
   const wanted = new URLSearchParams(location.search).get('room');
   const first = rooms.find(r => r.id === wanted) ?? rooms[0];
-  if (first) await openRoom(first.id, { tell: false }).catch((e) => { $('#roomStatus').textContent = `could not open ${first.id}: ${e.message}`; $('#roomStatus').className = 'status hot'; });
+  if (first) await openRoom(first.id, { tell: false }).catch((e) => roomSay(`could not open ${first.id}: ${e.message}`, 'hot'));
+  // ?room= naming what is not a room here: a glitch level is the range page's (the status takes the player there), anything else is not in the index
+  if (wanted !== null && !rooms.some(r => r.id === wanted)) {
+    const glitch = listed.find(s => s.id === wanted && s.kind && s.kind !== 'tea' && s.kind !== 'chase');
+    if (glitch) roomSay(`"${glitch.name ?? wanted}" is a glitch level, not a room: `, 'hot', { href: 'glitch.html', text: `play it on the range page, the last tab of the ${glitch.kind} range` });
+    else roomSay(`no community room "${wanted}"${first ? ` - ${first.name} is open instead` : ''}`, 'hot');
+  }
 }
 $('#roomReset').addEventListener('click', () => room.reset());
 $('#roomUndo').addEventListener('click', () => room.undo());
@@ -727,11 +741,11 @@ coach = mountCoach(tutor, {
 
 // ?level=<token> in the address is a room that came in a link: a card of its own, the one armed, and on a phone the one on
 // screen, whatever the tutorial's step says (play=1, the studio's, changes nothing here: the badge plays whatever is open).
-// Else ?room=<id> is the one armed.
+// Else ?room=<id> is the one armed - or, naming no room, the panel whose status says what it named.
 {
   const q = new URLSearchParams(location.search);
   if (q.get('level') !== null) openShared(q.get('level'));
-  else if (rooms.some(r => r.id === q.get('room'))) { armStage('rooms'); if (looks.look.id !== 'classic') looks.setMode('rooms'); }
+  else if (q.get('room') !== null) { armStage('rooms'); if (looks.look.id !== 'classic') looks.setMode('rooms'); }
 }
 
 // scripted tests read the stages through this (dev hosts; nothing here plays)
