@@ -8,7 +8,10 @@
 //   Code and the tools are there. By hand:
 //     claude mcp add alice-maker -- node software/tools/maker-mcp.mjs
 //   or any client: command `node`, args `software/tools/maker-mcp.mjs`,
-//   env MAKER_URL (default http://localhost:8080).
+//   env MAKER_URL (default http://localhost:8080). When another server holds
+//   that port (a proxy such as Burp, another site), the probe says so instead
+//   of taking its answer for the bridge, and maker_open starts the maker on
+//   the next free port it knows (the default + 10) and talks to it from then on.
 //
 // Every tool is one request to the bridge software/tools/maker-server.mjs
 // mounts under /__maker/ when `npm run maker` is serving the checkout; the
@@ -49,7 +52,7 @@ const LEVEL_SCHEMA = {
 
 const TOOLS = [
   { name: 'maker_status', description: 'Is the level maker serving and is its page open? Says how to get there when not. Call this first.', inputSchema: { type: 'object', properties: {} } },
-  { name: 'maker_open', description: 'Start `npm run maker` (the server and the bridge) and open maker.html in the browser, if nothing is listening yet. Returns the status.', inputSchema: { type: 'object', properties: { port: { type: 'number' } } } },
+  { name: 'maker_open', description: 'Start `npm run maker` (the server and the bridge) and open maker.html in the browser, if nothing is listening yet. When another server holds the port (a proxy such as Burp on 8080), the maker is started on the next port (the default + 10, or `port`) and this session talks to it from then on; the status says so. Returns the status.', inputSchema: { type: 'object', properties: { port: { type: 'number' } } } },
   { name: 'maker_get', description: 'The room on the page right now: the level, what lint says, the last Check, the game if one is running, the tool and brush in hand.', inputSchema: { type: 'object', properties: {} } },
   { name: 'maker_guide', description: `The White Rabbit's guide to building a first room WITH the person, one step at a time (src/guide.js). With no arguments: where things stand and the current step as plain instructions - what to SAY, what to ASK (one question, a few options; use your option buttons if you have them), what to DO on the board, when it is DONE. The ways: ${GUIDE_MODES.map(m => `${m.id} ("${m.title}", ${m.kicker})`).join(', ')}. After saying hello, call it with waitMs to wait for the person's pick on the welcome banner; mode picks a way for them (when they answered in words); answer passes their answer to the step's question (the guide decides: next step, this step again with the knobs turned, help, or why) - add run: true to have the bridge run the step's ops for you; help: true (with run) does the step for them when they ask for a shortcut; next / back / restart / step move along; show: true brings the banner back; vars sets what the steps fill in (name, theme, author…); platform ('claude', 'codex', 'cursor', 'copilot', 'gemini', 'hermes', 'grok', 'any') words the ask for your controls. Every question is shown on the page too, as buttons: when your own dialog comes back, call this first - "moved" or "already picked on the page" means they answered there; go on from the step it shows. Follow the text it returns exactly.`,
     inputSchema: { type: 'object', properties: { waitMs: { type: 'number' }, mode: { type: 'string', enum: GUIDE_IDS }, answer: { type: 'string' }, at: { type: 'number', description: 'with answer: the step (0-based, the `at` you were shown) the answer is for, so an answer to a step the person has already finished is not taken for the next one' }, run: { type: 'boolean' }, help: { type: 'boolean' }, next: { type: 'boolean' }, back: { type: 'boolean' }, restart: { type: 'boolean' }, step: { type: 'number' }, show: { type: 'boolean' }, vars: { type: 'object' }, platform: { type: 'string' } } } },
@@ -74,11 +77,16 @@ const TOOLS = [
   { name: 'maker_tutorial', description: `The studio's guided builds (the Learn panel on the page): which one the person is on, its current step (or 'done'), at / of. With no arguments it only reads. id opens one - ${MAKER_TUTORIALS.map(t => `${t.id} ("${t.title}", ${t.steps.length} steps)`).join(', ')}; skip skips that many steps (1 for the current one); restart starts it over. The coach line on the page follows, so say what you are doing.`, inputSchema: { type: 'object', properties: { id: { type: 'string', enum: MAKER_TUTORIALS.map(t => t.id) }, skip: { type: 'number' }, restart: { type: 'boolean' } } } },
 ];
 
+/** Whatever answers at MAKER_URL that is not the bridge: a proxy, another site on the port. */
+const notBridge = (text, status) => Object.assign(new Error(`something answers at ${base()}, but it is not the maker's bridge (${status}${/<title>([^<]*)</i.test(text) ? `, "${RegExp.$1.trim()}"` : ''}): another server owns that port. Call maker_open with another port (maker_open { port: ${(+new URL(base()).port || 8080) + 10} }), or run \`npm run maker -- --port 8090\` and set MAKER_URL=http://localhost:8090.`), { notBridge: true });
 async function api(method, path, body) {
   let res;
   try { res = await fetch(`${base()}/__maker${path}`, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); }
   catch (e) { throw new Error(`nothing is listening at ${base()} (${e.cause?.code ?? e.message}): run \`npm run maker\` in the checkout, or call maker_open`); }
-  const out = await res.json().catch(() => ({ error: `${res.status} from the bridge` }));
+  const text = await res.text();
+  let out = null;
+  try { out = JSON.parse(text); } catch { /* not JSON: not the bridge */ }
+  if (!out || typeof out !== 'object' || (path === '/' && out.bridge !== 1)) throw notBridge(text, res.status);
   if (!res.ok) throw new Error(out.error ?? `${res.status} from the bridge`);
   return out;
 }
@@ -87,23 +95,30 @@ let greeted = false;
 const greet = async () => { if (!greeted) { await api('POST', '/hello', { name: NAME }).catch(() => {}); greeted = true; } };
 
 async function open(port) {
-  const status = await api('GET', '/').catch(() => null);
+  let status = null, taken = null;
+  try { status = await api('GET', '/'); } catch (e) { if (e.notBridge) taken = e.message; }
   if (status) return status;
   const url = new URL(base());
-  const p = port ?? (+url.port || 8080);
+  const was = +url.port || 8080;
+  const p = port ?? (taken ? was + 10 : was);        // the port is somebody else's: the maker goes next door
   const child = spawn(process.execPath, [resolve(root, 'software/tools/maker.mjs'), '--port', String(p)], { cwd: root, stdio: 'ignore', detached: true });
   child.on('error', () => {}); child.unref();
   process.env.MAKER_URL = `http://localhost:${p}`;
   for (let i = 0; i < 40; i++) {
     await new Promise(r => setTimeout(r, 250));
     const s = await api('GET', '/').catch(() => null);
-    if (s) { greeted = false; return s; }
+    if (s) { greeted = false; return taken ? { ...s, note: `port ${was} is held by another server (${taken.split(':')[1]?.trim() ?? 'not the bridge'}); the maker is on port ${p} and this session talks to it from now on - open http://localhost:${p}/maker.html` } : s; }
   }
-  throw new Error(`started the maker on port ${p} but it did not answer in 10 s`);
+  process.env.MAKER_URL = url.origin;
+  throw new Error(`started the maker on port ${p} but it did not answer in 10 s${taken ? ` (port ${was} is held by another server)` : ''}`);
 }
 
 async function call(name, a = {}) {
-  if (name === 'maker_status') { const s = await api('GET', '/'); return s.page ? s : { ...s, hint: 'the server is up but no maker.html is open: open http://localhost:' + (new URL(base()).port || 80) + '/maker.html, or call maker_open' }; }
+  if (name === 'maker_status') {
+    let s;
+    try { s = await api('GET', '/'); } catch (e) { return { up: false, url: base(), reason: e.message, hint: e.notBridge ? `call maker_open { port: ${(+new URL(base()).port || 8080) + 10} }` : 'call maker_open' }; }
+    return s.page ? s : { ...s, hint: 'the server is up but no maker.html is open: open http://localhost:' + (new URL(base()).port || 80) + '/maker.html, or call maker_open' };
+  }
   if (name === 'maker_open') return open(a.port);
   await greet();
   switch (name) {

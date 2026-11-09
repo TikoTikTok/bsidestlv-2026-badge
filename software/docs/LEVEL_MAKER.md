@@ -406,7 +406,12 @@ Two ways in:
   `maker_tutorial` (which guided build the person is on and its step; pick
   one, skip a step, start over), `maker_patch` (set some fields of the room:
   name, dressing, blurb, lesson, the clock), `maker_guide` (the White
-  Rabbit's guide, above). No dependencies: JSON-RPC over stdio.
+  Rabbit's guide, above). No dependencies: JSON-RPC over stdio. The server
+  looks for the bridge at `MAKER_URL` (default `http://localhost:8080`);
+  when something else holds that port (a proxy such as Burp, another site)
+  it says so rather than taking the answer for the bridge, and `maker_open`
+  starts the maker on the next port (the default + 10, or the `port` given)
+  and talks to it from then on.
 - **HTTP.** Anything that can `curl`:
 
   ```
