@@ -1,6 +1,7 @@
 <!doctype html>
-<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json -->
-<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-mode="tea">
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json.
+     data-learn: where the Learn panel sits in the classic look - "side" (beside the stages: a column, or a drawer on a narrow window) or "page"; the boot script applies the remembered choice -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-mode="tea" data-learn="side">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -38,13 +39,14 @@
   <button type="button" class="mode help" data-mode="help" aria-label="elsewhere, and the looks">?</button>
 </nav>
 
-<!-- the tutorial's coach line: the current step, in every mode and look; src/tutor.js + src/coach.js drive it -->
+<!-- the tutorial's coach line: the current step, in every mode and look; src/tutor.js + src/coach.js drive it.
+     In the classic look it sticks under the header (styles.css); "learn" opens the Learn panel: the drawer on a narrow window, the panel itself otherwise. -->
 <div id="coach" class="coach" hidden>
   <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
   <span id="coachSay" class="coach-say"></span>
   <span class="coach-actions">
     <button type="button" id="coachSkip" class="btn ghost">skip</button>
-    <button type="button" id="coachOpen" class="btn ghost">learn</button>
+    <button type="button" id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false">learn</button>
   </span>
 </div>
 
@@ -137,8 +139,13 @@
     </div>
   </section>
 
+  <!-- The guide. In the classic look it sits beside the stages (html[data-learn=side], styles.css): a column at the right of a wide
+       window, a drawer over the right edge of a narrow one (the coach line's "learn" opens it, the × closes it); "unpin" puts it back
+       in the page, here. In the phone looks it is the Learn mode. src/coach.js wires the buttons. -->
   <section class="panel" id="learnPanel" data-mode="learn">
-    <h2>A Caucus Race <span id="learnProgress" class="armed-mark"></span></h2>
+    <h2>A Caucus Race <span id="learnProgress" class="armed-mark"></span>
+      <button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="Beside the stages, or in the page">unpin</button>
+      <button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×</button></h2>
     <p class="note">A guided first visit to the rooms. Each step watches what you do and ticks itself off;
       the line at the top of the page says what comes next wherever you are. Chapter one is the tea
       party, chapter two the gauntlet, chapter three a room the community made — skip what you like, it costs nothing.</p>

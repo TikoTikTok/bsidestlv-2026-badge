@@ -129,7 +129,8 @@ header and scrolling on its own, the current step first; on a narrow window
 the right edge that the coach line's *learn* and the panel's × open and
 close, the coach line itself sticking under the header so the step is always
 in view - and *unpin* in the panel's heading puts it back in the page, last
-(`alice.maker.learn`, `html[data-learn]`, `src/maker.css`). In the phone
+(`alice.learn`, `html[data-learn]`; the rules are `styles.css`'s and the
+wiring `src/coach.js`'s, the same on the stages and the range pages). In the phone
 looks the maker has a **mode bar** like the other pages - Learn, Studio,
 Play, Send, Chat and ? (the landing) - one panel on screen at a time, the
 tutorial following a step to its panel, Run & debug and *Back to the editor*

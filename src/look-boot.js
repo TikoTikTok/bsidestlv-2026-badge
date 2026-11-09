@@ -45,6 +45,16 @@
   var h = location.hostname;
   var dev = (h === '' || h === 'localhost' || h === '127.0.0.1' || h === '[::1]') && !(query && query.get('gate') === '1');
   html.dataset.host = dev ? 'dev' : 'site';
+  // the guide's place in the classic look (src/coach.js, styles.css): data-learn on
+  // <html> is the page's default, beside the stage; 'page' chosen last time on this
+  // device puts it back in the page. A page whose guide is the checkout's
+  // (data-learn-host="dev": the maker's studio) has none on the site.
+  if (html.dataset.learn) {
+    var learn = null;
+    try { learn = localStorage.getItem('alice.learn'); } catch (e) { learn = null; }
+    if (learn === 'page') html.dataset.learn = 'page';
+    if (!dev && html.dataset.learnHost === 'dev') delete html.dataset.learn;
+  }
   // the hand switch for a phone held upside down (src/tilt.js): '180' turns the
   // page before paint, by what the OS has not already turned it - a half turn,
   // or a quarter when auto-rotate parked the page in landscape on the way round
