@@ -4,6 +4,10 @@ Everything for the BSidesTLV 2026 badge: two KiCad boards, the RP2040 firmware
 that runs on it, and the online puzzle challenge — *Alice in AI Land* — that the
 badge is used to play.
 
+The challenge is live at **https://bsidestlv.github.io/bsidestlv-2026-badge/**:
+the stages, the glitch range, the flasher, the badge's vault and the level
+maker, published from `main` by the Pages workflow below.
+
 <p align="center">
   <img src="images/Controller-Front.jpeg" alt="The badge, front" width="380">
 </p>

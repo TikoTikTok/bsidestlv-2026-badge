@@ -4,16 +4,27 @@ Read this first. It is the map of the repo and the state of the work, so a new
 session does not have to rediscover it. Keep it current when the layout or the
 status below changes.
 
-Live site: https://bsidestlv.github.io/bsidestlv-2026-badge/
-Fork's site (deployed by `pages.yml` from the fork's `main`, plus whichever
-branch `pages.yml` lists while it is in progress; Pages source set to
-"GitHub Actions"): https://tikotiktok.github.io/bsidestlv-2026-badge/
-Upstream: `bsidestlv/bsidestlv-2026-badge` (this checkout is the `TikoTikTok`
-fork; `upstream` remote). The glitch labs merged into the fork's `main` on
-2026-10-06 (fork PR #1), the looks on 2026-10-08 (PR #3) and the badge gate
-with the site-wide looks and the third range after that, so fork `main` is
-well ahead of upstream `main` and no upstream PR exists yet. Branch from `origin/main`; never commit to `main`
-directly, land work there through a PR on the fork.
+Live site: https://bsidestlv.github.io/bsidestlv-2026-badge/ - the upstream
+repository `bsidestlv/bsidestlv-2026-badge`, deployed by `pages.yml` from its
+`main` (Pages source "GitHub Actions"; the Pages and Firmware workflows run
+there on every push that touches the site or the firmware).
+Fork: `TikoTikTok/bsidestlv-2026-badge` (`origin` in this checkout; `upstream`
+is the home), its site https://tikotiktok.github.io/bsidestlv-2026-badge/
+deployed the same way from the fork's `main`. All the work up to 2026-11-09
+(the glitch labs, the looks, the badge gate, the ranges, the level maker, the
+White Rabbit's guide, the level explorer) landed on the fork through its PRs
+#1-#38 and was merged into upstream `main` on 2026-11-09 as one PR, so the
+two `main`s are the same since. The account has write access upstream: branch
+from `upstream/main`, open the PR against upstream `main`, and push the merge
+to `origin/main` too so the fork stays in step. Never commit to either `main`
+directly.
+
+Every link the pages and the prompts carry is worked out from the host, not
+written in: `repoUrlFor()` in `src/maker.js` reads `<owner>.github.io/<repo>`
+(so the AI invitation on the live site says `bsidestlv/bsidestlv-2026-badge`
+and on a fork's site that fork), `repoFacts()` in `maker-server.mjs` reads a
+checkout's remotes, and the one written default everywhere (`src/maker.js`,
+`src/guide.js`, `src/invite.js`, `maker.html`) is the upstream URL.
 
 ## What this is
 
