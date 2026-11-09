@@ -224,7 +224,8 @@ const PLANS = {
   move: ({ report }) => (report?.ok && report.moves?.length ? [{ op: 'moves', args: { moves: [report.moves[0]] } }] : [{ op: 'check', args: {} }, { op: 'moves', args: { moves: ['<the first move Check returned>'] } }]),
   win: ({ report }) => (report?.ok && report.moves?.length ? [{ op: 'play', args: {} }, { op: 'moves', args: { moves: report.moves } }] : [{ op: 'check', args: {} }, { op: 'play', args: {} }, { op: 'moves', args: { moves: ['<the moves Check returned>'] } }]),
   blurb: ({ vars }) => [{ op: 'patch', args: { blurb: vars.blurb } }],
-  export: () => [{ op: 'share', args: { where: 'stages' } }],
+  // the link where the room plays, at the fork's published page when the bridge knows it (anyone opens that one; a checkout's address only its owner)
+  export: ({ page }) => [{ op: 'share', args: { where: 'play', ...(page ? { at: 'site', site: page } : {}) } }],
   // the fast lane
   paint: ({ vars }) => {
     const size = { width: vars.width ?? 11, height: vars.height ?? 8 };
@@ -237,7 +238,7 @@ const PLANS = {
   },
   solution: ({ report }) => (report?.ok && report.moves?.length ? [{ op: 'play', args: {} }, { op: 'moves', args: { moves: report.moves } }] : [{ op: 'check', args: {} }, { op: 'play', args: {} }, { op: 'moves', args: { moves: ['<the moves Check returned>'] } }]),
   words: ({ vars }) => [{ op: 'patch', args: { blurb: vars.blurb } }],
-  keep: () => [{ op: 'share', args: { where: 'stages' } }],
+  keep: ({ page }) => [{ op: 'share', args: { where: 'play', ...(page ? { at: 'site', site: page } : {}) } }],
   publish: ({ vars }) => [{ op: 'pr', args: { author: vars.author ?? '' } }],
   // the one-bite starter
   starter: ({ vars }) => [{ op: 'load', args: { id: vars.starter ?? 'corridor' } }, { op: 'patch', args: { name: vars.name } }, { op: 'check', args: {} }, { op: 'snapshot', args: { what: 'board' } }],
@@ -381,8 +382,8 @@ const FAST = [
   {
     id: 'keep', title: 'A link', next: 'answer', plan: 'keep', before: true,
     say: 'Making your room into a link - the whole room travels in the address, nothing is uploaded.',
-    why: 'Anyone with the link plays the room on the stages page of a checkout, and on the published site once it is merged. Your GitHub page is your fork\'s own site; the official site is the game\'s, where a maintainer plays a room before merging it.',
-    after: 'Paste the link in your chat (it opens the room as a card on the stages page of any checkout, and on the published site once the room is merged).',
+    why: 'The whole room travels in the link, so nothing has to be merged first: at your published page\'s address anyone opens it and the badge plays it there; a link at this checkout\'s address opens only for whoever runs it. Your GitHub page is your fork\'s own site; the official site is the game\'s, where a maintainer plays a room before merging it.',
+    after: 'Paste the link anywhere: it opens the room as a card on the stages page, where the badge plays it. At your published page\'s address anyone opens it; a link at this checkout\'s address opens only for you.',
     ask: {
       key: 'where', q: 'Where should "{name}" live?',
       options: [
@@ -523,7 +524,7 @@ const RABBIT_COACH = {
   win:   { say: 'Push the rock onto its button and walk to the door. B takes a move back, START starts over. Take your time - this is your puzzle.', help: { say: 'Watch Alice do it.', plan: 'win' }, ask: askRabbit('Out the door ✓') },
   blurb: { say: 'Give the room a line for its card - the box under the map. What it is about, not how to solve it.', help: { say: 'I\'ll write one in.', plan: 'blurb' },
            ask: { key: 'blurb', q: 'One line for the card?', options: [{ label: 'I wrote one ✓', hint: 'the blurb box has it', then: 'check' }, { label: 'You write one', hint: 'the assistant writes a line', value: 'A first room: one rock, one button, one way out.', then: 'help' }], other: { hint: 'or tell me the line here and I will type it', then: 'help' } } },
-  export:{ say: 'Last step: send it in. Copy a link (it carries the whole room), copy or download the module, or press "Open a pull request with your AI" and I will do the rest.', help: { say: 'Here is your room as a link.', plan: 'export' }, ask: askRabbit('Sent ✓') },
+  export:{ say: 'Last step: send it in. Share a link (it carries the whole room; "play it" at the published site is the one for a friend), copy or download the module, or press "Open a pull request with your AI" and I will do the rest.', help: { say: 'Here is your room as a link.', plan: 'export' }, ask: askRabbit('Sent ✓') },
 };
 
 /** The Rabbit's steps for the assistant: the page's build, step for step, plus the two closing steps of the fast lane. */
