@@ -1,0 +1,9 @@
+# the recordings and the renders are regenerated: record.mjs, then npx hyperframes render
+footage/
+out/
+.hyperframes/
+node_modules/
+assets/fonts/google.css
+assets/fonts/list.json
+footage-log*.txt
+render-log.txt
