@@ -216,6 +216,23 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
       if (!/setProperty\('--dock-h'/.test(js) || !/dataset\.dockOpen/.test(js)) say(`${page}: ${mod ?? 'its module'} must measure the dock into --dock-h and open it through html[data-dock-open]`);
     }
   }
+  // the rig (the maker's Run & debug): class rig, not a panel of its own in the classic look - styles.css keeps main > .rig out
+  // of the page there and the page moves its body into the panel it plays, armed; nothing fixed or sticky, nothing in the phone looks
+  if (!css.includes('html[data-look=classic] main > .rig { display: none; }')) say('styles.css: no html[data-look=classic] main > .rig { display: none; } (the rig plays inside another panel there)');
+  if (/\.rig\b[^\n]*position: (fixed|sticky)/.test(css) || /--rig-h/.test(css)) say('styles.css: the rig is never fixed or sticky and nothing keeps clear of it; its body is moved into the panel it plays');
+  if (/html:not\(\[data-look=classic\]\)[^\n]*\.rig\b/.test(css) || /\.rig\b[^\n]*data-flip|data-flip[^\n]*\.rig\b/.test(css)) say('styles.css: the rig has no rule in the phone looks (Run & debug is a mode there) and none under the turn');
+  for (const page of PAGES) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const rigs = html.match(/<section class="panel[^"]*\brig\b[^"]*"/g) ?? [];
+    if (rigs.length > 1) say(`${page}: one rig at most, found ${rigs.length}`);
+    if (rigs.some(r => /\b(side|dock)\b/.test(r))) say(`${page}: a rig is never the side panel or the dock`);
+    if (rigs.length) {
+      if (!/<section class="panel[^"]*\brig\b[^"]*"[^>]*>\s*<h2>[^]*?<\/h2>\s*<div id="rig" class="rig-body">/.test(html)) say(`${page}: the rig's body is <div id="rig" class="rig-body">, right after the panel's heading`);
+      const mod = html.match(/<script type="module" src="([^"]+)"/)?.[1];
+      const js = mod ? readFileSync(resolve(root, mod), 'utf8') : '';
+      if (!/\.after\(rig\)/.test(js) || !/classList\.toggle\('armed'/.test(js)) say(`${page}: ${mod ?? 'its module'} must move the rig's body into the panel it plays and arm that panel`);
+    }
+  }
   const flash = readFileSync(resolve(root, 'flash.html'), 'utf8');
   if (!/<section class="panel side" id="flashGuide">\s*<h2>Flash the badge from this page<\/h2>/.test(flash) || /data-learn-host/.test(flash)) say('flash.html: the steps panel is the page\'s guide (class side, #flashGuide), for everyone');
   if (/download<\/a> below/.test(flash)) say('flash.html: the steps stand beside the firmware on a wide window, so the note cannot say the download is "below"');
