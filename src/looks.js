@@ -324,6 +324,13 @@ export async function initLooks({ onLook = null, onTheme = null, onMode = null }
     sheet.close();
   });
 
+  // --- the header's height, for what sits under it in the classic look (the coach line sticks
+  // there, a panel scrolled to lands under it): --bar-h on <html>, kept current as the header wraps
+  const hdr = document.querySelector('header.bar');
+  const measureBar = () => html.style.setProperty('--bar-h', `${hdr?.offsetHeight ?? 0}px`);
+  measureBar();
+  if (hdr && 'ResizeObserver' in window) new ResizeObserver(measureBar).observe(hdr);
+
   // --- the mode bar: one panel on screen at a time in the phone looks. The
   // classic look shows every panel and ignores the mode; the buttons stay
   // wired so switching looks mid-page lands on the mode last picked.

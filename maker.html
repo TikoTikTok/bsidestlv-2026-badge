@@ -1,6 +1,8 @@
 <!doctype html>
-<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json -->
-<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench">
+<!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json.
+     data-learn: where the Learn panel sits in the classic look - "side" (beside the board: a column, or a drawer on a narrow window) or "page"; the boot script applies the remembered choice,
+     and drops it on the site (data-learn-host="dev"): the guide is the studio's, which only a checkout shows -->
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-mode="home" data-learn="side" data-learn-host="dev">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -30,13 +32,26 @@
   </div>
 </header>
 
-<!-- the tutorial's coach line (a checkout only): the current step of the guided build chosen in the Learn panel; src/tutor.js + src/coach.js drive it -->
+<!-- The phone looks show one thing at a time; this picks it. Hidden in the classic look, and the studio's
+     (dev-only): on the published site the landing is one page, every panel of it "home". The modes are
+     the panels' keys in src/maker.js (goTo), so a tutorial step that names its panel names its mode. -->
+<nav id="modes" class="modes dev-only" aria-label="what is on screen">
+  <button type="button" class="mode" data-mode="learn">Learn</button>
+  <button type="button" class="mode" data-mode="edit">Studio</button>
+  <button type="button" class="mode" data-mode="play">Play</button>
+  <button type="button" class="mode" data-mode="export">Send</button>
+  <button type="button" class="mode" data-mode="assistant">Chat</button>
+  <button type="button" class="mode help" data-mode="home" aria-label="the landing: what this page is, the keys">?</button>
+</nav>
+
+<!-- the tutorial's coach line (a checkout only): the current step of the guided build chosen in the Learn panel; src/tutor.js + src/coach.js drive it.
+     In the classic look it sticks under the header (styles.css); "learn" opens the Learn panel: the drawer on a narrow window, the panel itself otherwise. -->
 <div id="coach" class="coach dev-only" hidden>
   <span class="coach-step"><b id="coachTitle"></b><small id="coachCount"></small></span>
   <span id="coachSay" class="coach-say"></span>
   <span class="coach-actions">
     <button type="button" id="coachSkip" class="btn ghost">skip</button>
-    <button type="button" id="coachOpen" class="btn ghost">learn</button>
+    <button type="button" id="coachOpen" class="btn ghost" aria-controls="learnPanel" aria-expanded="false">learn</button>
   </span>
 </div>
 
@@ -44,7 +59,7 @@
   <!-- The landing: on the published site this is the whole page. On a local checkout
        (html[data-host=dev], src/look-boot.js) the studio and the run & debug bench below
        it are shown too; the site never carries them, only this invitation. -->
-  <section class="panel hero" id="hero">
+  <section class="panel hero" id="hero" data-mode="home">
     <div class="hero-room"><canvas id="heroCanvas" aria-label="a room painting itself, then Alice walking its solution"></canvas></div>
     <div class="hero-copy">
       <h1>Build a room for Alice</h1>
@@ -58,7 +73,7 @@
       </div>
       <p class="note site-only">The maker runs from a clone of the repository on your own machine, where the keyboard is
         allowed to play. This page is only the invitation; the published site plays from the badge alone.</p>
-      <p class="note dev-only">You are on a local checkout: the studio is below. <b>WASD</b> or the arrows move, <b>Z X C V</b> are
+      <p class="note dev-only">You are on a local checkout: the studio is below (behind <b>Studio</b> in the bar, on a phone). <b>WASD</b> or the arrows move, <b>Z X C V</b> are
         A B X Y, <b>Q E</b> the shoulders, <b>Enter</b> is START and <b>Backspace</b> SELECT. A badge on USB works too.
         New here? The line at the top walks you through your first room; <b>?</b> lists every key.</p>
       <!-- a room that came in a link (?level=): the landing paints it in the hero and says where it plays; src/maker.js fills this in -->
@@ -66,12 +81,13 @@
     </div>
   </section>
 
-  <section class="panel site-only">
+  <section class="panel site-only" data-mode="home">
     <h2>How it goes</h2>
     <ol class="steps three">
       <li><b>Fork, then clone.</b> A fork of your own is where your room lands first: its GitHub Pages site plays it the moment it
         is merged. Node 20 or newer is all the clone needs, no packages, no build; <code>npm run maker</code> serves the checkout
-        and opens the studio in your browser.</li>
+        and opens the studio. An assistant opens it in its own browser pane, beside its chat, so you watch the room and answer
+        on the page; by hand, in your browser.</li>
       <li><b>Draw, check, play.</b> Paint with the pencil, line, rectangle and fill tools, or type the map. <b>Check</b> runs the real solver and says how many
         moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
         <b>Surprise me</b> draws a solvable room from a seed when you want a start. With an assistant on the bridge, a welcome banner
@@ -84,7 +100,7 @@
     </ol>
   </section>
 
-  <section class="panel site-only" id="format">
+  <section class="panel site-only" id="format" data-mode="home">
     <h2>What a stage is</h2>
     <div class="format">
 <pre><code>// Stage: "A Small Garden"
@@ -118,7 +134,7 @@ export const A_SMALL_GARDEN = {
     </div>
   </section>
 
-  <section class="panel site-only" id="byhand">
+  <section class="panel site-only" id="byhand" data-mode="home">
     <h2>By hand</h2>
 <pre><code>git clone <span id="repoClone">https://github.com/bsidestlv/bsidestlv-2026-badge</span>.git
 cd bsidestlv-2026-badge
@@ -129,8 +145,8 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
   </section>
 
   <!-- ------------------------------------------------------------------ the studio: a local checkout only -- -->
-  <section class="panel dev-only" id="editPanel">
-    <h2>The room <span id="editName" class="tag"></span></h2>
+  <section class="panel dev-only" id="editPanel" data-mode="edit">
+    <h2>The room <span class="armed-mark">● playing</span> <span id="editName" class="tag"></span></h2>
 
     <!-- The category: a room for the stages page, or a level for one of the glitch range's five games.
          src/maker.js sets data-category on this panel; .room-only and .glitch-only hide by it (src/maker.css). -->
@@ -390,39 +406,47 @@ delay(n)      holds n ticks            ret      end</pre>
     <div id="verdict" class="verdict" hidden></div>
   </section>
 
-  <section class="panel dev-only" id="playPanel">
+  <!-- Run & debug. In the classic look it is not a panel of its own (class rig, styles.css): while a room is played
+       src/maker.js moves its body (#rig) into the editor, where the board was, and arms the editor - so the room, the badge,
+       the controls and the log are on the screen the room was painted on and nothing scrolls away from it; Back to the
+       editor / Esc bring the body back. In the phone looks it is the Play mode, one screen: the room above the badge above
+       the log. -->
+  <section class="panel rig dev-only" id="playPanel" data-mode="play">
     <h2>Run &amp; debug <span class="armed-mark">● armed</span></h2>
-    <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
-    <div class="run">
-      <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
-      <div class="run-side">
-        <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
-        <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, a real
-          badge on USB, or an assistant over the bridge. The log is every edge and what the room made of it.</p>
+    <div id="rig" class="rig-body">
+      <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
+      <div class="run">
+        <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
+        <div class="run-side">
+          <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
+          <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, a real
+            badge on USB, or an assistant over the bridge. The log is every edge and what the room made of it.</p>
+        </div>
       </div>
+      <div class="stage-bar">
+        <button type="button" id="editBtn" class="btn ghost">Back to the editor</button>
+        <button type="button" id="resetBtn" class="btn ghost">Reset</button>
+        <button type="button" id="undoBtn" class="btn ghost">Undo</button>
+        <button type="button" id="solveBtn" class="btn">Play the solution</button>
+        <span id="runStatus" class="status"></span>
+      </div>
+      <ol id="runLog" class="log bench" reversed></ol>
     </div>
-    <div class="stage-bar">
-      <button type="button" id="editBtn" class="btn ghost">Back to the editor</button>
-      <button type="button" id="resetBtn" class="btn ghost">Reset</button>
-      <button type="button" id="undoBtn" class="btn ghost">Undo</button>
-      <button type="button" id="solveBtn" class="btn">Play the solution</button>
-      <span id="runStatus" class="status"></span>
-    </div>
-    <ol id="runLog" class="log bench" reversed></ol>
   </section>
 
-  <section class="panel dev-only" id="exportPanel">
+  <section class="panel dev-only" id="exportPanel" data-mode="export">
     <h2>Send it in</h2>
     <div class="export">
       <div>
         <label class="field">Your name or handle, for the file's header <input id="author" type="text" maxlength="48" spellcheck="false"></label>
         <p class="note">The module goes in <code>stages/community/</code> as <code id="fileName">untitled.js</code>, plus one line in
           <code>stages/community/index.json</code>. <code>npm run stage -- stages/community/<span id="fileName2">untitled</span>.js</code>
-          says what CI will say; then open a pull request. A link carries the whole room, for a friend with a checkout.</p>
+          says what CI will say; then open a pull request. Or share a link: it carries the whole room in its address, and opens it
+          where it plays - on this checkout, or on the published site for anyone.</p>
         <div class="stage-bar">
           <button type="button" id="copyModule" class="btn">Copy the module</button>
           <button type="button" id="downloadModule" class="btn ghost">Download</button>
-          <button type="button" id="shareBtn" class="btn ghost">Copy a link</button>
+          <button type="button" id="shareBtn" class="btn ghost">Share a link</button>
           <button type="button" id="prBtn" class="btn ghost">Open a pull request with your AI</button>
           <span id="exportStatus" class="status"></span>
         </div>
@@ -433,9 +457,15 @@ delay(n)      holds n ticks            ret      end</pre>
     </div>
   </section>
 
-  <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens. -->
-  <section class="panel dev-only" id="assistantPanel">
-    <h2>The assistant <span id="bridgeState" class="tag">not connected</span></h2>
+  <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens.
+       In the classic look it is class dock (styles.css): the foot of the guide's column on a wide window, the bottom right
+       corner of a narrow one, folded to its heading until an assistant says hello or the guide asks (html[data-dock-open],
+       openDock in src/maker.js); the heading toggles it, #chatNew counts what came in while it was folded. In the phone
+       looks it is the Chat mode. -->
+  <section class="panel dock dev-only" id="assistantPanel" data-mode="assistant">
+    <h2>The assistant <span id="bridgeState" class="tag">not connected</span>
+      <span id="chatNew" class="dock-new" hidden></span>
+      <button type="button" id="chatFold" class="dock-fold" aria-expanded="false" aria-controls="chatLog" aria-label="open the chat" title="open the chat">▴</button></h2>
     <p class="note" id="bridgeNote">With <code>npm run maker</code> serving this page, an assistant on this machine can see the room, paint it,
       prove it, play it and answer you here. Hand it the prompt under the hero (it says how to connect: the MCP tools in
       <code>.mcp.json</code>, or <code>curl</code> on <code id="bridgeUrl">/__maker/</code>); everything it does shows on the board and in this log.</p>
@@ -447,8 +477,13 @@ delay(n)      holds n ticks            ret      end</pre>
     </div>
   </section>
 
-  <section class="panel dev-only" id="learnPanel">
-    <h2><span id="learnTitle">Painting the Roses</span> <span id="learnProgress" class="armed-mark"></span></h2>
+  <!-- The guide. In the classic look on a checkout it sits beside the board (html[data-learn=side], styles.css - every page's):
+       a column at the right of a wide window, a drawer over the right edge of a narrow one (the coach line's "learn" opens it,
+       the × closes it); "unpin" puts it back in the page, last. In the phone looks it is the Learn mode. src/coach.js wires the buttons. -->
+  <section class="panel side dev-only" id="learnPanel" data-mode="learn">
+    <h2><span id="learnTitle">Painting the Roses</span> <span id="learnProgress" class="armed-mark"></span>
+      <button type="button" id="learnPin" class="learn-pin" aria-pressed="true" title="Beside the board, or in the page">unpin</button>
+      <button type="button" id="learnClose" class="learn-close" aria-label="close the guide" title="close">×</button></h2>
     <p class="note">Guided builds, one step at a time: pick one below. Each leads to a finished room, and each step watches
       what you do and ticks itself off; the line at the top of the page says what comes next wherever you are. Progress
       is kept per build, so switch whenever you like. Skip what you like, it costs nothing.</p>
@@ -470,9 +505,10 @@ delay(n)      holds n ticks            ret      end</pre>
 <dialog id="aiDialog" class="ai" data-kind="invite">
   <h2 id="aiTitle">Hand this to your assistant</h2>
   <p class="note" id="aiNote">Copy the prompt into Claude Code, Codex, Cursor, Copilot, Gemini or whatever runs commands on your machine.
-    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, connect, and
-    then follow the White Rabbit's guide: a welcome banner on this page lets you pick step by step, the fast lane or the
-    one-bite starter, and the assistant asks, paints and explains from there - in its chat and in the page's own.</p>
+    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, open this
+    page in its own browser pane (Claude Code's, Cursor's, VS Code's Simple Browser; your browser only when it has none), connect,
+    and then follow the White Rabbit's guide: a welcome banner lets you pick step by step, the fast lane or the one-bite starter,
+    and from there every step is on the page - the line, the why, the buttons - while the assistant paints and narrates.</p>
   <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
   <div class="stage-bar">
     <button type="button" id="aiCopy" class="btn">Copy</button>
@@ -497,34 +533,42 @@ delay(n)      holds n ticks            ret      end</pre>
   <div class="stage-bar"><button type="button" id="keysClose" class="btn ghost">Close</button></div>
 </dialog>
 
-<!-- The Share dialog (a checkout only; #shareBtn in Send it in opens it): the room as one link.
-     Nothing is uploaded - the whole room travels in the address (?level=, src/level.js shareUrl),
-     so the same link opens it in the studio of any checkout, as a playable card on the stages
-     page, or as the hero of the published landing. The person picks what goes in and how the
-     link reads; the room's JSON is shown and can be edited, and the link follows the edit. -->
-<dialog id="shareDialog" class="ai share dev-only" aria-label="share this room as a link">
-  <h2>Share this room</h2>
-  <p class="note">One link carries the whole room: the map, its clock and cast, and whatever you tick below. Nothing is
-    uploaded; the room is in the address itself, so the link works in a chat, a bookmark, or for an assistant that can
-    only open a URL. Pasted into a checkout's studio it loads there; on the stages page it is a card of its own, played
-    with the badge; on the published landing it is the room in the hero.</p>
+<!-- The Share dialog (a checkout only; #shareBtn in Send it in opens it): the level as one link.
+     Nothing is uploaded - the whole level travels in the address (?level=, src/level.js shareUrl),
+     so the link opens it wherever it is pasted; the page in front of the token says where. The
+     person picks where it opens (play it: the page the badge plays it on, the default; edit it: the
+     studio of a checkout, the landing on the published site), at which address (this checkout, or
+     the published site, for anyone), what goes in and how the link reads; the level's JSON is shown
+     and can be edited, and the link follows the edit. src/maker.js fills the words in. -->
+<dialog id="shareDialog" class="ai share dev-only" aria-labelledby="shareTitle">
+  <h2 id="shareTitle">Share this room</h2>
+  <p class="note">One link carries the whole <span id="shareWhat">room in its address - the map, its clock and cast, and whatever you tick below</span>.
+    Nothing is uploaded, so it works in a chat, a bookmark, or for an assistant that can only open a URL. <b>Play it</b> is the
+    page the badge plays it on; <b>edit it</b> is the studio of a checkout. A link at this checkout's address opens only for
+    whoever runs it - pick <b>the published site</b> for anyone else.</p>
   <div class="share-grid">
+    <fieldset class="share-where">
+      <legend>opens on</legend>
+      <label title="index.html: a card in Rooms, played with the badge"><input type="radio" name="shareWhere" value="play" checked> <b>play it</b> — <span id="sharePlayPage">the stages page</span></label>
+      <label title="maker.html: the studio of a checkout loads it; the published landing shows it in its hero"><input type="radio" name="shareWhere" value="studio"> <b>edit it</b> — the studio</label>
+      <label class="share-sub" title="adds play=1: the studio opens the room in Run &amp; debug straight away"><input type="checkbox" id="sharePlay"> …straight into Run &amp; debug</label>
+    </fieldset>
+    <fieldset class="share-at">
+      <legend>at which address</legend>
+      <label title="this page's address: only someone running this checkout can open the link"><input type="radio" name="shareAt" value="here" checked> this checkout (<span id="shareHere">localhost</span>)</label>
+      <label title="the site this page belongs to, where anyone opens the link and the badge plays the room"><input type="radio" name="shareAt" value="site"> the published site</label>
+      <input id="shareSite" type="text" inputmode="url" spellcheck="false" aria-label="the published site's address" title="the site's address: your fork's page, or the official site; remembered">
+    </fieldset>
     <fieldset class="share-parts">
       <legend>what goes in</legend>
       <label title="the room's own tutorial, shown under it on the stages page"><input type="checkbox" data-part="lesson" checked> the lesson</label>
       <label title="the one line beside the room's card"><input type="checkbox" data-part="blurb" checked> the blurb</label>
       <label title="garden, hall or court; left out, the room is dressed as the garden"><input type="checkbox" data-part="theme" checked> the dressing</label>
-      <label title="adds play=1: the studio opens the room in Run &amp; debug"><input type="checkbox" id="sharePlay"> opens in Run &amp; debug</label>
     </fieldset>
     <fieldset class="share-format">
       <legend>the link reads as</legend>
       <label title="base64url of the room: short, safe in any chat"><input type="radio" name="shareFormat" value="b64" checked> compact</label>
       <label title="the room's JSON, URL-encoded: readable once decoded, longer"><input type="radio" name="shareFormat" value="json"> readable JSON</label>
-    </fieldset>
-    <fieldset class="share-where">
-      <legend>opens on</legend>
-      <label title="maker.html: the studio of a checkout loads it; the published landing shows it"><input type="radio" name="shareWhere" value="studio" checked> the studio</label>
-      <label title="index.html: a card in Rooms, played with the badge"><input type="radio" name="shareWhere" value="stages"> the stages page</label>
     </fieldset>
   </div>
   <label class="field share-link">The link
