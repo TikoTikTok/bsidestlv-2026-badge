@@ -146,7 +146,7 @@ npm run stage -- stages/community/my-room.js    # what CI will say about it</cod
 
   <!-- ------------------------------------------------------------------ the studio: a local checkout only -- -->
   <section class="panel dev-only" id="editPanel" data-mode="edit">
-    <h2>The room <span id="editName" class="tag"></span></h2>
+    <h2>The room <span class="armed-mark">● playing</span> <span id="editName" class="tag"></span></h2>
 
     <!-- The category: a room for the stages page, or a level for one of the glitch range's five games.
          src/maker.js sets data-category on this panel; .room-only and .glitch-only hide by it (src/maker.css). -->
@@ -406,25 +406,32 @@ delay(n)      holds n ticks            ret      end</pre>
     <div id="verdict" class="verdict" hidden></div>
   </section>
 
-  <section class="panel dev-only" id="playPanel" data-mode="play">
+  <!-- Run & debug. In the classic look it is not a panel of its own (class rig, styles.css): while a room is played
+       src/maker.js moves its body (#rig) into the editor, where the board was, and arms the editor - so the room, the badge,
+       the controls and the log are on the screen the room was painted on and nothing scrolls away from it; Back to the
+       editor / Esc bring the body back. In the phone looks it is the Play mode, one screen: the room above the badge above
+       the log. -->
+  <section class="panel rig dev-only" id="playPanel" data-mode="play">
     <h2>Run &amp; debug <span class="armed-mark">● armed</span></h2>
-    <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
-    <div class="run">
-      <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
-      <div class="run-side">
-        <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
-        <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, a real
-          badge on USB, or an assistant over the bridge. The log is every edge and what the room made of it.</p>
+    <div id="rig" class="rig-body">
+      <p class="keys" aria-label="controls"><span><kbd>✚</kbd>move</span><span id="keysUndo"><kbd>B</kbd>undo</span><span id="keysWait" hidden><kbd>Y</kbd>wait a tick</span><span><kbd>START</kbd>reset</span></p>
+      <div class="run">
+        <div class="stage-wrap run-wrap"><canvas id="run"></canvas></div>
+        <div class="run-side">
+          <svg id="sim" class="sim" viewBox="0 0 320 170" role="group" aria-label="the simulated badge: click a key or use the keyboard"></svg>
+          <p class="note sim-note">The badge, simulated. Lit while a button is down, from the keyboard, a click, a real
+            badge on USB, or an assistant over the bridge. The log is every edge and what the room made of it.</p>
+        </div>
       </div>
+      <div class="stage-bar">
+        <button type="button" id="editBtn" class="btn ghost">Back to the editor</button>
+        <button type="button" id="resetBtn" class="btn ghost">Reset</button>
+        <button type="button" id="undoBtn" class="btn ghost">Undo</button>
+        <button type="button" id="solveBtn" class="btn">Play the solution</button>
+        <span id="runStatus" class="status"></span>
+      </div>
+      <ol id="runLog" class="log bench" reversed></ol>
     </div>
-    <div class="stage-bar">
-      <button type="button" id="editBtn" class="btn ghost">Back to the editor</button>
-      <button type="button" id="resetBtn" class="btn ghost">Reset</button>
-      <button type="button" id="undoBtn" class="btn ghost">Undo</button>
-      <button type="button" id="solveBtn" class="btn">Play the solution</button>
-      <span id="runStatus" class="status"></span>
-    </div>
-    <ol id="runLog" class="log bench" reversed></ol>
   </section>
 
   <section class="panel dev-only" id="exportPanel" data-mode="export">

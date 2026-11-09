@@ -501,6 +501,20 @@ html[data-look=classic] .dock-new:not([hidden]) { display: inline-block; }
 html[data-look=classic][data-dock-open] .dock { max-height: min(46dvh, 420px); }   /* at 1024x768 the column above keeps ~300 px: the current step stays whole */
 html[data-look=classic]:not([data-dock-open]) .dock > :not(h2) { display: none; }
 
+/* --------------------------------------------- the rig inside the panel it plays -- */
+/* A page's third companion - the maker's Run & debug - is class `rig`: a panel
+   whose body is of use only beside the thing it tests. In the classic look it
+   is not a panel of its own: while a room is played the page moves its body
+   (#rig: the legend, the room, the badge, the controls, the log) into the
+   panel it plays - the editor, which is `.armed` meanwhile (the mark in its
+   heading, the accent border; its own studio gives way, src/maker.css) - and
+   back when play stops, so the room plays where it was painted and nothing
+   scrolls away from it; the panel itself stays out of the page here. Nothing
+   is fixed and nothing keeps clear of it. The phone looks need none of this:
+   the rig is a mode there (Play), one screen - the room above the badge above
+   the log - with its body where it is written. */
+html[data-look=classic] main > .rig { display: none; }
+
 /* the controls legend under a stage's title: what each button does, always on screen */
 .keys { display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin: .4rem 0 .2rem; font-size: 11px; color: var(--dim); }
 .keys span { white-space: nowrap; }
