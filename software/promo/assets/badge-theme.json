@@ -1,0 +1,16 @@
+{
+ "well": "#10141c",
+ "line": "#272d3b",
+ "panel-2": "#181d29",
+ "dim": "#a78bfa",
+ "accent": "#a3e635",
+ "accent-2": "#c4b5fd",
+ "on-accent": "#0b0e14",
+ "glow": "color-mix(in srgb, #a3e635 60%, transparent)",
+ "ink-2": "#06080c",
+ "text": "#e3e8ef",
+ "font": "\"Space Mono\", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+ "font-display": "\"Space Grotesk\", \"Segoe UI Variable Display\", \"Segoe UI\", Inter, Roboto, \"Helvetica Neue\", Arial, sans-serif",
+ "ink": "#0b0e14",
+ "panel": "#12161f"
+}
