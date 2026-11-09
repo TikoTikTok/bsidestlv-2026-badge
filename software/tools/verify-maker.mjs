@@ -808,7 +808,7 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const html = readFileSync(resolve(root, 'maker.html'), 'utf8');
   const MODE_OF = { editPanel: 'edit', playPanel: 'play', exportPanel: 'export', assistantPanel: 'assistant', learnPanel: 'learn' };
   for (const id of Object.keys(MODE_OF))
-    ok(new RegExp(`<section class="panel ${id === 'learnPanel' ? 'side ' : id === 'assistantPanel' ? 'dock ' : ''}dev-only" id="${id}" data-mode="${MODE_OF[id]}">`).test(html), `#${id} is class dev-only, the ${MODE_OF[id]} mode on a phone${id === 'learnPanel' ? ', and class side (the column beside the board)' : id === 'assistantPanel' ? ', and class dock (the foot of the column)' : ''}`);
+    ok(new RegExp(`<section class="panel ${id === 'learnPanel' ? 'side ' : id === 'assistantPanel' ? 'dock ' : id === 'playPanel' ? 'rig ' : ''}dev-only" id="${id}" data-mode="${MODE_OF[id]}">`).test(html), `#${id} is class dev-only, the ${MODE_OF[id]} mode on a phone${id === 'learnPanel' ? ', and class side (the column beside the board)' : id === 'assistantPanel' ? ', and class dock (the foot of the column)' : id === 'playPanel' ? ', and class rig (its body plays in the editor)' : ''}`);
   ok(/<div id="coach" class="coach dev-only" hidden>/.test(html), 'the coach line is dev-only: the tutorial is the studio\'s');
   for (const id of ['coachTitle', 'coachCount', 'coachSay', 'coachSkip', 'coachOpen', 'learnProgress', 'learnCoach', 'learnSteps', 'learnSkip', 'learnRestart', 'learnStatus'])
     ok(new RegExp(`id="${id}"`).test(html), `the coach has #${id}`);
@@ -949,6 +949,30 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   ok(/html\[data-look=classic\] \.dock \.chat \{ flex: 1 1 auto; min-height: 0; max-height: none;/.test(makerCss) && /html\[data-look=classic\] \.dock:has\(\.chat:not\(:empty\)\) > \.note \{ display: none; \}/.test(makerCss)
      && /html\[data-look=classic\] \.dock \.chat li\.ask > \.ask-row \{ order: -1;/.test(makerCss) && !/\.dock[^\n]*(position: (fixed|sticky)|grid-column|max-height: min)/.test(makerCss),
      'src/maker.css gives the chat its dock insides (the log takes the room, the note only while it is empty, the card\'s buttons first) and nothing of the dock\'s place, which is styles.css\'s');
+  // Run & debug as the rig (the classic look): class rig on the panel, its body #rig wrapping the legend, the room, the badge, the
+  // controls and the log; src/maker.js moves the body into the editor while a room is played (the editor armed, the mark in its
+  // heading), back when play stops, and again on a change of look; a fresh start scrolls to the editor, where the room now plays
+  // (goTo('play') is the editor's there), a reset keeps the view; the rig's place is styles.css's (verify-looks.mjs), src/maker.css
+  // hides the editor's studio while it is armed and lays the body out left of the right-edge fixtures on a narrow window
+  ok(/<section class="panel rig dev-only" id="playPanel" data-mode="play">\s*<h2>Run &amp; debug <span class="armed-mark">● armed<\/span><\/h2>\s*<div id="rig" class="rig-body">\s*<p class="keys"/.test(html)
+     && /<div id="rig" class="rig-body">[\s\S]*?<div class="run">[\s\S]*?<canvas id="run">[\s\S]*?<svg id="sim"[\s\S]*?<div class="stage-bar">\s*<button type="button" id="editBtn"[\s\S]*?<ol id="runLog" class="log bench" reversed><\/ol>\s*<\/div>\s*<\/section>/.test(html),
+     '#playPanel is class rig; its body #rig (class rig-body) wraps the legend, the room beside the badge, the controls and the log');
+  ok(/<h2>The room <span class="armed-mark">● playing<\/span> <span id="editName" class="tag"><\/span><\/h2>/.test(html), 'the editor\'s heading carries the armed mark: "● playing" while the rig is in it');
+  ok(/function placeRig\(\)/.test(mod) && /const inEditor = playing && looks\.look\.id === 'classic';/.test(mod) && /inEditor \? editPanel\.querySelector\(':scope > \.maker'\) : playPanel\.querySelector\(':scope > h2'\)/.test(mod)
+     && /if \(rig\.previousElementSibling !== after\) after\.after\(rig\);/.test(mod) && /editPanel\.classList\.toggle\('armed', inEditor\);/.test(mod),
+     'src/maker.js puts the rig\'s body in the editor after the studio\'s grid while a room is played in the classic look, arms the editor, and leaves it where it is otherwise');
+  ok(/playing = true;\s*\$\('#playPanel'\)\.classList\.add\('armed'\);\s*placeRig\(\);/.test(mod) && /playing = false;\s*\$\('#playPanel'\)\.classList\.remove\('armed'\);\s*placeRig\(\);/.test(mod)
+     && /lookChanged = placeRig;/.test(mod) && /initLooks\(\{ onLook: \(l\) => lookChanged\?\.\(l\), onMode\(m\)/.test(mod),
+     'the body is placed on every start and stop of play, and follows a change of look');
+  ok(/const fresh = !playing;/.test(mod) && /if \(fresh\) goTo\('play'\);/.test(mod) && /play: '#editPanel'/.test(mod), 'a fresh start scrolls to the editor, where the room now plays (goTo(\'play\') is the editor\'s in the classic look); a reset keeps the view');
+  ok(/get rig\(\) \{ return rig\.parentElement === editPanel \? 'edit' : 'play'; \}/.test(mod), 'window.__maker.rig says where the body is');
+  ok(/#editPanel\.armed > :is\(\.category, \.studio-bar, \.maker\) \{ display: none; \}/.test(makerCss) && /#editPanel > h2 \.armed-mark \{/.test(makerCss) && !/\.rig(?!-)/.test(makerCss),
+     'src/maker.css hides the editor\'s studio while the rig is in it and keeps nothing of the rig\'s place, which is styles.css\'s');
+  ok(/\.run \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(240px, 280px\);/.test(makerCss) && /@media \(max-width: 640px\) \{ \.run \{ grid-template-columns: 1fr; \} \}/.test(makerCss), 'the room takes what the badge leaves, side by side down to 640 px');
+  const edge = /html\[data-look=classic\] \.dock \{[^}]*width: min\((\d+)px, 94vw\)/.exec(css)?.[1];
+  ok(/@media \(max-width: 999\.98px\) \{\s*#editPanel\.armed > \.rig-body \{\s*display: grid;[^}]*grid-template-areas: "keys keys" "room room" "bar bar" "side log";/.test(makerCss) && /#editPanel\.armed > \.rig-body > \.run \{ display: contents; \}/.test(makerCss)
+     && !!edge && makerCss.includes(`max-width: min(400px, calc(100vw - ${edge}px - 4.5rem))`) && /#editPanel\.armed > \.rig-body \.run-wrap canvas \{ max-height: 44vh; width: auto; \}/.test(makerCss),
+     `on a narrow classic window the rig is one grid - the legend, the room, the controls, then the badge beside the log - at most 400 px wide and left of the drawer and the dock (${edge ?? '?'} px, the one width in styles.css)`);
   const coachSrc = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
   ok(/function openLearn\(/.test(coachSrc) && /function setLearn\(/.test(coachSrc) && /setProperty\('--coach-h'/.test(coachSrc) && /next\?\.range \?\? next\?\.stage \?\? next\?\.panel/.test(coachSrc) && /setLearn, openLearn, get learn\(\)/.test(coachSrc),
      'src/coach.js owns the guide\'s place (openLearn, setLearn, learn), measures the line (--coach-h), and follows a step to its panel on a phone');
