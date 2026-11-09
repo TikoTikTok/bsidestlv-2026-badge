@@ -808,7 +808,7 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const html = readFileSync(resolve(root, 'maker.html'), 'utf8');
   const MODE_OF = { editPanel: 'edit', playPanel: 'play', exportPanel: 'export', assistantPanel: 'assistant', learnPanel: 'learn' };
   for (const id of Object.keys(MODE_OF))
-    ok(new RegExp(`<section class="panel dev-only" id="${id}" data-mode="${MODE_OF[id]}">`).test(html), `#${id} is class dev-only, the ${MODE_OF[id]} mode on a phone`);
+    ok(new RegExp(`<section class="panel ${id === 'learnPanel' ? 'side ' : ''}dev-only" id="${id}" data-mode="${MODE_OF[id]}">`).test(html), `#${id} is class dev-only, the ${MODE_OF[id]} mode on a phone${id === 'learnPanel' ? ', and class side (the column beside the board)' : ''}`);
   ok(/<div id="coach" class="coach dev-only" hidden>/.test(html), 'the coach line is dev-only: the tutorial is the studio\'s');
   for (const id of ['coachTitle', 'coachCount', 'coachSay', 'coachSkip', 'coachOpen', 'learnProgress', 'learnCoach', 'learnSteps', 'learnSkip', 'learnRestart', 'learnStatus'])
     ok(new RegExp(`id="${id}"`).test(html), `the coach has #${id}`);

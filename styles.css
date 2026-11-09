@@ -445,45 +445,48 @@ html:not([data-look=classic]) .coach { flex: none; width: calc(100% - 28px); max
 html:not([data-look=classic]) .coach-actions { margin-left: 0; }
 
 /* ------------------------------------------- the guide beside the stage -- */
-/* The Learn panel is one panel of a long page, and a tutorial followed from
-   there is followed away from the stage, the range or the board it is about.
-   In the classic look it leaves the page instead - html[data-learn=side], every
-   page's default (<html data-learn="side">), the choice kept in localStorage
-   alice.learn by src/coach.js and honoured before paint by src/look-boot.js:
-     a wide window   a column at the right of main, sticky under the header,
+/* A page's guide - the Learn panel with its tutorial, the flash page's steps -
+   is one panel of a long page, and followed from there it is followed away
+   from the stage, the range, the board or the Flash button it is about. In the
+   classic look it leaves the page instead. The panel is class `side`, and
+   html[data-learn=side] - every such page's default (<html data-learn="side">),
+   the choice kept in localStorage alice.learn by src/coach.js and honoured
+   before paint by src/look-boot.js - puts it
+     a wide window   in a column at the right of main, sticky under the header,
                      scrolling on its own; the coach line stands down (the
                      column says the step)
-     a narrow one    (a small window, the in-app browser's pane) a drawer over
-                     the right edge, under the header and the coach line, opened
-                     by the line's "learn" (html[data-learn-open]) and closed by
-                     the panel's x
-   "unpin" (#learnPin) is html[data-learn=page]: the panel back in the page
-   where it is written. The breakpoint is the one src/coach.js asks matchMedia
-   about. The phone looks need none of this: every page has a mode bar there
-   and Learn is a mode. --bar-h and --coach-h are measured by src/looks.js and
-   src/coach.js; --pad-h is the range's on-screen pad while it is open (above).
-   The panel's own width sizes its insides (a container query), so the column,
-   the drawer and the page each get the checklist in as many columns as fit. */
+     a narrow one    (a small window, the in-app browser's pane) back in the
+                     page - except the Learn panel, which the coach line can
+                     open: a drawer over the right edge, under the header and
+                     the line (html[data-learn-open]), closed by the panel's x
+   "unpin" (#learnPin, the coach's) is html[data-learn=page]: the panel back in
+   the page where it is written, on every page. The breakpoint is the one
+   src/coach.js asks matchMedia about. The phone looks need none of this: a
+   page with a mode bar has Learn as a mode. --bar-h and --coach-h are measured
+   by src/looks.js and src/coach.js; --pad-h is the range's on-screen pad while
+   it is open (above). The panel's own width sizes its insides (a container
+   query), so the column, the drawer and the page each get the checklist in as
+   many columns as fit. */
 
-#learnPanel { container-type: inline-size; }
-#learnPanel > h2 { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.side { container-type: inline-size; }
+.side > h2 { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .learn-pin, .learn-close { font: inherit; cursor: pointer; color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: var(--r-xs); }
 .learn-pin { margin-left: auto; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; padding: .15rem .5rem; }
 .learn-close { display: none; width: 1.6rem; height: 1.6rem; padding: 0; font-size: 16px; line-height: 1; place-items: center; }
 .learn-pin:hover, .learn-close:hover { color: var(--text); border-color: var(--accent); }
 @container (max-width: 480px) {
-  #learnPanel .learn-steps { columns: 1; }
-  #learnPanel .learn-now .prompts { width: 104px; }
+  .side .learn-steps { columns: 1; }
+  .side .learn-now .prompts { width: 104px; }
 }
-/* beside the stage, and on a phone's one screen, the step comes first: the current one, skip / start over,
-   the checklist, then the maker's cards and the note (in the page the panel reads top to bottom as written) */
-html[data-look=classic][data-learn=side] #learnPanel, html:not([data-look=classic]) #learnPanel { display: flex; flex-direction: column; }
-html[data-look=classic][data-learn=side] #learnPanel > h2, html:not([data-look=classic]) #learnPanel > h2 { order: -5; }
-html[data-look=classic][data-learn=side] #learnPanel > .learn-now, html:not([data-look=classic]) #learnPanel > .learn-now { order: -4; margin: .4rem 0 .6rem; }
-html[data-look=classic][data-learn=side] #learnPanel > .stage-bar, html:not([data-look=classic]) #learnPanel > .stage-bar { order: -3; margin: 0 0 .8rem; }
-html[data-look=classic][data-learn=side] #learnPanel > .learn-steps, html:not([data-look=classic]) #learnPanel > .learn-steps { order: -2; }
-html[data-look=classic][data-learn=side] #learnPanel > .learn-picks, html:not([data-look=classic]) #learnPanel > .learn-picks { order: -1; margin: 1rem 0 0; }
-html[data-look=classic][data-learn=side] #learnPanel > .note, html:not([data-look=classic]) #learnPanel > .note { order: 0; margin: .8rem 0 0; }
+/* beside the stage, and on a phone's one screen, the steps come first: the current one, skip / start over,
+   the checklist, then the maker's cards, and the note last (in the page the panel reads top to bottom as written) */
+html[data-look=classic][data-learn=side] .side, html:not([data-look=classic]) .side { display: flex; flex-direction: column; }
+html[data-look=classic][data-learn=side] .side > h2, html:not([data-look=classic]) .side > h2 { order: -5; }
+html[data-look=classic][data-learn=side] .side > .learn-now, html:not([data-look=classic]) .side > .learn-now { order: -4; margin: .4rem 0 .6rem; }
+html[data-look=classic][data-learn=side] .side > .stage-bar, html:not([data-look=classic]) .side > .stage-bar { order: -3; margin: 0 0 .8rem; }
+html[data-look=classic][data-learn=side] .side > .learn-steps, html:not([data-look=classic]) .side > .learn-steps { order: -2; }
+html[data-look=classic][data-learn=side] .side > .learn-picks, html:not([data-look=classic]) .side > .learn-picks { order: -1; margin: 1rem 0 0; }
+html[data-look=classic][data-learn=side] .side > .note, html:not([data-look=classic]) .side > .note { order: 1; margin: .8rem 0 0; }
 html:not([data-look=classic]) #learnPanel.off { display: none; }   /* the id outweighs main > .panel.off below: another mode still hides it */
 html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }   /* the panel's place is the mode bar's there */
 
@@ -492,7 +495,7 @@ html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-c
     display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 24vw, 340px); gap: 0 1.25rem; align-items: start; max-width: 1540px;
   }
   html[data-look=classic][data-learn=side] main > .panel { grid-column: 1; min-width: 0; margin: 2rem 0 0; }
-  html[data-look=classic][data-learn=side] #learnPanel {
+  html[data-look=classic][data-learn=side] main > .side {
     grid-column: 2; grid-row: 1 / span 12; position: sticky; top: calc(var(--bar-h, 64px) + 1rem);
     max-height: calc(100dvh - var(--bar-h, 64px) - var(--pad-h, 0px) - 2rem); overflow: auto; overscroll-behavior: contain;
   }
@@ -502,6 +505,7 @@ html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-c
 @media (min-width: 1000px) and (max-width: 1179.98px) {
   html[data-look=classic][data-learn=side] .glass, html[data-look=classic][data-learn=side] .lock, html[data-look=classic][data-learn=side] .walk-stage { grid-template-columns: 1fr; }
 }
+/* the drawer is the Learn panel's alone: the coach line is what opens it; another side panel (the flash page's steps) stays in the page here */
 @media (max-width: 999.98px) {
   html[data-look=classic][data-learn=side] #learnPanel {
     position: fixed; z-index: 9; right: 0; top: calc(var(--bar-h, 64px) + var(--coach-h, 0px) + 1rem); bottom: var(--pad-h, 0px);
