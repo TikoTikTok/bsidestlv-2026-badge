@@ -140,6 +140,7 @@ pre {
 
 .brand small a, .note a { color: var(--accent); text-decoration: none; }
 .brand small a:hover, .note a:hover { text-decoration: underline; }
+.status a { color: var(--accent); }    /* a status that sends the player to another page carries the link */
 kbd {
   font: inherit; font-size: 11px; color: var(--text);
   background: var(--panel-2); border: 1px solid var(--line); border-bottom-width: 2px;

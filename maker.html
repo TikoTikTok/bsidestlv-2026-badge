@@ -419,11 +419,12 @@ delay(n)      holds n ticks            ret      end</pre>
         <label class="field">Your name or handle, for the file's header <input id="author" type="text" maxlength="48" spellcheck="false"></label>
         <p class="note">The module goes in <code>stages/community/</code> as <code id="fileName">untitled.js</code>, plus one line in
           <code>stages/community/index.json</code>. <code>npm run stage -- stages/community/<span id="fileName2">untitled</span>.js</code>
-          says what CI will say; then open a pull request. A link carries the whole room, for a friend with a checkout.</p>
+          says what CI will say; then open a pull request. Or share a link: it carries the whole room in its address, and opens it
+          where it plays - on this checkout, or on the published site for anyone.</p>
         <div class="stage-bar">
           <button type="button" id="copyModule" class="btn">Copy the module</button>
           <button type="button" id="downloadModule" class="btn ghost">Download</button>
-          <button type="button" id="shareBtn" class="btn ghost">Copy a link</button>
+          <button type="button" id="shareBtn" class="btn ghost">Share a link</button>
           <button type="button" id="prBtn" class="btn ghost">Open a pull request with your AI</button>
           <span id="exportStatus" class="status"></span>
         </div>
@@ -499,34 +500,42 @@ delay(n)      holds n ticks            ret      end</pre>
   <div class="stage-bar"><button type="button" id="keysClose" class="btn ghost">Close</button></div>
 </dialog>
 
-<!-- The Share dialog (a checkout only; #shareBtn in Send it in opens it): the room as one link.
-     Nothing is uploaded - the whole room travels in the address (?level=, src/level.js shareUrl),
-     so the same link opens it in the studio of any checkout, as a playable card on the stages
-     page, or as the hero of the published landing. The person picks what goes in and how the
-     link reads; the room's JSON is shown and can be edited, and the link follows the edit. -->
-<dialog id="shareDialog" class="ai share dev-only" aria-label="share this room as a link">
-  <h2>Share this room</h2>
-  <p class="note">One link carries the whole room: the map, its clock and cast, and whatever you tick below. Nothing is
-    uploaded; the room is in the address itself, so the link works in a chat, a bookmark, or for an assistant that can
-    only open a URL. Pasted into a checkout's studio it loads there; on the stages page it is a card of its own, played
-    with the badge; on the published landing it is the room in the hero.</p>
+<!-- The Share dialog (a checkout only; #shareBtn in Send it in opens it): the level as one link.
+     Nothing is uploaded - the whole level travels in the address (?level=, src/level.js shareUrl),
+     so the link opens it wherever it is pasted; the page in front of the token says where. The
+     person picks where it opens (play it: the page the badge plays it on, the default; edit it: the
+     studio of a checkout, the landing on the published site), at which address (this checkout, or
+     the published site, for anyone), what goes in and how the link reads; the level's JSON is shown
+     and can be edited, and the link follows the edit. src/maker.js fills the words in. -->
+<dialog id="shareDialog" class="ai share dev-only" aria-labelledby="shareTitle">
+  <h2 id="shareTitle">Share this room</h2>
+  <p class="note">One link carries the whole <span id="shareWhat">room in its address - the map, its clock and cast, and whatever you tick below</span>.
+    Nothing is uploaded, so it works in a chat, a bookmark, or for an assistant that can only open a URL. <b>Play it</b> is the
+    page the badge plays it on; <b>edit it</b> is the studio of a checkout. A link at this checkout's address opens only for
+    whoever runs it - pick <b>the published site</b> for anyone else.</p>
   <div class="share-grid">
+    <fieldset class="share-where">
+      <legend>opens on</legend>
+      <label title="index.html: a card in Rooms, played with the badge"><input type="radio" name="shareWhere" value="play" checked> <b>play it</b> — <span id="sharePlayPage">the stages page</span></label>
+      <label title="maker.html: the studio of a checkout loads it; the published landing shows it in its hero"><input type="radio" name="shareWhere" value="studio"> <b>edit it</b> — the studio</label>
+      <label class="share-sub" title="adds play=1: the studio opens the room in Run &amp; debug straight away"><input type="checkbox" id="sharePlay"> …straight into Run &amp; debug</label>
+    </fieldset>
+    <fieldset class="share-at">
+      <legend>at which address</legend>
+      <label title="this page's address: only someone running this checkout can open the link"><input type="radio" name="shareAt" value="here" checked> this checkout (<span id="shareHere">localhost</span>)</label>
+      <label title="the site this page belongs to, where anyone opens the link and the badge plays the room"><input type="radio" name="shareAt" value="site"> the published site</label>
+      <input id="shareSite" type="text" inputmode="url" spellcheck="false" aria-label="the published site's address" title="the site's address: your fork's page, or the official site; remembered">
+    </fieldset>
     <fieldset class="share-parts">
       <legend>what goes in</legend>
       <label title="the room's own tutorial, shown under it on the stages page"><input type="checkbox" data-part="lesson" checked> the lesson</label>
       <label title="the one line beside the room's card"><input type="checkbox" data-part="blurb" checked> the blurb</label>
       <label title="garden, hall or court; left out, the room is dressed as the garden"><input type="checkbox" data-part="theme" checked> the dressing</label>
-      <label title="adds play=1: the studio opens the room in Run &amp; debug"><input type="checkbox" id="sharePlay"> opens in Run &amp; debug</label>
     </fieldset>
     <fieldset class="share-format">
       <legend>the link reads as</legend>
       <label title="base64url of the room: short, safe in any chat"><input type="radio" name="shareFormat" value="b64" checked> compact</label>
       <label title="the room's JSON, URL-encoded: readable once decoded, longer"><input type="radio" name="shareFormat" value="json"> readable JSON</label>
-    </fieldset>
-    <fieldset class="share-where">
-      <legend>opens on</legend>
-      <label title="maker.html: the studio of a checkout loads it; the published landing shows it"><input type="radio" name="shareWhere" value="studio" checked> the studio</label>
-      <label title="index.html: a card in Rooms, played with the badge"><input type="radio" name="shareWhere" value="stages"> the stages page</label>
     </fieldset>
   </div>
   <label class="field share-link">The link
