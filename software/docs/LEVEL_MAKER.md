@@ -237,9 +237,39 @@ link), `tool` / `setTool`, `brush` / `setBrush`, `symmetry` / `setSymmetry`,
 
 There is no server, so the only way to hand a room to someone is to put
 the whole room in the address: `?level=<token>` is that link, and nothing
-is uploaded. The **Share** dialog (*Send it in*, or `window.__maker.share`,
-or the bridge's `share` op) writes one and lets you choose:
+is uploaded. The **Share** dialog (*Share a link* under *Send it in*, or
+`window.__maker.share`, or the bridge's `share` op) writes one and lets you
+choose, the first two choices being the ones that matter:
 
+- **Where it opens.** *Play it* (the default) is the page that plays the
+  level: `index.html?level=` for a room, where it appears as a card of its
+  own under *Shared with you* in **Levels**, opened and played with the badge
+  like any level, blurb and lesson with it, its par worked out like the
+  others' (`?level=` wins over `?room=`; a malformed link is reported in the
+  status and the page goes on); `glitch.html?level=` for a glitch level, the last tab of
+  its range, *· yours*. *Edit it* is `maker.html?level=`: on a checkout the
+  studio loads it (with `&play=1`, *straight into Run & debug*, it starts
+  playing it at once); on the published site it is the landing, which paints
+  the room in its hero (Alice walks its solution when the solver finds one
+  within 50,000 states, else the room is painted still) with a **Play it**
+  button under it. `sharePage(level, where)` in `src/level.js` is the rule:
+  `play` resolves to `stages` or `range` by the level, `studio` is the
+  maker, and a room sent to the range or a glitch level to the stages is
+  refused with the page that does play it. Either play page, handed the
+  other's token, says so in its status with a link to the right one.
+  The stages page makes the same two links itself: **Share** on any level
+  it plays (a shipped stage too, never a sealed one) offers *Play it*
+  (`index.html?level=`) and *Carry it on in the level maker*
+  (`maker.html?level=`), so a room can go round - played, edited, played
+  again - without a server.
+- **At which address.** *This checkout* (the default) is the page's own
+  address - `localhost`, so only whoever runs the checkout can open the
+  link; the status line says so. *The published site* is
+  `https://<owner>.github.io/<repo>/`: the fork's page when the maker is
+  served from one, else the official site, or whatever you type in the box
+  (remembered, like the choice). Anyone opens that one, and the badge plays
+  the room there. The guide's link steps ask for it when the bridge knows
+  the fork's page (`repoFacts`).
 - **How the link reads.** *Compact* is base64url of the room's JSON: short,
   safe in any chat, and the spelling every link made so far is, so old
   links keep working. *Readable JSON* is the JSON itself, percent-encoded
@@ -251,32 +281,32 @@ or the bridge's `share` op) writes one and lets you choose:
   **lesson**, the **blurb** and the **dressing** can be left out (`parts` in
   `shareUrl`). The JSON box shows exactly what the link carries; edit it and
   the link follows the edit until one of the parts is toggled again.
-- **Where it opens.** The same room, three doors: `maker.html?level=` on a
-  checkout is the studio, which loads it (with `&play=1`, "opens in Run &
-  debug", it starts playing it at once); `maker.html?level=` on the
-  published site is the landing, which paints that room in its hero (Alice
-  walks its solution when the solver finds one within 50,000 states, else
-  the room is painted still) and says under it where to play it;
-  `index.html?level=` is the stages page, where the room appears as a card
-  of its own, *Shared · name*, at the front of **Rooms**, opened and armed,
-  blurb and lesson with it, and played with the badge like any room
-  (`?level=` wins over `?room=`; a malformed link is reported in the
-  room's status and the page goes on). `shareUrl(base, level, { format,
-  play, parts })` builds the link, `shareInfo(url)` says how long it is.
-- **How long it is.** A room is a few hundred characters; a lesson of
+- **How long it is.** `shareUrl(base, level, { format, play, parts })`
+  builds the link, `shareInfo(url)` says how long it is. A room is a few hundred characters; a lesson of
   twelve long steps gets a link past 2,000, where some chats and QR codes
   cut it (the dialog warns), and past 8,000 it may not paste at all. The
   compact spelling, or fewer parts, makes it shorter.
 
-A link can carry a glitch level too (see *Glitch levels*): that one opens on
-`glitch.html?level=`, as a tab of its range. The stages page refuses it with a
-line that says where it does open, the landing points at the range page, and
-**Rooms** lists only the index's rooms - an entry whose `kind` is a range is
-the range page's.
+A link can carry a glitch level too (see *Glitch levels*): *play it* is
+`glitch.html?level=`, a tab of its range; the lesson, blurb and dressing
+boxes are greyed, a glitch level having none. The stages page refuses its
+token with a line that links to the range page, the landing's button points
+there, and **Levels** lists only the index's rooms - an entry whose `kind` is
+a range is the range page's; `index.html?room=` naming one says so, with the
+link, and naming no level at all says that too.
 
-Over the bridge, `{"op":"share","args":{"format":"json","where":"stages","play":false,"parts":{"lesson":false}}}`
-answers `{ url, token, chars, format, where, warnings }`; the MCP tool is
-`maker_share`.
+To carry on a level that already exists, the studio's **Open…** (beside
+New) opens the picker: a new room or a new level of any range, a copy of a
+shipped stage, one of the community's levels, one from the shelf, or a
+share link pasted in. The welcome banner offers the same under its three
+ways (*Open an existing level…*), `?open=1` opens it, and so does the first
+visit of a device, when nothing is kept yet.
+
+Over the bridge, `{"op":"share","args":{"where":"play","at":"site","format":"json","parts":{"lesson":false}}}`
+answers `{ url, token, chars, format, where, at, page, warnings }` with
+`where` resolved (`stages` here); `where` defaults to `play`, `at` to
+`here`, and `site` names a published site of your own. The MCP tool is
+`maker_share`, with the same arguments.
 
 ## Building with an AI, step by step
 
@@ -286,8 +316,15 @@ order: **fork first** (`gh repo fork <owner>/<repo> --clone`, then switch the
 fork's site on - `gh workflow enable pages.yml`, `gh api -X POST
 repos/<login>/<repo>/pages -f build_type=workflow` - so the room the two of
 you build lands on the person's own GitHub Pages site); read `AGENTS.md`,
-the short map; `npm run maker`; connect to the bridge and say hello; then
-follow the **White Rabbit's guide**.
+the short map; `npm run maker -- --no-open` and then **the page in the
+assistant's own browser first** - the pane the person sees beside its chat
+(Claude Code's built-in browser, Cursor's and VS Code's Simple Browser, any
+browser tool) - and in the person's default browser only when the assistant
+has none (`npm run maker` without `--no-open`, or `maker_open {"browser":
+true}` over MCP; `maker_open` by itself starts the server and names the
+page, it opens no browser); connect to the bridge and say hello; then follow
+the **White Rabbit's guide**. The point of the pane: the whole walk then
+happens on a page the person is looking at, and the assistant adds a line.
 
 The guide is `src/guide.js`: how an assistant builds a first room *with* a
 person, written down as data so that any assistant, however small, can
@@ -348,19 +385,32 @@ GET  /__maker/guide?mode=basic&step=1&platform=codex    a preview of any step, n
 GET  /__maker/platforms               what each assistant platform has
 ```
 
-**Both sides stay in step.** Every question the guide asks is shown on the
-page too (op `ask`): a card in the assistant panel's chat with the step's
-line, the question and its options as buttons. The person may press one
-there instead of answering the assistant, and the bridge applies it at once
-(`POST /__maker/guide { answer, at, from: 'page' }`, with the next step's
-work done before its question when it comes first, as Drink Me's painting
-does), tells the assistant in the inbox (kind `answer`), and the next
-question replaces the card. An assistant whose own question comes back late
-is told `moved` with what was chosen, and an assistant that picks a way
-after the person pressed a card on the banner is told `already picked on
-the page`; its instructions say to go on from there and never ask twice.
-On the Rabbit, a step the person finishes by hand brings the next card
-up as well.
+**Both sides stay in step, and the page carries the whole step.** Every
+step of the guide is shown on the page too (op `ask`): a card in the
+assistant panel's chat with the step's line, its *why*, the board in a line
+(the room's name and size, the lint, the last Check), what the assistant
+does on the step (the plan's ops; on the publish step the repository work,
+folded under *what the assistant does now*), the question and its options as
+buttons, and **Do it for me** when the step has a help plan and no option is
+that already. So a person watching the page in the assistant's own browser
+pane follows the walk there with all the explanation, and the assistant's
+chat is a line a step. The person may press a button there instead of
+answering the assistant, and the bridge applies it at once (`POST
+/__maker/guide { answer, at, from: 'page' }`, with the next step's work done
+before its question when it comes first, as Drink Me's painting does; `{
+help: true, run: true, at, from: 'page' }` for Do it for me), tells the
+assistant in the inbox (kind `answer`), and the next card replaces this
+one; an answer that keeps the step (a why, a "not yet", the help) leaves the
+card's buttons live, and the card says *working…* while the bridge works. A
+page that (re)attaches while a way is picked takes it up from the bridge's
+hello (the Rabbit's build under the coach, the banner kept shut, "carrying
+on with…" in the chat) and gets the current card again, so a reload
+mid-walk neither asks again nor loses the walk. An
+assistant whose own question comes back late is told `moved` with what was
+chosen, and an assistant that picks a way after the person pressed a card on
+the banner is told `already picked on the page`; its instructions say to go
+on from there and never ask twice. On the Rabbit, a step the person finishes
+by hand brings the next card up as well.
 
 Over MCP it is one tool, `maker_guide`, with the same knobs; the server's
 instructions send a new assistant straight to it. The inbox
@@ -372,26 +422,29 @@ bring it back by typing `guide` in the page's chat, with `?guide=1`, or
 through the assistant (`maker_guide {"show": true}`).
 
 What each assistant has (`PLATFORMS` in `src/guide.js`; the files are in
-the repository, never published):
+the repository, never published). The page opens in the assistant's own
+browser first, in the person's default browser only when it has none:
 
-| Assistant | Onto the bridge | Asking with options |
-|---|---|---|
-| Claude Code | `.mcp.json` at the root; the `maker_*` tools are there when the clone is opened | AskUserQuestion, 2-4 options, *Other* for their own words |
-| Codex (OpenAI) | `.codex/config.toml` (`[mcp_servers.alice-maker]`), or `codex mcp add` | a numbered list, one question a message |
-| Cursor | `.cursor/mcp.json` (enable once when asked) | a numbered list |
-| GitHub Copilot (VS Code agent mode, Copilot CLI) | `.vscode/mcp.json`; the CLI's `/mcp add` | its question tool when offered, else a numbered list |
-| Gemini CLI, Jules, Antigravity (Google) | `.gemini/settings.json` | a numbered list |
-| Hermes Agent | `mcp_servers` in its `config.yaml`, or curl | a numbered list; the chat can live on the page |
-| Grok (xAI) | the HTTP bridge from a shell tool; else the person relays | a numbered list |
-| ChatGPT and other web chats without a shell | cannot reach the bridge: the person relays, or uses Codex | a numbered list |
-| Anything with a shell | curl: `/hello`, `/guide`, `/rpc`, `/inbox` | a numbered list |
+| Assistant | Onto the bridge | Asking with options | Its own browser |
+|---|---|---|---|
+| Claude Code | `.mcp.json` at the root; the `maker_*` tools are there when the clone is opened | AskUserQuestion, 2-4 options, *Other* for their own words | the built-in browser pane (`preview_start { url }` / `navigate`); Claude in Chrome when asked for Chrome |
+| Codex (OpenAI) | `.codex/config.toml` (`[mcp_servers.alice-maker]`), or `codex mcp add` | a numbered list, one question a message | its own browser when the app offers one, else the person's |
+| Cursor | `.cursor/mcp.json` (enable once when asked) | a numbered list | the built-in browser tab, else the Simple Browser |
+| GitHub Copilot (VS Code agent mode, Copilot CLI) | `.vscode/mcp.json`; the CLI's `/mcp add` | its question tool when offered, else a numbered list | VS Code's Simple Browser; the CLI has none |
+| Gemini CLI, Jules, Antigravity (Google) | `.gemini/settings.json` | a numbered list | Antigravity's own browser; the others have none |
+| Hermes Agent | `mcp_servers` in its `config.yaml`, or curl | a numbered list; the chat can live on the page | its browser tool when configured |
+| Grok (xAI) | the HTTP bridge from a shell tool; else the person relays | a numbered list | none: the person opens the page |
+| ChatGPT and other web chats without a shell | cannot reach the bridge: the person relays, or uses Codex | a numbered list | none: the person opens the page |
+| Anything with a shell | curl: `/hello`, `/guide`, `/rpc`, `/inbox` | a numbered list | its browser tool, else the person's |
 
 `verify-maker.mjs` checks the guide: every step of the three ways is well
 formed and names ops the page has, every placeholder resolves, the plans
 paint sensible cells on a room, the answers do what they say, the bridge
 serves it (the pick, the wait, the answers, the Rabbit following the
-page's build, the preview), the MCP tool, the banner's markup and wiring,
-the invitation, the five configuration files and `AGENTS.md`.
+page's build, the preview, Do it for me from the page), the MCP tool (and
+that `maker_open` / `maker_status` name the page and open no browser), the
+banner's markup and wiring, the card, the invitation, the five
+configuration files and `AGENTS.md`.
 
 ## The bridge: an assistant in the studio
 
@@ -410,7 +463,10 @@ Two ways in:
   `claude mcp add alice-maker -- node software/tools/maker-mcp.mjs`, or
   command `node`, args `software/tools/maker-mcp.mjs`, env `MAKER_URL`)
   has the studio as tools: `maker_status`, `maker_open` (starts the server
-  and the page when nothing is listening), `maker_get`, `maker_set_level`,
+  when nothing is listening and names the page for the assistant to open in
+  its own browser pane; `{ browser: true }` opens it in the person's default
+  browser instead, for an assistant with no pane; a maker already serving the
+  port is taken up, never doubled), `maker_get`, `maker_set_level`,
   `maker_paint`, `maker_check`, `maker_play`, `maker_moves`, `maker_press`,
   `maker_reset`, `maker_stop`, `maker_say`, `maker_read_chat`,
   `maker_snapshot` (a picture of the board or the run, as an image),
@@ -523,14 +579,17 @@ Rooms are MIT like everything else under the site.
 `verify-maker.mjs` gates the deploy on every listed room, so a merged room
 is live at the next deploy, in two places: the maker's *Load* menu and
 *Start from…* list it beside the shipped stages, and the stages page
-(`index.html`) plays it. There, **Rooms** (a panel behind the mode bar, the
-third stage of the page) lists every room in the index as a card, in the
-index's order, opens one at a time (`?room=<id>` opens straight on one) and
-plays it with the badge by the rules of whichever stage it is like -
-`src/room.js`, one player for both rules, with the room's blurb beside it
-and its lesson under it. The stages' tutorial, *A Caucus Race*, ends in
-that panel: its third chapter opens a room and follows its lesson to the
-door. A community room can be sealed like any other (`npm run seal`,
+(`index.html`) plays it. There, **Levels** (the explorer under the player;
+a mode of its own on a phone) lists every room in the index as a card, in
+the index's order, under *The community's rooms* - the room drawn small,
+its kind, size and author, its par once the page has worked it out, and
+what the player has won in it - and a card opens it in the one player
+(`?room=<id>` opens straight on one), played with the badge by the rules of
+whichever stage it is like - `src/room.js`, one player for both rules, with
+the room's blurb beside it and its lesson under it; a win in par, a win
+without undo and a lesson followed to its end are prizes (`src/progress.js`).
+The stages' tutorial, *A Caucus Race*, ends there: its third chapter opens a
+room and follows its lesson to the door. A community room can be sealed like any other (`npm run seal`,
 `stages/community/sealed.json` is that folder's manifest) if an event
 wants it hidden until the day.
 
