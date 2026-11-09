@@ -259,11 +259,46 @@ const loadJson = (k, or) => { const s = load(k); if (!s) return or; try { return
 // and Learn is a mode, so the way to any panel is goTo(key).
 
 const PANELS = { home: '#hero', edit: '#editPanel', play: '#playPanel', export: '#exportPanel', assistant: '#assistantPanel', learn: '#learnPanel' };
-/** Put a panel on screen: the phone looks switch the mode bar to it (its mode is its key), the classic page scrolls to it. */
+/** Put a panel on screen: the phone looks switch the mode bar to it (its mode is its key), the classic page scrolls to it - except the chat, a dock there, which opens. */
 function goTo(key) {
   if (looks.look.id !== 'classic') { looks.setMode(key); return; }
+  if (key === 'assistant') { openDock(true); return; }
   $(PANELS[key])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+// The chat is a dock in the classic look (styles.css `.dock`): folded to its heading at the
+// bottom right of the screen - the foot of the guide's column on a wide window, over the right
+// edge on a narrow one - until there is something to see: an assistant says hello, the guide asks
+// a question (op ask), the welcome's pick (goTo('assistant')), or the heading is clicked. The
+// state is html[data-dock-open]; --dock-h on <html> is what the dock takes at the bottom of the
+// screen (its height and the gap above it), measured, so the column and the drawer stop above it.
+// What comes in while it is folded is counted on the heading (#chatNew).
+const dock = $('#assistantPanel'), dockFold = $('#chatFold'), dockNew = $('#chatNew');
+let unread = 0;                // lines that came in while the dock was folded
+// measured on every change of size (the log filling up, the window), and on each open / fold at once: a
+// page that is not being drawn (a background tab, a hidden pane) gets no observer callbacks until it is
+const measure = () => html.style.setProperty('--dock-h', dock.offsetHeight ? `calc(${dock.offsetHeight}px + 1rem)` : '0px');
+if ('ResizeObserver' in window) new ResizeObserver(measure).observe(dock);
+/** Open, fold or toggle the dock; answers whether it is open. Opening clears the count. */
+function openDock(open = !('dockOpen' in html.dataset)) {
+  if (open) html.dataset.dockOpen = ''; else delete html.dataset.dockOpen;
+  const on = 'dockOpen' in html.dataset;
+  dockFold.setAttribute('aria-expanded', String(on));
+  dockFold.textContent = on ? '▾' : '▴';
+  dockFold.title = on ? 'fold the chat' : 'open the chat';
+  dockFold.setAttribute('aria-label', dockFold.title);
+  if (on) { unread = 0; dockNew.hidden = true; }
+  measure();
+  return on;
+}
+/** A line arrived while the dock is folded (the classic look): count it on the heading. */
+function dockNews() {
+  if (looks.look.id !== 'classic' || 'dockOpen' in html.dataset) return;
+  dockNew.textContent = String(++unread);
+  dockNew.hidden = false;
+}
+dock.querySelector('h2').addEventListener('click', () => openDock());
+openDock(false);
 
 // the tutorials: one Tutor per guided build, each with its own progress
 // (alice.tutor.maker for the first, alice.tutor.maker.<id> for the rest), the
@@ -1479,6 +1514,7 @@ function chat(text, who = 'you') {
   li.title = t;
   chatLog.prepend(li);
   while (chatLog.children.length > 300) chatLog.lastChild.remove();
+  if (who !== 'you') dockNews();
 }
 const chatText = $('#chatText');
 async function sendChat() {
@@ -1632,8 +1668,10 @@ const ops = {
   // assistant does on it, the question with its options as buttons, and "Do it for me" when the step has a help plan. The
   // person may follow and answer here instead of in the assistant's chat; the bridge applies a press at once (whichever side
   // answers first wins). An answer that keeps the step (a why, a "not yet", a stay, the help) leaves the buttons live.
+  // A step is worth seeing: in the classic look the card opens the dock.
   ask: ({ mode, title, at, of, step, say, why, board, next, q, options = [], other, help, does = [], before, work, over } = {}) => {
     const m = modeById(mode);
+    if (looks.look.id === 'classic') openDock(true);
     for (const old of chatLog.querySelectorAll('li.ask:not(.answered)')) { old.classList.add('stale'); for (const x of old.querySelectorAll('button')) x.disabled = true; }
     const li = document.createElement('li');
     li.className = 'ask';
@@ -1765,8 +1803,9 @@ guideDialog.addEventListener('click', (e) => { if (e.target === guideDialog) gui
 guideDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
 
 const bridgeChip = $('#bridgeChip'), bridgeState = $('#bridgeState');
+let dockGreeted = false;             // the dock opened once for an assistant found on the bridge (a hello opens it every time)
 bridge = connectBridge(ops, {
-  onHello: (name) => { chat(`${name} is here`, 'act'); tell('hello', { name }); showGuide(name); },
+  onHello: (name) => { chat(`${name} is here`, 'act'); tell('hello', { name }); showGuide(name); dockGreeted = true; openDock(true); },
   onState: (b) => {
     const who = b.agents.length ? b.agents.join(', ') : null;
     bridgeChip.textContent = !b.available ? '◌ no bridge' : !b.connected ? '◌ bridge…' : who ? `● ${who}` : '○ bridge open';
@@ -1776,7 +1815,10 @@ bridge = connectBridge(ops, {
     bridgeState.className = `tag${who ? ' on' : ''}`;
     $('#bridgeUrl').textContent = `${location.origin}/__maker/`;
     if (b.guideMode && b.guideMode !== guideMode && modeById(b.guideMode)) adoptGuide(b.guideMode);   // a way is already picked on the bridge (a reload mid-walk): take it up, no banner
-    if (b.connected && b.agents.length) showGuide(b.agents.at(-1));     // an assistant was here before the page: the banner still comes up
+    if (b.connected && b.agents.length) {                                // an assistant was here before the page: the banner still comes up, the dock opens
+      showGuide(b.agents.at(-1));
+      if (!dockGreeted) { dockGreeted = true; openDock(true); }
+    }
   },
   onCommand: (cmd) => { if (cmd.op !== 'get' && cmd.op !== 'snapshot' && cmd.op !== 'say' && cmd.op !== 'hello') console.debug('bridge:', cmd.op, cmd.args); },
 });
@@ -1851,6 +1893,7 @@ window.__maker = {
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
   goTo, setLearn: (...a) => coach.setLearn(...a), openLearn: (...a) => coach.openLearn(...a), get learn() { return coach.learn; }, get mode() { return looks.mode; },
+  openDock, get dock() { return { open: 'dockOpen' in html.dataset, unread }; },
   guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
   openLevel: showOpen, get openDialog() { return openDialog.open; },

@@ -212,6 +212,19 @@
 .chat li.ask.busy::after { content: 'working…'; display: block; color: var(--dim); font-size: 10px; font-style: italic; margin-top: .15rem; }
 .chat-text { flex: 1 1 16rem; font: 13px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .6rem; min-width: 0; }
 .chat-text:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+/* in the dock (the classic look; the dock's place is styles.css's): the log takes the room and scrolls, the note stays only
+   while the log is empty (it says how an assistant gets in), the input row is tight; the tag stops floating in the flex heading */
+html[data-look=classic] .dock .chat { flex: 1 1 auto; min-height: 0; max-height: none; margin: .4rem 0 0; }
+html[data-look=classic] .dock:has(.chat:not(:empty)) > .note { display: none; }
+html[data-look=classic] .dock > .note { margin: .4rem 0 0; font-size: 11px; }
+html[data-look=classic] .dock > .stage-bar { margin-top: .5rem; gap: .4rem; }
+html[data-look=classic] .dock .chat-text { flex: 1 1 8rem; }
+/* the guide's card in the dock: the newest sits at the top of a short log, so what wants a press comes first - the title,
+   the question and its buttons, then the step's line (in the page the line reads before the question, as a chat would) */
+html[data-look=classic] .dock .chat li.ask { display: flex; flex-direction: column; }
+html[data-look=classic] .dock .chat li.ask > b { order: -2; }
+html[data-look=classic] .dock .chat li.ask > .ask-row { order: -1; margin: .25rem 0 .35rem; }
+html[data-look=classic] .dock .tag { float: none; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* the chip stays one line: the state gives way first */
 
 .keys-dialog { width: min(640px, 92vw); }
 .keys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1.2rem; font-size: 12px; color: var(--dim); }
