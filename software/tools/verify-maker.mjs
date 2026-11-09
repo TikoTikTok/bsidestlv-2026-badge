@@ -769,6 +769,33 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(unknown.error?.code === -32601, 'mcp: an unknown method is a JSON-RPC error');
   mcp.stdin.end();
   await new Promise(r => mcp.on('close', r));
+  // a port held by something that is not the bridge (a proxy such as Burp on 8080): said so, and maker_open goes next door
+  {
+    const { createServer } = await import('node:http');
+    const proxy = createServer((q, s) => { s.writeHead(200, { 'content-type': 'text/html' }); s.end('<html><head><title>Burp Suite</title></head><body>Welcome</body></html>'); });
+    await new Promise(r => proxy.listen(0, '127.0.0.1', r));
+    const held = `http://localhost:${proxy.address().port}`;
+    const mcp2 = spawn(process.execPath, [resolve(root, 'software/tools/maker-mcp.mjs')], { env: { ...process.env, MAKER_URL: held, MAKER_AGENT: 'the verifier behind a proxy' } });
+    const replies2 = new Map(); let out2 = '';
+    mcp2.stdout.on('data', (d) => { out2 += d; let i; while ((i = out2.indexOf('\n')) >= 0) { const l = out2.slice(0, i); out2 = out2.slice(i + 1); if (l.trim()) { const m = JSON.parse(l); replies2.get(m.id)?.(m); } } });
+    let n2 = 0;
+    const call2 = (method, params) => new Promise((res) => { const id = ++n2; replies2.set(id, res); mcp2.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); });
+    await call2('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'verify', version: '0' } });
+    let c2 = await call2('tools/call', { name: 'maker_status', arguments: {} });
+    const st = JSON.parse(c2.result.content[0].text);
+    ok(!c2.result.isError && st.up === false && /not the maker's bridge/.test(st.reason) && /Burp Suite/.test(st.reason) && /maker_open \{ port: \d+ \}/.test(st.hint), 'mcp: a proxy on the port is not taken for the bridge; the status names it and says to open on another port');
+    c2 = await call2('tools/call', { name: 'maker_get', arguments: {} });
+    ok(c2.result.isError && /not the maker's bridge/.test(c2.result.content[0].text), 'mcp: a tool behind the proxy fails with the same plain reason, not with a parse error');
+    // maker_open with the test bridge's port: the spawn finds the port taken (by this very bridge) and the poll finds the bridge - the session switches to it
+    c2 = await call2('tools/call', { name: 'maker_open', arguments: { port } });
+    const opened = c2.result.isError ? null : JSON.parse(c2.result.content[0].text);
+    ok(opened && opened.bridge === 1 && opened.page === true && /held by another server/.test(opened.note) && new RegExp(`port ${port} and this session`).test(opened.note), 'mcp: maker_open with another port finds the bridge there and says the first port was held');
+    c2 = await call2('tools/call', { name: 'maker_get', arguments: {} });
+    ok(!c2.result.isError && JSON.parse(c2.result.content[0].text).level.name === TEA_PARTY.name, 'mcp: and the tools talk to the new port from then on');
+    mcp2.stdin.end();
+    await new Promise(r => mcp2.on('close', r));
+    await new Promise(r => proxy.close(r));
+  }
   reader.cancel().catch(() => {});
   await pump.catch(() => {});
   await close();
