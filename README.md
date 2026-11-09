@@ -6,6 +6,10 @@ badge is used to play. One badge is the controller, the key to the site and a
 glitching tool, and anyone with a clone - or an AI with a shell - can build the
 next room.
 
+The challenge is live at **https://bsidestlv.github.io/bsidestlv-2026-badge/**:
+the stages, the glitch range, the flasher, the badge's vault and the level
+maker, published from `main` by the Pages workflow below.
+
 <p align="center">
   <a href="images/promo.mp4"><img src="images/promo.gif" alt="The promo: the badge, the gate, the stages, the glitch range, the maker" width="720"></a><br>
   <sub>the short cut; <a href="images/promo.mp4">the full promo</a> is in <code>images/</code>, and <a href="software/promo/">software/promo/</a> is how it was made</sub>
