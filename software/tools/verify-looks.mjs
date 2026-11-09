@@ -153,7 +153,7 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
     if (!/<div id="coach" class="coach" hidden>/.test(html)) say(`${page}: no #coach line (src/coach.js renders the tutorial's current step there)`);
     for (const id of ['coachTitle', 'coachCount', 'coachSay', 'coachSkip', 'coachOpen', 'learnPanel', 'learnProgress', 'learnCoach', 'learnSteps', 'learnSkip', 'learnRestart', 'learnStatus'])
       if (!new RegExp(`id="${id}"`).test(html)) say(`${page}: no #${id}, which src/coach.js needs`);
-    if (!/<section class="panel" id="learnPanel" data-mode="learn">/.test(html)) say(`${page}: the Learn panel is data-mode="learn"`);
+    if (!/<section class="panel side" id="learnPanel" data-mode="learn">/.test(html)) say(`${page}: the Learn panel is data-mode="learn" and class side (the column beside the stage)`);
     if (!/class="mode" data-mode="learn"/.test(html)) say(`${page}: the mode bar has a Learn button for everyone (not dev-only)`);
     if (!/<\/nav>\s*(<!--[^]*?-->\s*)?<div id="coach"/.test(html)) say(`${page}: the coach line sits between the mode bar and main`);
     if (!/<html [^>]*data-learn="side"[^>]*>/.test(html) || /data-learn-host/.test(html)) say(`${page}: <html> opens with the guide beside the stage (data-learn="side") for everyone (no data-learn-host)`);
@@ -174,16 +174,30 @@ if (new Set(pages.map(p => p.dflt)).size > 1) say(`the pages open on different d
   const coach = readFileSync(resolve(root, 'src/coach.js'), 'utf8');
   if (!/setProperty\('--coach-h'/.test(coach)) say('src/coach.js: must measure the coach line into --coach-h');
   if (/\.coach\b|\.learn-/.test(readFileSync(resolve(root, 'src/glitch.css'), 'utf8'))) say('src/glitch.css: the coach\'s rules belong in styles.css, both pages carry one');
-  // the guide beside the stage: the column, the drawer, the step first, the pin and the x - styles.css, keyed on html[data-learn], no host in it
-  for (const sel of ['html[data-look=classic][data-learn=side] main {', 'html[data-look=classic][data-learn=side] main > .panel { grid-column: 1;', 'html[data-look=classic][data-learn=side] #learnPanel {',
+  // the guide beside the stage: the column (any .side panel), the drawer (the Learn panel's, the coach line opens it), the step first,
+  // the pin and the x - styles.css, keyed on html[data-learn], no host in it
+  for (const sel of ['html[data-look=classic][data-learn=side] main {', 'html[data-look=classic][data-learn=side] main > .panel { grid-column: 1;', 'html[data-look=classic][data-learn=side] main > .side {',
                      'html[data-look=classic][data-learn=side][data-learn-open] #learnPanel {', 'html[data-look=classic][data-learn=side] .coach { display: none; }', 'html[data-look=classic][data-learn=side] .learn-close { display: inline-grid; }',
-                     'html[data-look=classic][data-learn=side] #learnPanel > .learn-now, html:not([data-look=classic]) #learnPanel > .learn-now { order: -4;',
-                     '#learnPanel { container-type: inline-size; }', '@container (max-width: 480px) {', '@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }',
+                     'html[data-look=classic][data-learn=side] .side > .learn-now, html:not([data-look=classic]) .side > .learn-now { order: -4;', 'html[data-look=classic][data-learn=side] .side > .note, html:not([data-look=classic]) .side > .note { order: 1;',
+                     '.side { container-type: inline-size; }', '@container (max-width: 480px) {', '@media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }',
                      'html:not([data-look=classic]) #learnPanel.off { display: none; }', 'html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-close { display: none; }',
                      'body.touchpad-open { --pad-h: 16rem; padding-bottom: var(--pad-h); }', 'bottom: var(--pad-h, 0px);'])
     if (!css.includes(sel)) say(`styles.css: no ${sel} (the guide beside the stage is every page's)`);
+  if (/\] #learnPanel \{\s*grid-column: 2/.test(css) || /@media \(max-width: 999\.98px\) \{\s*html\[data-look=classic\]\[data-learn=side\] \.side \{/.test(css))
+    say('styles.css: the column is every .side panel\'s and the drawer the Learn panel\'s alone (the coach line opens it; the flash page\'s steps have none)');
+  // every page whose <html> names the guide's place has one side panel in main, and no page has one without naming it
+  for (const page of PAGES) {
+    const html = readFileSync(resolve(root, page), 'utf8');
+    const named = /<html [^>]*data-learn="side"/.test(html);
+    const sides = (html.match(/<section class="panel side[^"]*"/g) ?? []).length;
+    if (named && sides !== 1) say(`${page}: <html data-learn="side"> wants exactly one <section class="panel side ..."> in main, found ${sides}`);
+    if (!named && sides) say(`${page}: a side panel without data-learn="side" on <html> never leaves the page`);
+  }
+  const flash = readFileSync(resolve(root, 'flash.html'), 'utf8');
+  if (!/<section class="panel side" id="flashGuide">\s*<h2>Flash the badge from this page<\/h2>/.test(flash) || /data-learn-host/.test(flash)) say('flash.html: the steps panel is the page\'s guide (class side, #flashGuide), for everyone');
+  if (/download<\/a> below/.test(flash)) say('flash.html: the steps stand beside the firmware on a wide window, so the note cannot say the download is "below"');
   if (/data-host[^\n]*data-learn|data-learn[^\n]*data-host/.test(css)) say('styles.css: the guide\'s rules name no host: the maker alone keeps its guide to a checkout (data-learn-host, src/look-boot.js)');
-  const bp = /@media \(min-width: (\d+)px\) \{\s*html\[data-look=classic\]\[data-learn=side\] main \{/.exec(css)?.[1];
+  const bp = /@media \(min-width: (\d+)px\) \{\s*html\[data-look=classic\]\[data-learn=side\] main \{/.exec(css.replace(/\/\*[^]*?\*\//g, ''))?.[1];
   if (!bp || !new RegExp(`@media \\(max-width: ${bp - 1}\\.98px\\) \\{\\s*html\\[data-look=classic\\]\\[data-learn=side\\] #learnPanel \\{`).test(css) || !new RegExp(`LEARN_WIDE = '\\(min-width: ${bp}px\\)'`).test(coach))
     say(`styles.css / src/coach.js: the column / drawer breakpoint (${bp ?? '?'}px) must be one number in both (LEARN_WIDE)`);
   if (!/LEARN_KEY = 'alice\.learn'/.test(coach) || !/function openLearn\(/.test(coach) || !/function setLearn\(/.test(coach) || !/WIDE\.addEventListener\('change'/.test(coach)
