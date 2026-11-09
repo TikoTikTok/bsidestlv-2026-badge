@@ -77,7 +77,8 @@ export const GUIDE_RULES = [
   'Their hands, their room. On "Follow the White Rabbit" they do the step and you coach; take over only when they ask (help, shortcut, do it for me) - then run HELP, say what you did, and hand the brush back.',
   'Never leave them in silence: when something takes a while (a Check, a deploy), say so before and after.',
   'They may be typing on the page\'s chat instead of yours: read it (maker_read_chat / GET /__maker/inbox) before you ask again.',
-  'Pass every answer back to the guide (maker_guide {"answer": "..."}): it decides what happens next and turns the knobs for you.',
+  'Pass every answer back to the guide (maker_guide {"answer": "...", "at": <the step>}): it decides what happens next and turns the knobs for you.',
+  'Every question you ask is shown on the page too, as buttons, and the banner is theirs: they may answer there instead of answering you. When your own dialog comes back, call maker_guide before anything else - if it says the step has moved (or the way is already picked), go with what they chose on the page and do not ask again.',
   'If something fails, say what the page said in one plain line and offer the next thing to try. No blame, no jargon.',
   'When unsure, call maker_guide with no arguments and do exactly what its text says.',
 ];
@@ -633,7 +634,7 @@ export function guideText(mode, at, ctx = {}) {
     lines.push(`${n++}. ASK one question - ${how}; the person may answer in their own words:`, `   Q: ${s.ask.q}`);
     s.ask.options.forEach((o, i) => lines.push(`     ${i + 1}. ${o.label}${o.hint ? ` - ${o.hint}` : ''}`));
     if (s.ask.other) lines.push(`     (anything else: ${s.ask.other.hint})`);
-    lines.push(`${n++}. THEN pass the answer back: ${tool('maker_guide {"answer": "<what they said>"}', 'POST /__maker/guide {"answer": "..."}')} - it tells you what happens (the next step, this step again with the knobs turned, HELP, or the WHY) and gives you the next instructions. Follow them.`);
+    lines.push(`${n++}. THEN pass the answer back: ${tool(`maker_guide {"answer": "<what they said>", "at": ${at}}`, `POST /__maker/guide {"answer": "...", "at": ${at}}`)} - it tells you what happens (the next step, this step again with the knobs turned, HELP, or the WHY) and gives you the next instructions. Follow them. If they pressed a button on the page instead, the guide has already applied it and answers "moved" with their choice: go on from there, do not ask again.`);
   }
   if (s.ask && s.work) work();
   else if (s.do.length && !s.before) { lines.push(`${n++}. AFTER the answer, DO (the guide fills the arguments from it; ${tool('maker_guide {"answer": "...", "run": true}', 'POST /__maker/guide {"answer": "...", "run": true}')} does both):`, ...s.do.map(opLine)); if (s.after) lines.push(`   THEN ${s.after}`); }
@@ -654,7 +655,7 @@ export function guideWelcome(ctx = {}) {
     '',
     `Your hello put a welcome banner on their screen with three ways to build a first room: ${GUIDE_MODES.map(m => `${m.title} (${m.kicker}, ${m.time})`).join('; ')}.`,
     `SAY, in your chat and on the page (maker_say): "Hi, I'm ${v.assistant}! Pick a way on the banner - or tell me here: Rabbit, Drink Me or Eat Me - and we'll build your first room together."`,
-    `WAIT for the pick: maker_guide {"waitMs": 120000} (GET /__maker/guide?wait=120000) returns the first step the moment they choose. If they answer in words instead, pick for them: maker_guide {"mode": "tutorial" | "fast" | "basic"}. If they close the banner and say nothing, ask once more, then suggest Eat Me.`,
+    `WAIT for the pick: maker_guide {"waitMs": 120000} (GET /__maker/guide?wait=120000) returns the first step the moment they choose. If they answer in words instead, pick for them: maker_guide {"mode": "tutorial" | "fast" | "basic"} - the guide refuses that when they have just picked on the banner, and tells you what they picked. If they close the banner and say nothing, ask once more, then suggest Eat Me.`,
     '',
     'HOW TO BEHAVE (every step):', ...GUIDE_RULES.map(r => `  · ${r}`),
   ].join('\n');

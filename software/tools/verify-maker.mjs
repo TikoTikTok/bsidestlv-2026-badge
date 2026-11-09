@@ -469,7 +469,7 @@ console.log("the White Rabbit's guide tells an assistant what to say, ask and do
   ok(applyAnswer(plan('fast', 9), 'The full tour', {}).then === 'mode:tutorial' && applyAnswer(plan('fast', 9), 'Another room', {}).then === 'restart' && applyAnswer(plan('tutorial', 13), 'A Room with a Gate', {}).then === 'tutorial:gate', 'the finish offers the other ways and the next build');
   // the text, worded for the platform
   ok(/use your option buttons \(AskUserQuestion\)/.test(guideText('fast', 1, { ...ctx, platform: 'claude' })) && /list the options numbered/.test(guideText('fast', 1, { ...ctx, platform: 'codex' })) && /list the options numbered/.test(guideText('fast', 1, ctx)), 'the ask is worded for the platform: buttons on Claude Code, a numbered list elsewhere and by default');
-  ok(/maker_guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /POST \/__maker\/guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /maker_guide \{"answer": "<what they said>"\}/.test(guideText('fast', 0, ctx)) && /maker_guide \{"next": true\}/.test(guideText('fast', 8, ctx)), 'the text names both doors: the MCP tool and the HTTP route, for run, answer and next');
+  ok(/maker_guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /POST \/__maker\/guide \{"run": true\}/.test(guideText('fast', 4, ctx)) && /maker_guide \{"answer": "<what they said>", "at": 0\}/.test(guideText('fast', 0, ctx)) && /maker_guide \{"next": true\}/.test(guideText('fast', 8, ctx)), 'the text names both doors: the MCP tool and the HTTP route, for run, answer and next');
   ok(/page tutorial "rabbit" at 0 of 12/.test(boardLine(ctx)) && /checked: par 9 moves/.test(boardLine(ctx)) && /nothing reported yet/.test(boardLine({})), 'the board line says what is on the board');
   ok(fill('{name} in {theme}', { name: 'x', theme: 'y' }) === 'x in y' && fill('{gone}', {}) === '<gone?>', 'fill leaves a visible gap for an unknown placeholder');
   const welcome = guideWelcome(ctx);
@@ -541,7 +541,7 @@ console.log('the bridge carries commands to a page and its answers back');
   let r = await api('POST', '/rpc', { op: 'get' });
   ok(r.status === 503 && /no maker page/.test(r.body.error), 'an rpc with no page open is refused with a hint');
   // a fake page: the event stream, run each command, answer
-  const seen = [], patched = [], guided = [];
+  const seen = [], patched = [], guided = [], asked = [], generated = [];
   let lastTutorial = { id: 'roses', title: 'Painting the Roses', step: 'brush', at: 0, of: 16 };
   const page = await fetch(`${url}/__maker/events`);
   const reader = page.body.getReader();
@@ -560,6 +560,7 @@ console.log('the bridge carries commands to a page and its answers back');
         const cmd = JSON.parse(line.slice(6));
         seen.push(cmd);
         if (cmd.op === 'guide' && cmd.id === undefined) { guided.push(cmd.args); continue; }   // the bridge tells the page of a pick made for the person
+        if (cmd.op === 'ask' && cmd.id === undefined) { asked.push(cmd.args); continue; }      // the guide's question, to the page as buttons
         if (cmd.id === undefined) continue;
         if (cmd.op === 'get') await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, lint: [], tutorial: lastTutorial } });   // the guide reads the page fresh through get
         else if (cmd.op === 'set') await api('POST', '/reply', { id: cmd.id, result: { lint: lint(cmd.args.level) } });
@@ -571,6 +572,7 @@ console.log('the bridge carries commands to a page and its answers back');
         else if (cmd.op === 'load') await api('POST', '/reply', { id: cmd.id, result: { level: blank(9, 7), lint: lint(blank(9, 7)) } });
         else if (cmd.op === 'guide') { guided.push(cmd.args); if (cmd.id !== undefined) await api('POST', '/reply', { id: cmd.id, result: { mode: cmd.args?.mode ?? null, open: !!cmd.args?.show } }); }
         else if (cmd.op === 'snapshot') await api('POST', '/reply', { id: cmd.id, result: { png: 'data:image/png;base64,AAAA', note: 'a picture' } });
+        else if (cmd.op === 'generate') { generated.push(cmd.args); await api('POST', '/reply', { id: cmd.id, result: { level: TEA_PARTY, seed: 7, report: { ok: true, kind: 'tea', par: 106, moves: [] } } }); }
         // 'play' is never answered: the timeout path
       }
     }
@@ -621,6 +623,9 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.messages.length === 1 && r.body.messages[0].kind === 'guide' && r.body.messages[0].data.mode === 'fast' && /picked "Drink Me"/.test(r.body.messages[0].text), 'and the inbox has the pick as a line of kind guide');
   await settle();
   ok(guided.length === 0, 'a pick from the page is not echoed back to it');
+  ok(asked.length === 1 && asked[0].id === 'name' && asked[0].at === 0 && asked[0].of === 10 && asked[0].options.length === 3 && /call your room/.test(asked[0].q) && asked[0].other, 'the first question goes to the page as a card: the step, its options, room for their own words');
+  r = await api('POST', '/guide', { mode: 'basic' });
+  ok(r.body.did === 'already picked on the page' && r.body.mode === 'fast' && /picked "Drink Me" on the banner/.test(r.body.say), 'an assistant picking another way right after the person picked on the banner is told, not obeyed');
   r = await api('POST', '/guide', { answer: 'The Mad Hatter\'s Pantry' });
   ok(r.body.did === 'next' && r.body.at === 1 && r.body.step.id === 'shape' && r.body.vars.name === 'The Mad Hatter\'s Pantry' && /"The Mad Hatter's Pantry" - lovely/.test(r.body.step.say), 'an answer in their own words is kept and the guide moves on, filling the next say with it');
   r = await api('POST', '/guide', { answer: '2' });
@@ -629,10 +634,25 @@ console.log('the bridge carries commands to a page and its answers back');
   ok(r.body.did === 'next' && r.body.vars.flavour === 'gate' && r.body.step.id === 'dressing', 'an option by value, for the step the assistant was shown');
   r = await api('POST', '/guide', { answer: 'The court', at: 2 });
   ok(r.body.did === 'moved' && r.body.step.id === 'dressing' && /✓ A flavour/.test(r.body.say), 'an answer for a step already passed is not taken for the next one');
-  r = await api('POST', '/guide', { answer: 'The court' });
-  ok(r.body.did === 'next' && r.body.step.id === 'paint' && r.body.step.before && r.body.step.do[0].op === 'generate' && r.body.step.do[0].args.gate === true && r.body.step.do[0].args.width === 13 && r.body.step.do[1].args.theme === 'court', 'the paint step\'s plan is worked out from the four answers');
+  await settle();
+  ok(asked.at(-1).id === 'dressing' && asked.filter(a => a.id === 'dressing').length === 1 && asked.map(a => a.id).join() === 'name,shape,flavour,dressing', 'every step\'s question reached the page once, in order');
+  // the person presses a button on the page: applied at once, the next step's work done before its question, the assistant told
+  const n0 = (await api('GET', '/inbox?since=0')).body.latest;
+  r = await api('POST', '/guide', { answer: 'The hall', at: 3, from: 'page' });
+  await settle();
+  ok(r.body.did === 'next' && r.body.vars.theme === 'hall' && r.body.step.id === 'paint' && Array.isArray(r.body.ranNext) && r.body.ranNext[0].op === 'generate' && generated.length === 1 && generated[0].gate === true, 'a press on the page answers the step and the paint plan runs before the page is asked to keep or roll');
+  const pressed = (await api('GET', `/inbox?since=${n0}`)).body.messages.find(m => m.kind === 'answer');
+  ok(pressed && pressed.data.option === 'The hall' && pressed.data.at === 3 && /pressed "The hall" on the page/.test(pressed.text), 'and the inbox tells the assistant what was pressed');
+  ok(asked.at(-1).id === 'paint' && asked.at(-1).options.map(o => o.label)[0] === 'Keep it ✓', 'the keep-or-roll question is on the page');
+  r = await api('POST', '/guide', { answer: 'The court', at: 3 });
+  ok(r.body.did === 'moved' && /they answered "The hall" on the page/.test(r.body.say) && r.body.last.by === 'page' && r.body.last.answer === 'The hall', 'the assistant\'s late answer is told what the person chose on the page');
+  r = await api('POST', '/guide', { answer: 'The court' });   // no at: the assistant answers the current step (paint) with a dressing - a wish, so the step rolls again
+  ok(r.body.did === 'again' && r.body.step.id === 'paint', 'back on the paint step');
+  ok(r.body.step.id === 'paint' && r.body.step.before && r.body.step.do[0].op === 'generate' && r.body.step.do[0].args.gate === true && r.body.step.do[0].args.width === 13 && r.body.step.do[1].args.theme === 'hall', 'the paint step\'s plan is worked out from the four answers');
   r = await api('POST', '/guide', { answer: 'Harder' });
   ok(r.body.did === 'again' && r.body.at === 4 && r.body.vars.minPar === 24 && r.body.step.do[0].args.minPar === 24 && r.body.step.do[0].args.rocks === 3, 'Harder turns the knobs and stays on the step');
+  await settle();
+  ok(asked.filter(a => a.id === 'paint').length >= 2, 'a roll puts the keep-or-roll question on the page again');
   r = await api('POST', '/guide', { answer: 'Keep it' });
   ok(r.body.did === 'next' && r.body.step.id === 'play' && /Kept!/.test(r.body.say), 'Keep it moves on with a word');
   r = await api('POST', '/guide', { step: 6 });
@@ -653,6 +673,13 @@ console.log('the bridge carries commands to a page and its answers back');
   await api('POST', '/state', { level: TEA_PARTY, lint: [], report: null, tutorial: lastTutorial });
   r = await api('GET', '/guide');
   ok(r.body.at === 1 && r.body.step.id === 'name' && /page tutorial "rabbit" at 1 of 12/.test(r.body.text), 'the Rabbit\'s step is the page\'s');
+  const askedBefore = asked.length;
+  lastTutorial = { id: 'rabbit', title: 'Follow the White Rabbit', step: 'wall', at: 2, of: 12 };
+  await api('POST', '/post', { text: '✓ Name it (2 of 12)', kind: 'tutorial', data: { id: 'rabbit', step: 'name', at: 2, of: 12 } });
+  await settle();
+  ok(asked.length === askedBefore + 1 && asked.at(-1).id === 'wall' && asked.at(-1).options[0].label === 'Wall painted ✓' && asked.at(-1).help, 'a step the person finishes on the page brings the next question (and its help) to the page at once');
+  lastTutorial = { id: 'rabbit', title: 'Follow the White Rabbit', step: 'name', at: 1, of: 12 };
+  await api('POST', '/state', { level: TEA_PARTY, lint: [], report: null, tutorial: lastTutorial });
   r = await api('POST', '/guide', { answer: 'I typed one ✓' });
   ok(r.body.did === 'not yet' && /has not seen it yet/.test(r.body.say), 'did it, but the page has not moved: said kindly');
   r = await api('POST', '/guide', { answer: 'The Pantry' });
@@ -887,6 +914,11 @@ console.log('maker.html keeps the studio to a checkout and the landing to the si
   const guideJs = readFileSync(resolve(root, 'src/guide.js'), 'utf8');
   ok(!/document\.|window\.|fetch\(/.test(guideJs) && /from '\.\/tutor\.js'/.test(guideJs) && /from '\.\/level\.js'/.test(guideJs), 'src/guide.js is pure: no DOM, no fetch; it reads the page\'s builds and the starters');
   ok(/\.guide-picks \{/.test(makerCss) && /\.guide-pick \{/.test(makerCss) && /html:not\(\[data-look=classic\]\) \.guide-picks \{/.test(makerCss), 'src/maker.css styles the cards, one column in the phone looks');
+  // the question on the page: op ask, a card with buttons, a press answered through the bridge
+  ok(OPS.includes('ask') && /^  ask: \(\{ mode, title, at, of, step, say, q, options = \[\], other, over \} = \{\}\) => \{/m.test(mod) && /className = 'btn ghost ask-pick'/.test(mod) && /bridge\?\.answer\(o\.label, at\)/.test(mod), 'src/maker.js draws the guide\'s question as a card of buttons and answers a press through the bridge');
+  ok(/async function answer\(text, at\)/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')) && /from: 'page', run: true/.test(readFileSync(resolve(root, 'src/bridge.js'), 'utf8')), 'src/bridge.js posts a press as the page\'s answer, with the step and run');
+  ok(/\.chat li\.ask \{/.test(makerCss) && /\.ask-row \{/.test(makerCss) && /\.chat li\.ask\.stale, \.chat li\.ask\.answered \{/.test(makerCss), 'src/maker.css styles the question card and dims one answered or superseded');
+  ok(GUIDE_RULES.some(r => /shown on the page too, as buttons/.test(r)) && /do not ask again/.test(guideText('fast', 1, {})), 'the rules and the text tell the assistant the person may answer on the page');
   ok(/Fork, then clone\./.test(html) && /Follow the White Rabbit<\/b>/.test(html) && /Drink Me<\/b>/.test(html) && /Eat Me<\/b>/.test(html) && /fork the repository for you/.test(html), 'the landing says fork first and names the three ways; the dialog\'s note says what the assistant will do');
   // the assistants' own doors
   const cursor = JSON.parse(readFileSync(resolve(root, '.cursor/mcp.json'), 'utf8')), gemini = JSON.parse(readFileSync(resolve(root, '.gemini/settings.json'), 'utf8')), vscode = JSON.parse(readFileSync(resolve(root, '.vscode/mcp.json'), 'utf8'));

@@ -15,7 +15,10 @@
 //     POST /__maker/state         a mirror of the room (level, lint, report, game, tutorial) after every change
 //     POST /__maker/post          { text, kind?, data? }: a line the person typed in the page's chat
 //                                 (kind 'chat'), or an event the page reports (kind 'tutorial': a step done)
-//     POST /__maker/guide         { mode, from: 'page' }: the person picked a way on the welcome banner
+//     POST /__maker/guide         { mode, from: 'page' }: the person picked a way on the welcome banner;
+//                                 { answer, at, from: 'page' }: they pressed one of the question's buttons on the page
+//                                 (the bridge shows every question of the guide on the page too, op 'ask', so the
+//                                 person may answer there or in the assistant's chat - whichever comes first wins)
 //
 //   an assistant (curl, or software/tools/maker-mcp.mjs)
 //     GET  /__maker/              status: is a page open, which assistants said hello, the ops, the guide
@@ -38,7 +41,8 @@
 // The ops are the page's (src/maker.js, `ops`): get, set, patch, paint, check,
 // play, stop, reset, press, moves, say, snapshot, module, load, generate,
 // tool, share (a link that carries the room), pr (the pull request's brief),
-// tutorial (the guided builds), guide (the welcome banner). A request is
+// tutorial (the guided builds), guide (the welcome banner), ask (the guide's
+// question as a card with buttons). A request is
 // refused unless its Host is the loopback and, when it carries an Origin,
 // that Origin is this server: no page on the web can reach it.
 
@@ -55,7 +59,7 @@ const TYPES = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2',
 };
 
-export const OPS = ['get', 'set', 'patch', 'paint', 'check', 'play', 'stop', 'reset', 'press', 'moves', 'say', 'snapshot', 'module', 'load', 'generate', 'tool', 'share', 'pr', 'tutorial', 'guide'];
+export const OPS = ['get', 'set', 'patch', 'paint', 'check', 'play', 'stop', 'reset', 'press', 'moves', 'say', 'snapshot', 'module', 'load', 'generate', 'tool', 'share', 'pr', 'tutorial', 'guide', 'ask'];
 /** How long the page may take over each op before the bridge gives up (ms); the default is 30 s. */
 const OP_TIMEOUT = { check: 90_000, generate: 120_000, moves: 120_000 };
 
@@ -98,7 +102,7 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
   const inbox = [];                        // { n, text, at, kind, data? }: the person typed, or the page / the guide reported
   const waiters = new Set();               // long-polls on the inbox
   const guideWaiters = new Set();          // long-polls on the guide's pick
-  const guide = { mode: null, at: 0, vars: {}, by: null, pickedAt: 0, platform: null };
+  const guide = { mode: null, at: 0, vars: {}, by: null, pickedAt: 0, platform: null, last: null, told: null };
   let nextId = 1, nextN = 1, mirror = null, mirrorAt = 0;
 
   const send = (cmd) => { const line = `data: ${JSON.stringify(cmd)}\n\n`; for (const res of pages) res.write(line); };
@@ -148,6 +152,7 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
     res.write(`data: ${JSON.stringify({ op: 'hello', args: { agents: [...agents.keys()], guide: guide.mode } })}\n\n`);
     pages.add(res);
+    if (guide.mode) { guide.told = null; setTimeout(() => tellPage(), 300); }   // a page that (re)opens mid-way gets the current question
     const beat = setInterval(() => res.write(': beat\n\n'), 15_000);
     res.on('close', () => { clearInterval(beat); pages.delete(res); log(`page gone (${pages.size} open)`); });
     log(`page attached (${pages.size} open)`);
@@ -188,20 +193,44 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
   }
   function view(extra = {}) {
     const c = ctx();
-    if (!guide.mode) return { mode: null, at: 0, of: 0, over: false, step: null, modes: GUIDE_MODES.map(({ id, title, kicker, time }) => ({ id, title, kicker, time })), vars: guide.vars, text: guideWelcome(c), page: pageFacts(), ...extra };
+    if (!guide.mode) return { mode: null, at: 0, of: 0, over: false, step: null, modes: GUIDE_MODES.map(({ id, title, kicker, time }) => ({ id, title, kicker, time })), vars: guide.vars, last: guide.last, text: guideWelcome(c), page: pageFacts(), ...extra };
     const at = guideAt();
     const step = guideStep(guide.mode, at, c);
-    return { mode: guide.mode, title: modeById(guide.mode).title, at, of: step.of, over: !!step.over, step: step.over ? null : step, vars: guide.vars, text: guideText(guide.mode, at, c), page: pageFacts(), ...extra };
+    return { mode: guide.mode, title: modeById(guide.mode).title, at, of: step.of, over: !!step.over, step: step.over ? null : step, vars: guide.vars, last: guide.last, text: guideText(guide.mode, at, c), page: pageFacts(), ...extra };
+  }
+  /**
+   * The current question, to the page as well: a card with the step's line and
+   * its options as buttons (op 'ask'), so the person may answer on the page or
+   * in the assistant's chat, whichever they are looking at. Sent once per step.
+   */
+  function tellPage({ again = false } = {}) {
+    if (!guide.mode || !pages.size) return;
+    const v = view();
+    const key = v.over ? `${guide.mode}:over` : `${guide.mode}:${v.at}`;
+    if (!again && guide.told === key) return;
+    guide.told = key;
+    const m = modeById(guide.mode);
+    if (v.over) { send({ op: 'ask', args: { mode: guide.mode, title: m.title, over: true, say: guideStep(guide.mode, v.of, ctx()).say } }); return; }
+    const st = v.step;
+    send({ op: 'ask', args: { mode: guide.mode, title: m.title, at: v.at, of: v.of, id: st.id, step: st.title, say: st.say, q: st.ask?.q ?? null,
+                              options: (st.ask?.options ?? []).map(o => ({ label: o.label, hint: o.hint })), other: st.ask?.other?.hint ?? null, help: st.help?.say ?? null } });
+  }
+  /** The page reports a step of the Rabbit's build done: the position is known at once, and the next question goes to the page. */
+  function pageStep(data = {}) {
+    if (guide.mode !== 'tutorial' || typeof data.at !== 'number') return;
+    mirror = { ...(mirror ?? {}), tutorial: { id: data.id, step: data.step, at: data.at, of: data.of } }; mirrorAt = Date.now();
+    tellPage();
   }
   const pageFacts = () => ({ open: pages.size > 0, level: mirror?.level?.name ?? null, lintOk: Array.isArray(mirror?.lint) ? mirror.lint.length === 0 : null, checked: mirror?.report?.ok ?? null, tutorial: mirror?.tutorial ?? null });
   function pick(mode, by = 'agent') {
     if (!GUIDE_IDS.includes(mode)) throw Object.assign(new Error(`no such way: ${mode}; the ways are ${GUIDE_IDS.join(', ')}`), { code: 400 });
     const m = modeById(mode);
-    Object.assign(guide, { mode, at: 0, vars: {}, by, pickedAt: Date.now() });
+    Object.assign(guide, { mode, at: 0, vars: {}, by, pickedAt: Date.now(), last: null, told: null });
     post(`[guide] the person picked "${m.title}" (${mode}): read the guide - GET /__maker/guide, or maker_guide - and follow it step by step`, { kind: 'guide', data: { what: 'pick', mode, by } });
     if (by !== 'page') send({ op: 'guide', args: { mode, by } });       // the page follows: its tutorial, its chat line; no answer needed
     for (const w of guideWaiters) w();
     log(`guide: ${mode} picked by ${by}`);
+    tellPage();
   }
   function waitPick(wait = 0) {
     if (guide.mode || wait <= 0) return Promise.resolve(!!guide.mode);
@@ -235,10 +264,20 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
   }
   /** One request to the guide: what the assistant (or the page) says happened, and what to do next. */
   async function drive(b = {}) {
+    const out = await steer(b);
+    if (out.did && out.did !== 'nothing picked yet' && out.did !== 'shown') tellPage({ again: out.did === 'again' || out.did === 'restarted' });
+    return out;
+  }
+  async function steer(b = {}) {
     if (b.platform) guide.platform = String(b.platform);
     await refresh();
     if (b.show) { await rpc('guide', { show: true }); return view({ did: 'shown' }); }
-    if (b.mode !== undefined) { pick(b.mode, b.from ?? 'agent'); return view({ did: 'picked' }); }
+    if (b.mode !== undefined) {
+      // the person's own pick on the banner stands: an assistant that asked in its chat meanwhile is told, not obeyed
+      if (b.from !== 'page' && guide.mode && guide.by === 'page' && Date.now() - guide.pickedAt < 180_000)
+        return view({ did: 'already picked on the page', say: `They picked "${modeById(guide.mode).title}" on the banner ${Math.round((Date.now() - guide.pickedAt) / 1000)} s ago: follow that, do not pick again.` });
+      pick(b.mode, b.from ?? 'agent'); return view({ did: 'picked' });
+    }
     if (!guide.mode) return view({ did: 'nothing picked yet', hint: 'wait with GET ?wait=MS, or pick with { mode }' });
     if (b.vars && typeof b.vars === 'object') Object.assign(guide.vars, b.vars);
     if (b.restart) { guide.at = 0; guide.vars = {}; if (guide.mode === 'tutorial') await rpc('tutorial', { id: modeById('tutorial').tutorial, restart: true }).catch(() => {}); return view({ did: 'restarted' }); }
@@ -258,14 +297,25 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
       return view({ did: 'help', say: step.help?.say ?? null, help: step.help, ran });
     }
     if (b.answer !== undefined) {
-      // an answer to a step the page has already moved past (the person did it while the assistant was asking) is not an answer to this one
-      if (typeof b.at === 'number' && b.at < at) return view({ did: 'moved', say: `✓ ${guideStep(guide.mode, b.at, c).title}` });
+      // an answer to a step the page has already moved past (the person did it, or answered on the page, while the assistant was asking) is not an answer to this one
+      if (typeof b.at === 'number' && b.at < at) {
+        const theirs = guide.last && guide.last.at === b.at && guide.last.by === 'page' ? ` - they answered "${guide.last.answer}" on the page` : '';
+        return view({ did: 'moved', say: `✓ ${guideStep(guide.mode, b.at, c).title}${theirs}: go on from the step below, do not ask again.` });
+      }
       const r = applyAnswer(step, b.answer, guide.vars);
       guide.vars = r.vars;
+      guide.last = { at, step: step.id, answer: String(b.answer), option: r.option, then: r.then, by: b.from ?? 'agent', when: Date.now() };
+      if (b.from === 'page') post(`[guide] they pressed "${r.option ?? b.answer}" on the page (step ${at + 1}, ${step.id}): ${r.then}`, { kind: 'answer', data: { at, step: step.id, answer: b.answer, option: r.option, then: r.then } });
       const fresh = guideStep(guide.mode, at, ctx());          // the plan, with the answer in it
-      let ran = null;
+      let ran = null, ranNext = null;
       switch (r.then) {
-        case 'next': if (b.run && fresh.do.length && !fresh.before) ran = await runOps(fresh.do); await advance(); return view({ did: 'next', answered: r.option ?? b.answer, say: r.say, ran });
+        case 'next': {
+          if (b.run && fresh.do.length && !fresh.before) ran = await runOps(fresh.do);
+          await advance();
+          // answered on the page: a step whose work comes before its question is done right away, so the page shows the room before it asks
+          if (b.from === 'page') { const ns = guideStep(guide.mode, guideAt(), ctx()); if (!ns.over && ns.before && ns.do.length) ranNext = await runOps(ns.do); }
+          return view({ did: 'next', answered: r.option ?? b.answer, say: r.say, ran, ranNext });
+        }
         case 'again': if (b.run) ran = await runOps(fresh.do); return view({ did: 'again', answered: r.option ?? b.answer, say: r.say, ran });
         case 'help': ran = b.run !== false && fresh.help ? await runOps(fresh.help.do) : null; return view({ did: 'help', answered: r.option ?? b.answer, say: fresh.help?.say ?? null, help: fresh.help, ran });
         case 'why': return view({ did: 'why', answered: r.option, say: step.why ?? step.say });
@@ -291,7 +341,7 @@ export function createBridge({ log = () => {}, facts = {} } = {}) {
 
   const close = () => { for (const res of pages) res.end(); pages.clear(); for (const p of pending.values()) { clearTimeout(p.timer); p.reject(new Error('closed')); } pending.clear(); for (const w of guideWaiters) w(); };
 
-  return { status, rpc, reply, post, read, attach, hello, state, close, guide: { view, drive, pick, waitPick, refresh, state: guide, text: () => (guide.mode ? guideText(guide.mode, guideAt(), ctx()) : guideWelcome(ctx())) },
+  return { status, rpc, reply, post, read, attach, hello, state, close, guide: { view, drive, pick, waitPick, refresh, pageStep, tellPage, state: guide, text: () => (guide.mode ? guideText(guide.mode, guideAt(), ctx()) : guideWelcome(ctx())) },
            get mirror() { return mirror; }, get pages() { return pages.size; } };
 }
 
@@ -311,7 +361,7 @@ export function startMaker({ root, port = 8080, host = '127.0.0.1', log = consol
       if (req.method === 'GET' && path === '/events') return bridge.attach(res);
       if (req.method === 'POST' && path === '/reply') return json(res, 200, { ok: bridge.reply(await readBody(req)) });
       if (req.method === 'POST' && path === '/state') { bridge.state(await readBody(req)); return json(res, 200, { ok: true }); }
-      if (req.method === 'POST' && path === '/post') { const b = await readBody(req); if (!b.text) return json(res, 400, { error: 'text?' }); return json(res, 200, bridge.post(b.text, { kind: b.kind, data: b.data })); }
+      if (req.method === 'POST' && path === '/post') { const b = await readBody(req); if (!b.text) return json(res, 400, { error: 'text?' }); const m = bridge.post(b.text, { kind: b.kind, data: b.data }); if (b.kind === 'tutorial') bridge.guide.pageStep(b.data); return json(res, 200, m); }
       if (req.method === 'POST' && path === '/hello') return json(res, 200, bridge.hello((await readBody(req)).name));
       if (req.method === 'GET' && path === '/inbox') return json(res, 200, { messages: await bridge.read(+q.get('since') || 0, +q.get('wait') || 0), latest: bridge.status().inbox });
       if (req.method === 'GET' && path === '/level') return bridge.mirror?.level ? json(res, 200, bridge.mirror.level) : json(res, 404, { error: 'no page has reported a room yet' });
