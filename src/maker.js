@@ -1550,6 +1550,39 @@ const ops = {
     if (mode) pickGuide(mode, { from: by ?? 'assistant' });
     return { mode: guideMode, open: guideDialog.open, ways: GUIDE_MODES.map(m => m.id), tutorial: tutorialSummary() };
   },
+  // The guide's current question, as a card in the chat with its options as buttons: the person may answer here
+  // instead of in the assistant's chat, and the bridge applies the press at once (whichever side answers first wins).
+  ask: ({ mode, title, at, of, step, say, q, options = [], other, over } = {}) => {
+    const m = modeById(mode);
+    for (const old of chatLog.querySelectorAll('li.ask:not(.answered)')) { old.classList.add('stale'); for (const x of old.querySelectorAll('button')) x.disabled = true; }
+    const li = document.createElement('li');
+    li.className = 'ask';
+    li.append(Object.assign(document.createElement('b'), { textContent: m ? `${m.icon} ${m.title}` : title ?? 'guide' }), ' ');
+    if (over) { li.append(say ?? 'That was the way. The room stays on the board.'); chatLog.prepend(li); return { shown: true, over: true }; }
+    li.append(Object.assign(document.createElement('span'), { className: 'ask-say', textContent: `${at + 1} of ${of} · ${step}: ${say}` }));
+    if (q && options.length) {
+      const row = document.createElement('div');
+      row.className = 'ask-row';
+      row.append(Object.assign(document.createElement('span'), { className: 'ask-q', textContent: q }));
+      for (const o of options) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'btn ghost ask-pick'; btn.textContent = o.label; if (o.hint) btn.title = o.hint;
+        btn.addEventListener('click', async () => {
+          for (const x of row.querySelectorAll('button')) x.disabled = true;
+          li.classList.add('answered');
+          chat(o.label, 'you');
+          const r = await bridge?.answer(o.label, at);
+          if (r?.say) chat(r.say, m ? m.title : 'guide');
+          else if (r?.did === 'moved') chat('that step was already done', 'act');
+        });
+        row.append(btn);
+      }
+      if (other) row.append(Object.assign(document.createElement('small'), { textContent: `or type below: ${other}` }));
+      li.append(row);
+    }
+    chatLog.prepend(li);
+    return { shown: true, at, step };
+  },
 };
 
 // --------------------------------------------------------------- the welcome ----

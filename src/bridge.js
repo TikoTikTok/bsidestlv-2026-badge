@@ -17,9 +17,10 @@
 //   bridge.post('text the person typed');                    // the chat, outbound
 //   bridge.post('✓ A rock', { kind: 'tutorial', data });     // an event the assistant reads in the inbox
 //   bridge.guide('fast');                                    // the pick on the welcome banner
+//   bridge.answer('Cosy', 1);                                // a button of the guide's question card pressed
 
 export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onState = () => {}, onCommand = () => {} } = {}) {
-  const self = { available: null, connected: false, agents: [], post, state, guide: pickGuide, close };
+  const self = { available: null, connected: false, agents: [], post, state, guide: pickGuide, answer, close };
   let source = null, lastState = null, stateTimer = 0;
 
   async function probe() {
@@ -71,6 +72,12 @@ export function connectBridge(ops, { base = '__maker/', onHello = () => {}, onSt
   async function pickGuide(mode) {
     if (!self.available) return null;
     const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, from: 'page' }) });
+    return r.ok ? r.json() : null;
+  }
+  /** The person pressed one of the guide's buttons on the page: the bridge applies it as the answer to step `at` (and does the step's work). */
+  async function answer(text, at) {
+    if (!self.available) return null;
+    const r = await fetch(`${base}guide`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answer: text, at, from: 'page', run: true }) });
     return r.ok ? r.json() : null;
   }
   function close() { source?.close(); source = null; self.connected = false; }

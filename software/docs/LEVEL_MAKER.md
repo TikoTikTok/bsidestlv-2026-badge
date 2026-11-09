@@ -334,6 +334,20 @@ GET  /__maker/guide?mode=basic&step=1&platform=codex    a preview of any step, n
 GET  /__maker/platforms               what each assistant platform has
 ```
 
+**Both sides stay in step.** Every question the guide asks is shown on the
+page too (op `ask`): a card in the assistant panel's chat with the step's
+line, the question and its options as buttons. The person may press one
+there instead of answering the assistant, and the bridge applies it at once
+(`POST /__maker/guide { answer, at, from: 'page' }`, with the next step's
+work done before its question when it comes first, as Drink Me's painting
+does), tells the assistant in the inbox (kind `answer`), and the next
+question replaces the card. An assistant whose own question comes back late
+is told `moved` with what was chosen, and an assistant that picks a way
+after the person pressed a card on the banner is told `already picked on
+the page`; its instructions say to go on from there and never ask twice.
+On the Rabbit, a step the person finishes by hand brings the next card
+up as well.
+
 Over MCP it is one tool, `maker_guide`, with the same knobs; the server's
 instructions send a new assistant straight to it. The inbox
 (`maker_read_chat`, `GET /__maker/inbox`) carries, between the person's
@@ -417,8 +431,9 @@ Two ways in:
   (`{ author? }` -> `{ id, file, source, indexLine, branch, brief }`, the
   pull request's brief), `load`, `generate`, `tool`, `share`, `tutorial`,
   `guide` (`{ show?, mode?, close? }`: the welcome banner, or a pick made
-  for the person) - the same table (`ops` in `src/maker.js`) the MCP tools
-  call. `get` reports the guided
+  for the person), `ask` (the guide's question as a card of buttons; the
+  bridge sends it, nobody else needs to) - the same table (`ops` in
+  `src/maker.js`) the MCP tools call. `get` reports the guided
   build the person is on as `tutorial: { id, title, step, at, of }`;
   `tutorial` with `{ id?, skip?, restart? }` picks one, skips that many
   steps or starts it over, and answers the same summary, so an assistant
