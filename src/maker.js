@@ -56,17 +56,14 @@ const $ = (sel) => document.querySelector(sel);
 const mode = gateMode();
 const dev = mode === 'dev';
 
-// Before anything paints, as this device left them (the studio below keeps them): the guide's place in the
-// classic look - beside the board (data-learn="side", maker.html's default: a column on a wide window, a drawer
-// on a narrow one) or in the page, last - and the phone looks' mode bar's panel. src/look-boot.js hides the other
-// panels from data-mode on DOMContentLoaded and initLooks lights the button, so the page opens where it was left.
+// Before anything paints, as this device left it (the studio below keeps it): the phone looks' mode bar's panel.
+// src/look-boot.js hides the other panels from data-mode on DOMContentLoaded and initLooks lights the button, so the
+// page opens where it was left. (The guide's place in the classic look, data-learn, is look-boot's own: alice.learn.)
 const html = document.documentElement;
-const LEARN = 'alice.maker.learn';   // 'side' | 'page'
 const MODE = 'alice.maker.mode';     // one of MODES
 const MODES = ['home', 'learn', 'edit', 'play', 'export', 'assistant'];   // maker.html's nav.modes = the panels' keys (goTo)
 if (dev) {
   try {
-    if (localStorage.getItem(LEARN) === 'page') html.dataset.learn = 'page';
     const m = localStorage.getItem(MODE);
     if (MODES.includes(m)) html.dataset.mode = m;
   } catch { /* storage may be off */ }
@@ -255,40 +252,18 @@ const load = (k) => { try { return localStorage.getItem(k); } catch { return nul
 const save = (k, v) => { try { localStorage.setItem(k, v); } catch { /* storage may be off */ } };
 const loadJson = (k, or) => { const s = load(k); if (!s) return or; try { return JSON.parse(s); } catch { return or; } };
 
-// ------------------------------------------------------------ the guide's place ----
-// The Learn panel is the last panel of a long page. In the classic look it sits beside
-// the board instead (src/maker.css, html[data-learn=side]): a column at the right of a
-// wide window, sticky under the header; a drawer over the right edge of a narrow one (the
-// in-app browser's pane, a small window), opened and closed by the coach line's "learn"
-// and the panel's ×. "unpin" (#learnPin) puts it back in the page. In the phone looks the
-// maker has a mode bar and Learn is a mode, so the way to any panel is goTo(key).
+// ------------------------------------------------------------ the way to a panel ----
+// The Learn panel sits beside the board in the classic look (styles.css, html[data-learn=side]:
+// a column on a wide window, a drawer on a narrow one, "unpin" for the page) - that is the
+// coach's, src/coach.js, the same on every page. In the phone looks the maker has a mode bar
+// and Learn is a mode, so the way to any panel is goTo(key).
 
-const WIDE = matchMedia('(min-width: 1000px)');   // the same breakpoint as src/maker.css: a column, else a drawer
 const PANELS = { home: '#hero', edit: '#editPanel', play: '#playPanel', export: '#exportPanel', assistant: '#assistantPanel', learn: '#learnPanel' };
 /** Put a panel on screen: the phone looks switch the mode bar to it (its mode is its key), the classic page scrolls to it. */
 function goTo(key) {
   if (looks.look.id !== 'classic') { looks.setMode(key); return; }
   $(PANELS[key])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-/** The drawer (the classic look, a narrow window): open, closed, or toggled; the coach line's "learn" says which it is. */
-function openLearn(open = !('learnOpen' in html.dataset)) {
-  if (open && html.dataset.learn === 'side') html.dataset.learnOpen = ''; else delete html.dataset.learnOpen;
-  $('#coachOpen').setAttribute('aria-expanded', String('learnOpen' in html.dataset));
-  return 'learnOpen' in html.dataset;
-}
-/** Beside the board ('side', a column or a drawer) or in the page ('page'); remembered unless told not to. */
-function setLearn(where, { remember = true } = {}) {
-  html.dataset.learn = where === 'page' ? 'page' : 'side';
-  if (html.dataset.learn === 'page') openLearn(false);
-  if (remember) save(LEARN, html.dataset.learn);
-  $('#learnPin').textContent = html.dataset.learn === 'side' ? 'unpin' : 'pin beside the board';
-  $('#learnPin').setAttribute('aria-pressed', String(html.dataset.learn === 'side'));
-  return html.dataset.learn;
-}
-setLearn(html.dataset.learn, { remember: false });
-$('#learnPin').addEventListener('click', () => setLearn(html.dataset.learn === 'side' ? 'page' : 'side'));
-$('#learnClose').addEventListener('click', () => openLearn(false));
-WIDE.addEventListener('change', () => openLearn(false));   // grown into the column or shrunk out of it: the drawer starts closed
 
 // the tutorials: one Tutor per guided build, each with its own progress
 // (alice.tutor.maker for the first, alice.tutor.maker.<id> for the rest), the
@@ -1847,12 +1822,7 @@ coach = mountCoach(tutor, {
   prepare(step, { show = false } = {}) {
     if (show && step?.panel) goTo(step.panel);
   },
-  looks,
-  open() {   // the coach line's "learn" in the classic look: the drawer on a narrow window; the column is on screen already; else the panel is in the page
-    if (html.dataset.learn === 'page') { $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-    if (WIDE.matches) { $('#learnCoach').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
-    openLearn();
-  },
+  looks,   // the coach wires the guide's place too: the drawer the line's "learn" opens, #learnPin, #learnClose
   onRender: () => { renderPicks(); bridge?.state(snapshotState()); },   // a step done, skipped or swapped: the mirror carries the new position at once, so the bridge's Rabbit never lags
 });
 tell('lint', { ok: !lint(level).length, why: 'open' });
@@ -1880,7 +1850,7 @@ window.__maker = {
   undo: undoEdit, redo: redoEdit, get past() { return past.length; }, get future() { return future.length; },
   surprise, get shelf() { return shelf; }, shelfSave, loadById, ops, get bridge() { return bridge; }, get tutor() { return tutor; }, chat: sendChat,
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
-  goTo, setLearn, openLearn, get learn() { return { where: html.dataset.learn, open: 'learnOpen' in html.dataset, wide: WIDE.matches }; }, get mode() { return looks.mode; },
+  goTo, setLearn: (...a) => coach.setLearn(...a), openLearn: (...a) => coach.openLearn(...a), get learn() { return coach.learn; }, get mode() { return looks.mode; },
   guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
   openLevel: showOpen, get openDialog() { return openDialog.open; },

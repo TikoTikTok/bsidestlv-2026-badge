@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- data-look: the look in force and data-theme: the theme in force (src/look-boot.js sets both before paint); data-look-touch: the look a touch screen opens on; data-theme-default: the theme the page opens on. Ids from src/looks/index.json and src/themes/index.json -->
-<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench">
+<html lang="en" data-look="classic" data-theme="classic" data-theme-default="bsides" data-look-touch="bench" data-learn="side">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -29,12 +29,15 @@
 </header>
 
 <main>
-  <section class="panel">
+  <!-- The steps are the page's guide: in the classic look on a wide window they stand beside the firmware and the
+       Flash button (class side + html[data-learn=side], styles.css - the same column the Learn panels get), the
+       steps first and this note last; on a narrow window, and wherever the guide was unpinned, they are in the page. -->
+  <section class="panel side" id="flashGuide">
     <h2>Flash the badge from this page</h2>
     <p class="note">The RP2040's ROM bootloader takes firmware over USB, and a Chromium browser can talk to it
       directly through <b>WebUSB</b> — no picotool, no drive to find, no Python. Chrome, Edge or any other
       Chromium browser, on Windows, macOS, Linux, ChromeOS and Android. Not Firefox, not Safari, and nothing
-      on an iPhone; those get the <a href="#manual">download</a> below.</p>
+      on an iPhone; those get the <a href="#manual">download</a> instead.</p>
     <!-- the pictures under the steps are src/prompt.js's: the badge as the player holds it, the asked-for
          buttons lit; src/flash.js mounts them, marks the step the page is on and points at the next control -->
     <ol class="steps" id="flashSteps">
