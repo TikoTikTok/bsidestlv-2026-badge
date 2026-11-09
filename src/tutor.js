@@ -157,7 +157,7 @@ export const TUTORIAL = [
 
 // --------------------------------------------------------------- the stages ----
 // A Caucus Race: the two rooms on index.html, one chapter each. A step names
-// its `stage` (tea / chase) so the page can arm it and, on a phone, show it.
+// its `stage` (tea / chase / rooms) so the page can open it and, on a phone, show it.
 // Events from src/gallery.js:
 //   tea    { what: 'move' | 'push' | 'blocked' | 'lever' | 'button' | 'undo' | 'reset' | 'win', buttons, moves }
 //   chase  { what: 'start' | 'tick' | 'wait' | 'caught' | 'restart' | 'button' | 'win', ticks }
@@ -170,7 +170,7 @@ export const STAGES_TUTORIAL = [
     id: 'wake', chapter: 1, title: 'Wake up', stage: 'tea',
     keys: ['ANY'],
     say: 'Press any button on the badge.',
-    why: 'The badge is the controller. The stage with the green mark is the one it drives; tap a stage to switch.',
+    why: 'The badge is the controller. It drives whichever level is open; Levels lists them all, and a card opens one.',
     done: (ev) => ev.kind === 'edge' && ev.down,
   },
   {
@@ -223,7 +223,7 @@ export const STAGES_TUTORIAL = [
   {
     id: 'clock', chapter: 2, title: 'The clock starts', stage: 'chase',
     keys: ['DPAD'],
-    say: 'Tap the Gauntlet, then press any direction. The room starts.',
+    say: "Open The Queen's Gauntlet from Levels, then press any direction. The room starts.",
     why: 'This room runs on a clock: every tick the cast walks one cell along its loop whether you move or not. It waits for your first press, and from then on your input is read once a tick.',
     done: did('chase', 'start'),
   },
@@ -262,8 +262,8 @@ export const STAGES_TUTORIAL = [
   // ---- chapter 3: the community's rooms ----
   {
     id: 'room', chapter: 3, title: 'A room from the community', stage: 'rooms',
-    say: 'Open Rooms and pick one. The first is a lesson.',
-    why: 'Anyone with a checkout can make a room in the level maker and send it in; every room listed here solves, the checks proved it before it shipped. The badge plays them by the same rules as the two stages.',
+    say: "Open Levels and pick one of the community's rooms. The first is a lesson.",
+    why: 'Anyone with a checkout can make a room in the level maker and send it in; every room listed solves, the checks proved it before it shipped. The badge plays them by the same rules as the two stages.',
     done: (ev) => ev.kind === 'room' && ev.what === 'open',
   },
   {
