@@ -20,21 +20,26 @@
 //                             starters, a dressing, the solution played, a
 //                             link. For a first time.
 //
-// Each step tells the assistant what to SAY, what to ASK (one question, a
-// few options - option buttons where the platform has them, a numbered list
-// where it does not, and the person may always answer in their own words),
-// what to DO on the board (the bridge's ops, with concrete arguments worked
-// out from the room that is on the board right now), what HELP is (what to
-// do when the person asks for a shortcut), and when the step is DONE. The
-// steps are written for a small model: guideText() renders one as a plain
-// block of instructions a weak assistant can follow line by line, and the
-// bridge can run a step's ops itself (POST /__maker/guide { run: true }).
+// Each step tells the assistant what to SAY, WHY (the idea behind the step,
+// one paragraph), what to ASK (one question, a few options - option buttons
+// where the platform has them, a numbered list where it does not, and the
+// person may always answer in their own words), what to DO on the board (the
+// bridge's ops, with concrete arguments worked out from the room that is on
+// the board right now), what HELP is (what to do when the person asks for a
+// shortcut), and when the step is DONE. The steps are written for a small
+// model: guideText() renders one as a plain block of instructions a weak
+// assistant can follow line by line, and the bridge can run a step's ops
+// itself (POST /__maker/guide { run: true }). The same step goes to the page
+// as a card - the line, the why, the board, what the assistant does, the
+// buttons, Do it for me - so a person watching the page in the assistant's
+// own browser pane follows the whole walk there.
 //
 // Pure: no DOM, no fetch. The bridge serves it (GET /__maker/guide), the
 // MCP server offers it (maker_guide), the page draws the banner from
 // GUIDE_MODES, and verify-maker.mjs proves every op a step names is one the
 // page has and every placeholder resolves. PLATFORMS is what the invitation
-// and the docs say about each assistant's own controls.
+// and the docs say about each assistant's own controls and its own browser
+// (where the page opens first); BROWSER_FIRST is that rule in a sentence.
 //
 //   guide.js exports GUIDE_MODES, guideStep, guideText, applyAnswer, PLATFORMS (and more below):
 //   const ctx = { vars: { name: 'The Rose Walk' }, level, report, tutorial, assistant: 'Claude' };
@@ -78,7 +83,7 @@ export const GUIDE_RULES = [
   'Never leave them in silence: when something takes a while (a Check, a deploy), say so before and after.',
   'They may be typing on the page\'s chat instead of yours: read it (maker_read_chat / GET /__maker/inbox) before you ask again.',
   'Pass every answer back to the guide (maker_guide {"answer": "...", "at": <the step>}): it decides what happens next and turns the knobs for you.',
-  'Every question you ask is shown on the page too, as buttons, and the banner is theirs: they may answer there instead of answering you. When your own dialog comes back, call maker_guide before anything else - if it says the step has moved (or the way is already picked), go with what they chose on the page and do not ask again.',
+  'Every step is on the page too, as a card in the assistant panel - the line, the why, what you are doing, the question as buttons, Do it for me - and the banner is theirs. When the page is open in a browser pane they can see (yours), that is where they follow: keep your own chat to a line a step and never make them read a thing twice. They may answer there instead of answering you: when your own dialog comes back, call maker_guide before anything else - if it says the step has moved (or the way is already picked), go with what they chose on the page and do not ask again.',
   'If something fails, say what the page said in one plain line and offer the next thing to try. No blame, no jargon.',
   'When unsure, call maker_guide with no arguments and do exactly what its text says.',
 ];
@@ -91,25 +96,39 @@ export const GUIDE_RULES = [
 export const PLATFORMS = [
   { id: 'claude', name: 'Claude Code', connect: '.mcp.json at the repository root registers the server alice-maker: open the clone in Claude Code and the maker_* tools are there (by hand: claude mcp add alice-maker -- node software/tools/maker-mcp.mjs).',
     ask: 'AskUserQuestion: one question, two to four options with a one-line description each; the person always has "Other" to type their own words - that is where a name or a blurb comes from.',
-    run: 'Start `npm run maker -- --no-open` in the background, or call maker_open.', buttons: true },
+    browser: 'The built-in browser pane of the Claude desktop app (the Code tab): preview_start { url: "http://localhost:8080/maker.html" } or navigate opens the page beside your chat, where the person sees and answers every step. Claude in Chrome (the extension) when they asked for Chrome. In a bare terminal, with no pane: their default browser.',
+    run: 'Start `npm run maker -- --no-open` in the background, or call maker_open; then open the page in your own browser pane first (see browser). Only with none, `npm run maker` or maker_open { browser: true } opens it in the person\'s default browser.', buttons: true },
   { id: 'codex', name: 'Codex (OpenAI)', connect: '.codex/config.toml in the clone registers alice-maker under [mcp_servers] (by hand: codex mcp add alice-maker -- node software/tools/maker-mcp.mjs).',
-    ask: 'No option buttons: write the options as a numbered list, one question per message, and wait for the reply (a number or words).', run: 'Start `npm run maker -- --no-open` in the background, or call maker_open.', buttons: false },
+    ask: 'No option buttons: write the options as a numbered list, one question per message, and wait for the reply (a number or words).',
+    browser: 'Codex\'s own browser when the app offers one, opened at http://localhost:8080/maker.html; else the person\'s default browser (`npm run maker` without --no-open, or maker_open { browser: true }).',
+    run: 'Start `npm run maker -- --no-open` in the background, or call maker_open; then open the page in your own browser first (see browser), the person\'s default browser only when you have none.', buttons: false },
   { id: 'cursor', name: 'Cursor', connect: '.cursor/mcp.json in the clone; Cursor asks once to enable the server, then the maker_* tools are in the agent.',
-    ask: 'A numbered list in the chat; Cursor shows no option buttons.', run: 'Start `npm run maker -- --no-open` in a terminal, or call maker_open.', buttons: false },
+    ask: 'A numbered list in the chat; Cursor shows no option buttons.',
+    browser: 'Cursor\'s built-in browser tab when the agent has it, else the Simple Browser (the command "Simple Browser: Show", then the address); the person\'s default browser last.',
+    run: 'Start `npm run maker -- --no-open` in a terminal, or call maker_open; then open the page in the editor\'s browser first (see browser).', buttons: false },
   { id: 'copilot', name: 'GitHub Copilot (VS Code agent mode, Copilot CLI)', connect: '.vscode/mcp.json in the clone (VS Code shows a Start button on the server); the Copilot CLI takes `/mcp add` with command node and args software/tools/maker-mcp.mjs.',
-    ask: 'Use the question tool when agent mode offers one; otherwise a numbered list.', run: 'Start `npm run maker -- --no-open` in a terminal, or call maker_open.', buttons: false },
+    ask: 'Use the question tool when agent mode offers one; otherwise a numbered list.',
+    browser: 'VS Code\'s Simple Browser ("Simple Browser: Show", then the address) beside the chat; the Copilot CLI has none: the person\'s default browser.',
+    run: 'Start `npm run maker -- --no-open` in a terminal, or call maker_open; then open the page in the Simple Browser first (see browser).', buttons: false },
   { id: 'gemini', name: 'Gemini CLI, Jules, Antigravity (Google)', connect: '.gemini/settings.json in the clone registers alice-maker under mcpServers.',
-    ask: 'A numbered list in the chat.', run: 'Start `npm run maker -- --no-open` in the background, or call maker_open.', buttons: false },
+    ask: 'A numbered list in the chat.',
+    browser: 'Antigravity has a browser of its own: open the page there. Gemini CLI and Jules have none: the person\'s default browser (maker_open { browser: true }).',
+    run: 'Start `npm run maker -- --no-open` in the background, or call maker_open; then open the page in your own browser first when you have one (see browser).', buttons: false },
   { id: 'hermes', name: 'Hermes Agent', connect: 'Add alice-maker to mcp_servers in your config.yaml (command node, args [software/tools/maker-mcp.mjs], env MAKER_URL), or use the HTTP bridge with curl.',
-    ask: 'A numbered list; Hermes can also hold the whole conversation on the page (maker_say / maker_read_chat).', run: 'Start `npm run maker -- --no-open` in the background, or call maker_open.', buttons: false },
+    ask: 'A numbered list; Hermes can also hold the whole conversation on the page (maker_say / maker_read_chat).',
+    browser: 'Hermes\'s browser tool when one is configured, at http://localhost:8080/maker.html; else the person\'s default browser.',
+    run: 'Start `npm run maker -- --no-open` in the background, or call maker_open; then open the page in your browser tool first (see browser).', buttons: false },
   { id: 'grok', name: 'Grok (xAI)', connect: 'No MCP client in the chat: with a shell tool, use the HTTP bridge (curl); without one, the person runs the maker and relays what the page says.',
-    ask: 'A numbered list.', run: 'Ask the person to run `npm run maker` if you cannot.', buttons: false },
+    ask: 'A numbered list.', browser: 'None of your own: the person opens the page (`npm run maker` opens it in their browser).', run: 'Ask the person to run `npm run maker` if you cannot.', buttons: false },
   { id: 'chatgpt', name: 'ChatGPT and other web chats without a shell', connect: 'Cannot reach the bridge: ask the person to open the page\'s assistant panel and relay, or to use Codex / an agent with a shell instead.',
-    ask: 'A numbered list.', run: 'Ask the person to run `npm run maker`.', buttons: false },
+    ask: 'A numbered list.', browser: 'None of your own: the person opens the page (`npm run maker` opens it in their browser).', run: 'Ask the person to run `npm run maker`.', buttons: false },
   { id: 'any', name: 'Anything with a shell', connect: 'curl against http://localhost:8080/__maker/: POST /hello, GET /guide, POST /guide, POST /rpc, GET /inbox.',
-    ask: 'A numbered list.', run: '`npm run maker -- --no-open` in the background.', buttons: false },
+    ask: 'A numbered list.', browser: 'Your browser tool when you have one, at http://localhost:8080/maker.html; the person\'s default browser otherwise (`npm run maker` without --no-open opens it).',
+    run: '`npm run maker -- --no-open` in the background, then the page in your own browser first (see browser); `npm run maker` opens the person\'s.', buttons: false },
 ];
 export const platformById = (id) => PLATFORMS.find(p => p.id === id) ?? PLATFORMS.at(-1);
+/** Where the page opens, in one sentence: the invitation, the MCP server's instructions and the guide's board line all say it. */
+export const BROWSER_FIRST = 'Open the page in your own browser pane first - the one the person sees beside your chat, where every step of the guide is then shown with its explanation and its buttons - and only when you have no browser of your own, in their default browser.';
 
 // -------------------------------------------------------------------- helpers ----
 
@@ -135,7 +154,7 @@ const unit = (report) => (report?.kind === 'chase' ? 'ticks' : 'moves');
 /** The room on the board in one line, for the top of every step. */
 export function boardLine(ctx = {}) {
   const { level, lint, report, tutorial } = ctx;
-  if (!level) return 'Board: nothing reported yet (is the page open? maker_status).';
+  if (!level) return `Board: nothing reported yet - is the page open? ${BROWSER_FIRST} The page: ${ctx.url ?? 'http://localhost:8080'}/maker.html (Claude Code: the built-in browser pane, preview_start { url } or navigate; Cursor / VS Code: the Simple Browser; a browser tool: navigate to it; none: maker_open { browser: true }, or npm run maker without --no-open). maker_status says whether a page has attached.`;
   const d = dims(level);
   const bits = [`"${level.name ?? 'untitled'}"`, d ? `${d.w}x${d.h}` : level.range ? `a ${level.range} level` : ''];
   bits.push(Array.isArray(lint) ? (lint.length ? `lint: ${lint[0]}` : 'lint ok') : '');
@@ -205,7 +224,8 @@ const PLANS = {
   move: ({ report }) => (report?.ok && report.moves?.length ? [{ op: 'moves', args: { moves: [report.moves[0]] } }] : [{ op: 'check', args: {} }, { op: 'moves', args: { moves: ['<the first move Check returned>'] } }]),
   win: ({ report }) => (report?.ok && report.moves?.length ? [{ op: 'play', args: {} }, { op: 'moves', args: { moves: report.moves } }] : [{ op: 'check', args: {} }, { op: 'play', args: {} }, { op: 'moves', args: { moves: ['<the moves Check returned>'] } }]),
   blurb: ({ vars }) => [{ op: 'patch', args: { blurb: vars.blurb } }],
-  export: () => [{ op: 'share', args: { where: 'stages' } }],
+  // the link where the room plays, at the fork's published page when the bridge knows it (anyone opens that one; a checkout's address only its owner)
+  export: ({ page }) => [{ op: 'share', args: { where: 'play', ...(page ? { at: 'site', site: page } : {}) } }],
   // the fast lane
   paint: ({ vars }) => {
     const size = { width: vars.width ?? 11, height: vars.height ?? 8 };
@@ -218,7 +238,7 @@ const PLANS = {
   },
   solution: ({ report }) => (report?.ok && report.moves?.length ? [{ op: 'play', args: {} }, { op: 'moves', args: { moves: report.moves } }] : [{ op: 'check', args: {} }, { op: 'play', args: {} }, { op: 'moves', args: { moves: ['<the moves Check returned>'] } }]),
   words: ({ vars }) => [{ op: 'patch', args: { blurb: vars.blurb } }],
-  keep: () => [{ op: 'share', args: { where: 'stages' } }],
+  keep: ({ page }) => [{ op: 'share', args: { where: 'play', ...(page ? { at: 'site', site: page } : {}) } }],
   publish: ({ vars }) => [{ op: 'pr', args: { author: vars.author ?? '' } }],
   // the one-bite starter
   starter: ({ vars }) => [{ op: 'load', args: { id: vars.starter ?? 'corridor' } }, { op: 'patch', args: { name: vars.name } }, { op: 'check', args: {} }, { op: 'snapshot', args: { what: 'board' } }],
@@ -269,11 +289,13 @@ const FAST = [
   {
     id: 'name', title: 'A name', next: 'answer',
     say: 'Hello! I\'m {assistant}, and we are going to build a room together - four quick questions, then I paint while you watch the board. First things first: what shall we call it?',
+    why: 'The name is the room\'s title on the stages page and, lower-case with hyphens, the id of its file and of its index line - so two rooms cannot share one. You can change it any time before the room is sent in.',
     ask: askName('next'), done: 'A name is given (vars.name).',
   },
   {
     id: 'shape', title: 'A size', next: 'answer',
     say: '"{name}" - lovely. Now, how big a room?',
+    why: 'The size sets how much puzzle fits: a small room is one idea and a short par, a big one has space for detours and more rocks, and takes the solver longer to prove. Five to twenty-four a side; the shipped stages are 13x9 and 9x8.',
     ask: {
       key: 'size', q: 'How big should "{name}" be?',
       options: [
@@ -288,6 +310,7 @@ const FAST = [
   {
     id: 'flavour', title: 'A flavour', next: 'answer',
     say: 'Good. What kind of puzzle is it?',
+    why: 'The flavour is the recipe the dice roll with: how many rocks, whether a wall with a gate and a lever cuts the room in two, and whether a clock runs with the Red Queen walking a loop. Where the walls fall is the dice\'s own business.',
     ask: {
       key: 'flavour', q: 'Which flavour?',
       options: [
@@ -303,6 +326,7 @@ const FAST = [
   {
     id: 'dressing', title: 'A dressing', next: 'answer',
     say: 'Last question before I paint: how should it look?',
+    why: 'The dressing is paint, not rules: the same room plays the same in the garden, the hall or the court. It is the first thing a player sees on the card, so pick the one that fits the name.',
     ask: {
       key: 'theme', q: 'Which dressing?',
       options: [
@@ -317,6 +341,7 @@ const FAST = [
   {
     id: 'paint', title: 'Paint it', next: 'answer', plan: 'paint', before: true,
     say: 'Watch the board - drawing "{name}" now. The dice roll rooms until the solver clears one, so this may take a moment.',
+    why: 'Rooms are drawn at random from your four answers and thrown away until the real solver clears one, so what you see is proven solvable. Check then says the par - the fewest moves - and a difficulty word; Harder and Easier turn the knobs and roll again.',
     after: 'Say what came out, from Check\'s answer: the par ("{par} {unit}") and the difficulty word; one sentence.',
     ask: {
       key: 'verdict', q: 'Keep this one?',
@@ -334,6 +359,7 @@ const FAST = [
   {
     id: 'play', title: 'Watch Alice', next: 'answer', plan: 'solution', before: true,
     say: 'Here is how the solver gets Alice out - watch the run.',
+    why: 'The run plays the solver\'s own moves with the rules the site uses, so you see the intended way out before anyone else does. Trying it yourself tells you whether the room is fun, which no solver can.',
     after: 'When the run is over, invite them to try it themselves: WASD or the arrows move, B takes a move back, START starts over (Y waits a tick in a chase).',
     ask: {
       key: 'tried', q: 'Want a go yourself?',
@@ -349,13 +375,15 @@ const FAST = [
   {
     id: 'words', title: 'A line about it', next: 'answer', plan: 'words',
     say: 'Every room gets a card on the stages page. One line for it?',
+    why: 'The card on the stages page shows the room\'s name, who made it, the par - and this line. Say what the room is about or how it feels, never how to solve it.',
     ask: askBlurb('next'),
     done: 'A blurb is set on the room (the plan ran after the answer).',
   },
   {
     id: 'keep', title: 'A link', next: 'answer', plan: 'keep', before: true,
     say: 'Making your room into a link - the whole room travels in the address, nothing is uploaded.',
-    after: 'Paste the link in your chat (it opens the room as a card on the stages page of any checkout, and on the published site once the room is merged).',
+    why: 'The whole room travels in the link, so nothing has to be merged first: at your published page\'s address anyone opens it and the badge plays it there; a link at this checkout\'s address opens only for whoever runs it. Your GitHub page is your fork\'s own site; the official site is the game\'s, where a maintainer plays a room before merging it.',
+    after: 'Paste the link anywhere: it opens the room as a card on the stages page, where the badge plays it. At your published page\'s address anyone opens it; a link at this checkout\'s address opens only for you.',
     ask: {
       key: 'where', q: 'Where should "{name}" live?',
       options: [
@@ -370,6 +398,7 @@ const FAST = [
   {
     id: 'publish', title: 'On your page', next: 'auto', plan: 'publish',
     say: 'Putting "{name}" into the repository now - I\'ll say when it is live.',
+    why: 'A room reaches a site through a pull request: its file and one index line, checked by the same solver, deployed by the Pages workflow in about two minutes. On your own fork you merge it yourself; the official site asks a maintainer.',
     work: [
       'Take the brief: op pr / maker_pr_brief (the plan below). It carries the module, the file name, the index line, the branch and the commit; follow its steps 1 to 5 in the clone, exactly (write the file, add the index line, `npm run stage`, `npm run verify`, one commit on the branch).',
       'You are in the person\'s fork ({fork}). Push the branch there: `git push -u origin {branch}`.',
@@ -383,6 +412,7 @@ const FAST = [
   {
     id: 'finish', title: 'Done', next: 'answer',
     say: '🎉 "{name}" is a real room - built, proved, played and yours. Thank you for making it with me!',
+    why: 'Whatever you choose next, the room stays on the board and on this browser\'s shelf; the link and the pull request are the two ways it leaves this machine.',
     ask: {
       key: 'again', q: 'What next?',
       options: [
@@ -400,11 +430,13 @@ const BASIC = [
   {
     id: 'name', title: 'A name', next: 'answer',
     say: 'Hello! I\'m {assistant}. Three small questions and you will have a room with your name on it. What shall we call it?',
+    why: 'The name is the room\'s title on the stages page and, lower-case with hyphens, the id of its file; two rooms cannot share one.',
     ask: askName('next'), done: 'A name is given.',
   },
   {
     id: 'starter', title: 'A starter', next: 'answer', plan: 'starter',
     say: 'Which room shall "{name}" begin as?',
+    why: 'A starter is a small room that is already proven - every one has been solved by the checker - so your first room works before you have touched it. Any of it can be repainted later.',
     ask: {
       key: 'starter', q: 'Pick a starter',
       options: STARTERS.filter(s => ['corridor', 'gate', 'two-rooms'].includes(s.id)).map(s => ({ label: s.name, hint: s.blurb, value: s.id, then: 'next' })),
@@ -416,6 +448,7 @@ const BASIC = [
   {
     id: 'dressing', title: 'A dressing', next: 'answer', plan: 'dressing',
     say: 'And how should it look?',
+    why: 'The dressing is paint, not rules: the room plays the same in the garden, the hall or the court. It is what a player sees first on the card.',
     ask: {
       key: 'theme', q: 'Which dressing?',
       options: [
@@ -430,6 +463,7 @@ const BASIC = [
   {
     id: 'play', title: 'Watch Alice', next: 'answer', plan: 'solution', before: true,
     say: 'Watch - this is how Alice gets out.',
+    why: 'The run plays the solver\'s moves with the rules the site uses: the intended way out, seen before anyone else. Trying it yourself tells you whether it is fun.',
     after: 'Then invite them to try: WASD or the arrows, B takes a move back, START starts over.',
     ask: {
       key: 'tried', q: 'Want a go yourself?',
@@ -445,6 +479,7 @@ const BASIC = [
   {
     id: 'keep', title: 'A link', next: 'answer', plan: 'keep', before: true,
     say: 'Here is your room as a link - paste it anywhere, it carries the whole room.',
+    why: 'Nothing is uploaded: the whole room is in the address. Your GitHub page is your fork\'s site, where a merged room is live in about two minutes.',
     ask: {
       key: 'where', q: 'Put "{name}" on your GitHub page too?',
       options: [
@@ -459,6 +494,7 @@ const BASIC = [
   {
     id: 'finish', title: 'Done', next: 'answer',
     say: '🎉 "{name}" is yours. That was the one-bite version - the Rabbit has a longer walk whenever you want it.',
+    why: 'The room stays on the board and on this browser\'s shelf whatever comes next; the Rabbit builds the next one by hand, step by step, Drink Me shapes a bigger one fast.',
     ask: {
       key: 'again', q: 'What next?',
       options: [
@@ -488,7 +524,7 @@ const RABBIT_COACH = {
   win:   { say: 'Push the rock onto its button and walk to the door. B takes a move back, START starts over. Take your time - this is your puzzle.', help: { say: 'Watch Alice do it.', plan: 'win' }, ask: askRabbit('Out the door ✓') },
   blurb: { say: 'Give the room a line for its card - the box under the map. What it is about, not how to solve it.', help: { say: 'I\'ll write one in.', plan: 'blurb' },
            ask: { key: 'blurb', q: 'One line for the card?', options: [{ label: 'I wrote one ✓', hint: 'the blurb box has it', then: 'check' }, { label: 'You write one', hint: 'the assistant writes a line', value: 'A first room: one rock, one button, one way out.', then: 'help' }], other: { hint: 'or tell me the line here and I will type it', then: 'help' } } },
-  export:{ say: 'Last step: send it in. Copy a link (it carries the whole room), copy or download the module, or press "Open a pull request with your AI" and I will do the rest.', help: { say: 'Here is your room as a link.', plan: 'export' }, ask: askRabbit('Sent ✓') },
+  export:{ say: 'Last step: send it in. Share a link (it carries the whole room; "play it" at the published site is the one for a friend), copy or download the module, or press "Open a pull request with your AI" and I will do the rest.', help: { say: 'Here is your room as a link.', plan: 'export' }, ask: askRabbit('Sent ✓') },
 };
 
 /** The Rabbit's steps for the assistant: the page's build, step for step, plus the two closing steps of the fast lane. */
@@ -503,6 +539,7 @@ function rabbitSteps() {
                     ask: { key: 'where', q: 'Put "{name}" on your page?', options: [{ label: 'Yes, on my page', hint: 'a pull request on your fork; merged, it is live in a couple of minutes', value: 'fork', then: 'next' }, { label: 'And the official site', hint: 'both: your fork, then a pull request upstream', value: 'both', then: 'next' }, { label: 'Not now', hint: 'the room stays on the board and in the link', value: 'link', then: 'finish' }], other: { hint: 'their call', then: 'next' } }, next: 'answer' };
   const finish = { id: 'finish', title: 'Done', next: 'answer',
     say: '🎉 You followed the Rabbit all the way: a room from nothing, proved and played. That is the whole craft; everything else is taste.',
+    why: 'The twelve steps you just did are the whole of it: a shape, a rock and its button, the proof and the play. The next builds - a gate, a clock, a lesson - are taste; the room stays on the board and on the shelf.',
     ask: { key: 'again', q: 'What next?', options: [{ label: 'A Room with a Gate', hint: 'the next guided build on the page: a wall, a gate, a lever that earns its keep', then: 'tutorial:gate' }, { label: 'Drink Me', hint: 'a bigger room, fast', then: 'mode:fast' }, { label: 'That\'s all for now', hint: 'the room stays on the board', then: 'end' }], other: { hint: 'anything else: answer, then offer these again', then: 'end' } },
     done: 'They said what comes next.' };
   return [...steps, publish, finish];
@@ -621,7 +658,7 @@ export function guideText(mode, at, ctx = {}) {
   if (at === 0) { lines.push('HOW TO BEHAVE (every step):'); for (const r of GUIDE_RULES) lines.push(`  · ${r}`); lines.push(''); }
   const tool = (mcp, http) => `${mcp} (HTTP: ${http})`;
   let n = 1;
-  lines.push(`${n++}. SAY to the person, in your own warm words, in your chat AND on the page (maker_say / op say):`, `   "${s.say}"`);
+  lines.push(`${n++}. SAY to the person, in your own warm words, in your chat AND on the page (maker_say / op say) - one line: the page shows this step too, as a card with the line, the why and the buttons, so they are not made to read it twice:`, `   "${s.say}"`);
   if (s.why) lines.push(`   WHY, if they ask: ${s.why}`);
   if (s.do.length && s.before) {
     lines.push(`${n++}. DO, in order - or let the bridge do it: ${tool('maker_guide {"run": true}', 'POST /__maker/guide {"run": true}')}:`, ...s.do.map(opLine));
@@ -642,7 +679,7 @@ export function guideText(mode, at, ctx = {}) {
   if (s.next === 'page') lines.push(`${n++}. WAIT for either: the page moving on (${tool('maker_guide', 'GET /__maker/guide')} shows step ${at + 2}; maker_read_chat gets "✓ ${s.title}") or their answer. If they say they did it and the page has not moved, say kindly what the board has not seen yet and what to click.`);
   if (s.help) lines.push(`${n++}. HELP - when they ask for help, a shortcut, or "do it for me" (${tool('maker_guide {"help": true, "run": true}', 'POST /__maker/guide {"help": true, "run": true}')} does it): say "${s.help.say}", then`, ...(s.help.do.length ? s.help.do.map(opLine) : ['  - (nothing to do yet: the board has no room to work on - load one first)']), '   and say what you did.');
   lines.push(`DONE WHEN: ${s.done}`);
-  if (at > 0) lines.push(`RULES: one step at a time · say, then ask · short and warm · their hands on the Rabbit · read the page's chat too · pass every answer to the guide.`);
+  if (at > 0) lines.push(`RULES: one step at a time · say, then ask · short and warm · the page carries the step, you add a line · their hands on the Rabbit · read the page's chat too · pass every answer to the guide.`);
   return lines.join('\n');
 }
 

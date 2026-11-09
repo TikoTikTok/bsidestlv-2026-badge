@@ -40,7 +40,7 @@ for (const [page, what] of PAGES) {
   await p.waitForTimeout(1500);
   const info = await p.evaluate(() => ({
     look: document.documentElement.dataset.look,
-    status: document.querySelector('#stageStatus, #watchStatus')?.textContent?.trim().slice(0, 60),
+    status: document.querySelector('#roomStatus, #watchStatus')?.textContent?.trim().slice(0, 60),
     pad: !!window.__pad, gate: !!document.querySelector('dialog.gate[open]'),
   }));
   if (page.startsWith('glitch.html')) {
@@ -53,7 +53,7 @@ for (const [page, what] of PAGES) {
   }
   if (page.includes('autosolve')) {
     await p.waitForTimeout(6000);
-    info.after = await p.evaluate(() => document.querySelector('#stageStatus')?.textContent?.trim());
+    info.after = await p.evaluate(() => document.querySelector("#roomStatus")?.textContent?.trim());
     if (!/move \d+ of 106/.test(info.after ?? '')) errs.push(`the tea party did not play: ${info.after}`);
   }
   if (page.includes('gate=1') && !info.gate) errs.push('no gate dialog');
