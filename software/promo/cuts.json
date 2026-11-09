@@ -1,0 +1,9 @@
+[
+  { "name": "promo", "segments": [[0, 4.5], [10.2, 13.6], [21.6, 27.2], [34.2, 37], [46.4, 52.4], [58.8, 63.2], [71.4, 74.4], [82.7, 86.5]], "width": 640, "fps": 12 },
+  { "name": "stages", "from": 17.4, "to": 27.4, "width": 640, "fps": 12 },
+  { "name": "range", "from": 34, "to": 43, "width": 640, "fps": 12 },
+  { "name": "phone", "from": 46.3, "to": 56.3, "width": 640, "fps": 12 },
+  { "name": "maker", "from": 58.6, "to": 69, "width": 640, "fps": 12 },
+  { "name": "flash", "from": 74.6, "to": 78.1, "width": 640, "fps": 12 },
+  { "name": "themes", "from": 78.1, "to": 82.5, "width": 640, "fps": 12 }
+]
