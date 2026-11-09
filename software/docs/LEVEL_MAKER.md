@@ -211,7 +211,15 @@ every key.
   `Backspace` for SELECT, `Esc` back to the editor), from a click on one of
   its keys, from a real badge on USB, or from an assistant over the bridge;
   the log is every edge with its time and what the room made of it. *Play
-  the solution* replays the checker's answer.
+  the solution* replays the checker's answer. In the classic look it plays
+  **in the editor**, where the board was: while a room is played the studio -
+  the category, the tools, the board and its fields - gives way to the legend,
+  the room, the badge, the controls and the log, the heading says *playing*,
+  and *Back to the editor* or `Esc` brings the studio back, so nothing scrolls
+  away from the room (the button is at the editor's foot, so a fresh start
+  scrolls up to the room once; a reset keeps the view). On a narrow window the
+  rig keeps to the left of the Learn drawer and the chat dock. In the phone
+  looks Play is a mode of its own: the room above the badge above the log.
 - **Send it in** writes the module (copy or download), names the file,
   and opens the **Share** dialog, which makes a link that carries the
   whole room (`?level=`; the next section): what goes in, how the link

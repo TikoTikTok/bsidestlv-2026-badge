@@ -68,7 +68,8 @@ if (dev) {
     if (MODES.includes(m)) html.dataset.mode = m;
   } catch { /* storage may be off */ }
 }
-const looksReady = initLooks({ onMode(m) { if (dev) try { localStorage.setItem(MODE, m); } catch { /* storage may be off */ } } });
+let lookChanged = null;              // the studio's hook (placeRig, below): the rig follows a change of look while a room is played
+const looksReady = initLooks({ onLook: (l) => lookChanged?.(l), onMode(m) { if (dev) try { localStorage.setItem(MODE, m); } catch { /* storage may be off */ } } });
 
 // ------------------------------------------------------------ the repository ----
 // The site is served from <owner>.github.io/<repo>/, so the repository the
@@ -256,9 +257,10 @@ const loadJson = (k, or) => { const s = load(k); if (!s) return or; try { return
 // The Learn panel sits beside the board in the classic look (styles.css, html[data-learn=side]:
 // a column on a wide window, a drawer on a narrow one, "unpin" for the page) - that is the
 // coach's, src/coach.js, the same on every page. In the phone looks the maker has a mode bar
-// and Learn is a mode, so the way to any panel is goTo(key).
+// and Learn is a mode, so the way to any panel is goTo(key). Run & debug plays in the editor
+// in the classic look (the rig, run & debug below), so its key is the editor's there.
 
-const PANELS = { home: '#hero', edit: '#editPanel', play: '#playPanel', export: '#exportPanel', assistant: '#assistantPanel', learn: '#learnPanel' };
+const PANELS = { home: '#hero', edit: '#editPanel', play: '#editPanel', export: '#exportPanel', assistant: '#assistantPanel', learn: '#learnPanel' };
 /** Put a panel on screen: the phone looks switch the mode bar to it (its mode is its key), the classic page scrolls to it - except the chat, a dock there, which opens. */
 function goTo(key) {
   if (looks.look.id !== 'classic') { looks.setMode(key); return; }
@@ -1123,6 +1125,27 @@ $('#pngBtn').addEventListener('click', () => {
 // The room as the stages page plays it: the untimed rules of src/puzzle.js or
 // the timed ones of src/chase.js, driven by the pad - which here carries the
 // keyboard, the simulated badge's keys, a real badge and the bridge alike.
+//
+// Run & debug is class rig (styles.css): in the classic look it is not a panel
+// of its own. While a room is played its body - #rig: the legend, the room, the
+// badge, the controls, the log - is moved into the editor after the studio's
+// grid, where the board was, and the editor is armed (the mark in its heading,
+// the accent border; src/maker.css hides the category, the tools and the board
+// with its fields meanwhile), so the room plays on the screen it was painted on
+// and nothing scrolls away from it; when play stops the body goes back. The
+// phone looks keep the rig a mode (Play) with the body where it is written. A
+// change of look mid-play moves the body too (lookChanged).
+
+const rig = $('#rig'), editPanel = $('#editPanel'), playPanel = $('#playPanel');
+/** Put the rig's body where this look wants it: in the editor while a room is played in the classic look, in its own panel otherwise. Answers which. */
+function placeRig() {
+  const inEditor = playing && looks.look.id === 'classic';
+  const after = inEditor ? editPanel.querySelector(':scope > .maker') : playPanel.querySelector(':scope > h2');
+  if (rig.previousElementSibling !== after) after.after(rig);
+  editPanel.classList.toggle('armed', inEditor);
+  return inEditor ? 'edit' : 'play';
+}
+lookChanged = placeRig;
 
 const run = $('#run'), rctx = run.getContext('2d');
 const runStatus = $('#runStatus');
@@ -1142,12 +1165,14 @@ function startPlay() {
   if (lint(level).length) return;
   if (isGlitch(level)) { say('a glitch level plays on the range page: Try it on the range', 'hot'); return; }
   const kind = kindOf(level);
+  const fresh = !playing;      // a fresh start brings the room on screen; a reset (START) keeps the view
   const map = kind === 'tea' ? parseTea(level.rows) : parseChase(level);
   game = { kind, map, state: map.start, history: [], facing: 'S', ticks: 0, dead: false, waiting: true, plan: null, planAt: 0,
            timer: null, t0: performance.now(), tickMs: level.tickMs ?? 320 };
   run.width = map.w * TILE; run.height = map.h * TILE;
   playing = true;
   $('#playPanel').classList.add('armed');
+  placeRig();
   $('#keysUndo').hidden = kind !== 'tea';
   $('#keysWait').hidden = kind !== 'chase';
   $('#undoBtn').hidden = kind !== 'tea';
@@ -1155,13 +1180,14 @@ function startPlay() {
   log(`${level.name}: ${kind === 'tea' ? 'untimed' : `timed, ${game.tickMs} ms a tick`}`);
   status();
   if (kind === 'chase') game.timer = setInterval(tick, game.tickMs);
-  goTo('play');
+  if (fresh) goTo('play');
   tell('play', { rules: kind });
 }
 function stopPlay() {
   if (game?.timer) clearInterval(game.timer);
   playing = false;
   $('#playPanel').classList.remove('armed');
+  placeRig();
 }
 function status() {
   if (!game) return;
@@ -1894,6 +1920,7 @@ window.__maker = {
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
   goTo, setLearn: (...a) => coach.setLearn(...a), openLearn: (...a) => coach.openLearn(...a), get learn() { return coach.learn; }, get mode() { return looks.mode; },
   openDock, get dock() { return { open: 'dockOpen' in html.dataset, unread }; },
+  get rig() { return rig.parentElement === editPanel ? 'edit' : 'play'; },
   guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
   openLevel: showOpen, get openDialog() { return openDialog.open; },
