@@ -190,6 +190,16 @@
 .chat li.act { color: var(--dim); font-style: italic; }
 .chat li.act b { color: var(--accent-2); font-style: normal; }
 .chat:empty::after { content: 'nothing said yet'; color: var(--dim); font-size: 11px; letter-spacing: .06em; }
+/* the guide's question as a card: the step's line, the question, its options as buttons; a card answered or superseded dims */
+.chat li.ask { border-left: 2px solid var(--accent-2); padding-left: .5rem; }
+.chat li.ask b { color: var(--accent-2); }
+.chat li.ask .ask-say { color: var(--text); }
+.ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .35rem 0 .1rem; }
+.ask-q { flex-basis: 100%; color: var(--dim); font-size: 11px; }
+.ask-pick { font-size: 11px; padding: .2rem .55rem; }
+.ask-row small { color: var(--dim); font-size: 10px; }
+.chat li.ask.stale, .chat li.ask.answered { opacity: .55; }
+.chat li.ask.answered { border-left-color: var(--accent); }
 .chat-text { flex: 1 1 16rem; font: 13px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .6rem; min-width: 0; }
 .chat-text:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
 
@@ -274,6 +284,24 @@
 .learn-pick.on b { color: var(--accent-2); }
 .learn-pick.done i { color: var(--accent-2); }
 
+/* ------------------------------------------------- the welcome banner -- */
+/* #guideDialog: an assistant said hello, the person picks a way (src/guide.js
+   GUIDE_MODES). One card per way: the icon, the title, the kicker, the blurb,
+   how long it takes. */
+
+.guide { width: min(820px, 94vw); }
+.guide-picks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; margin: .9rem 0 1rem; }
+.guide-pick { display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; padding: .9rem .95rem 1rem; cursor: pointer; text-align: left; font: inherit; color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); min-width: 0; min-height: 100%; }
+.guide-pick .icon { font-size: 26px; line-height: 1; }
+.guide-pick b { font: 700 15px/1.2 var(--font-display); color: var(--accent); letter-spacing: .02em; }
+.guide-pick i { font-style: normal; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-2); }
+.guide-pick small { font-size: 12px; line-height: 1.45; color: var(--dim); }
+.guide-pick em { font-style: normal; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin-top: auto; padding-top: .4rem; }
+.guide-pick:hover, .guide-pick:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset, 0 0 18px var(--glow); outline: none; }
+.guide-pick:hover small { color: var(--text); }
+.guide .status { font-size: 11px; }
+@media (max-width: 720px) { .guide-picks { grid-template-columns: 1fr; } }
+
 /* ------------------------------------------------ in the phone looks -- */
 
 html:not([data-look=classic]) .hero { gap: .75rem; }
@@ -282,3 +310,4 @@ html:not([data-look=classic]) .maker, html:not([data-look=classic]) .maker-range
 html:not([data-look=classic]) .steps.three, html:not([data-look=classic]) .keys-grid, html:not([data-look=classic]) .starters, html:not([data-look=classic]) .knobs, html:not([data-look=classic]) .share-grid { grid-template-columns: 1fr; }
 html:not([data-look=classic]) .zoom { margin-left: 0; }
 html:not([data-look=classic]) .learn-picks { grid-template-columns: 1fr; }
+html:not([data-look=classic]) .guide-picks { grid-template-columns: 1fr; }

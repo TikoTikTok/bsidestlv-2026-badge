@@ -21,21 +21,36 @@
 
 import { toModule, idOf, kindOf } from './level.js';
 
-/** The prompt a visitor hands to an assistant. It goes to the repository, which is readable; this site is not meant to be. */
-export const aiPrompt = (repoUrl) => `Help me build a level for "Alice in AI Land", the BSidesTLV 2026 badge puzzle game - with me, in its level studio, not on your own.
-
-1. Clone ${repoUrl} and read software/docs/LEVEL_MAKER.md: the stage format, the rules the checker applies, how a room gets onto the site, and the bridge you drive the studio through.
-2. Run \`npm run maker\` in the clone (Node 20+, no dependencies). It serves the checkout on http://localhost:8080, opens maker.html - the studio - in my browser, and mounts the bridge at http://localhost:8080/__maker/ (loopback only). Open the page yourself if it is not open.
-3. Connect to the studio. If you have MCP, the clone's .mcp.json registers the server \`alice-maker\` (node software/tools/maker-mcp.mjs): maker_status, maker_get, maker_set_level, maker_paint, maker_check, maker_play, maker_moves, maker_snapshot, maker_say, maker_read_chat, maker_generate, maker_module, maker_pr_brief and more. Without MCP, the same over HTTP: POST http://localhost:8080/__maker/rpc with {"op": "get" | "set" | "paint" | "check" | "play" | "moves" | "say" | "snapshot" | "generate" | "module" | "pr" | "load" | "tool" | "tutorial", "args": {...}}; GET /__maker/inbox?since=0&wait=20000 is what I type in the page's chat. Say hello first (POST /__maker/hello {"name": "..."}) so the page shows you are here.
-4. Design the room with me. Ask in the page's chat what I want: how big, how many rocks, a gate and lever or not, timed with a cast walking loops or not, which dressing (garden, hall, court). Then work on the board where I can watch: set or paint the room, Check it (the real solver: par, whether the gate is load-bearing, how hard), play the solution so I see it, take a snapshot to see what I see, and iterate on what I say. Tell me what you are doing in the chat as you go.
-5. When we are happy, export the module (maker_module, or op "module"), save it as stages/community/<id>.js, add one line to stages/community/index.json, and run \`npm run stage -- stages/community/<id>.js\` to see what CI will say.
-6. Commit on a branch and open a pull request against ${repoUrl} with the stage and the index line. Describe the room in a sentence; the checks prove it solves. The page can hand you the whole brief for that - the module, the index line, the branch and the steps: op "pr", or maker_pr_brief.`;
-
 /** { owner, repo } from a repository URL (https://github.com/<owner>/<repo>), or null when it is not shaped like one. */
 export function repoParts(repoUrl) {
   const m = /^https?:\/\/[^/]+\/([^/]+)\/([^/#?]+)/i.exec(repoUrl ?? '');
   return m ? { owner: m[1], repo: m[2].replace(/\.git$/, '') } : null;
 }
+/** Where a fork's site is published: https://<login>.github.io/<repo>/ (the same name as the repository forked). */
+export const pagesUrl = (login, repoUrl) => `https://${login}.github.io/${repoParts(repoUrl)?.repo ?? 'bsidestlv-2026-badge'}/`;
+/** Where a merged room plays on that site: the stages page's Rooms panel opened on it (a glitch level: the range page's tab). */
+export const roomUrl = (login, repoUrl, level) => `${pagesUrl(login, repoUrl)}${kindOf(level) === 'tea' || kindOf(level) === 'chase' ? `index.html?room=${idOf(level)}` : 'glitch.html'}`;
+
+/**
+ * The prompt a visitor hands to an assistant: fork first, so the room lands
+ * on their own page; the studio; the bridge; the welcome banner and the
+ * White Rabbit's guide (src/guide.js), which does the step-by-step for any
+ * assistant, however small. It goes to the repository, which is readable;
+ * this site is not meant to be.
+ */
+export const aiPrompt = (repoUrl) => {
+  const p = repoParts(repoUrl);
+  const slug = p ? `${p.owner}/${p.repo}` : repoUrl;
+  const repo = p?.repo ?? 'bsidestlv-2026-badge';
+  return `Help me build my first level for "Alice in AI Land", the BSidesTLV 2026 badge puzzle game - with me, step by step, in its level studio. You run the tools; I make the choices. Keep it fun and short.
+
+1. Fork first, so the room lands on MY page: \`gh repo fork ${slug} --clone\` then \`cd ${repo}\` (no gh: fork ${repoUrl} on GitHub and clone the fork). Switch my site on: \`gh workflow enable pages.yml\` (refused? tell me to press "enable workflows" in the fork's Actions tab) and \`gh api -X POST repos/<my-login>/${repo}/pages -f build_type=workflow\` (my login: \`gh api user --jq .login\`; 409 means it is on). My site will be https://<my-login>.github.io/${repo}/.
+2. Read AGENTS.md in the clone: the short map. Then start the studio: \`npm run maker\` (Node 20+, no dependencies) serves the checkout on http://localhost:8080, opens maker.html in my browser and mounts your bridge at http://localhost:8080/__maker/ (loopback only). Open the page yourself if it is not open.
+3. Connect and say hello, so the page shows you. With MCP, the clone registers the server \`alice-maker\` (node software/tools/maker-mcp.mjs) for Claude Code (.mcp.json), Cursor (.cursor/mcp.json), Codex (.codex/config.toml), Gemini CLI (.gemini/settings.json) and VS Code Copilot (.vscode/mcp.json): maker_status, maker_guide, maker_say, maker_read_chat, maker_get, maker_patch, maker_paint, maker_generate, maker_check, maker_play, maker_moves, maker_snapshot, maker_share, maker_pr_brief and more. Without MCP, curl: POST /__maker/hello {"name": "<you>"}, GET /__maker/guide, POST /__maker/guide {...}, POST /__maker/rpc {"op": "get" | "patch" | "paint" | "check" | "play" | "moves" | "say" | "generate" | "share" | "pr" | ..., "args": {...}}, GET /__maker/inbox?since=0&wait=20000 (what I type on the page).
+4. Your hello pops a welcome banner on my screen with three ways: Follow the White Rabbit (step by step: I hold the brush, you coach), Drink Me (you ask me four questions and paint the room with me), Eat Me (the one-bite starter). Wait for my pick: maker_guide {"waitMs": 120000} (GET /__maker/guide?wait=120000). If I answer here in words instead, pick for me: maker_guide {"mode": "tutorial" | "fast" | "basic"}.
+5. Then follow the guide one step at a time. Each step tells you exactly what to SAY, what to ASK (one question, a few options: use your option buttons if you have them - Claude Code's AskUserQuestion with Other for my own words - else a numbered list), what to DO on the board, and when it is DONE. Pass my answers back (maker_guide {"answer": "..."}); {"run": true} lets the bridge do the step's work for you; {"help": true, "run": true} is what to do when I ask for help or a shortcut. Celebrate every step, talk to me here and in the page's chat (maker_say), and never leave me waiting without a word.
+6. At the end the guide shows how to put the room on my page (a pull request on my fork, merged when I say so; the Pages workflow deploys it in about two minutes, at https://<my-login>.github.io/${repo}/index.html?room=<id>) and, if I want, offers it to ${slug} with a second pull request.`;
+};
 
 /** The pieces a room's pull request is made of: its id, file, module source, index line and branch. */
 export function prParts(level, { author } = {}) {
@@ -98,7 +113,7 @@ The room: ${sentence}${checked ? ` The last Check in the studio: ${checked}.` : 
 4. Run \`npm run stage -- ${file}\` (the verdict CI reaches on the room) and then \`npm run verify\` (everything the deploy runs: every listed room, and that nothing in the folder is unlisted). Both must end green. If either does not, stop and tell me what it said; do not change the room to make it pass.
 5. One commit with the two files and nothing else: \`git add ${file} stages/community/index.json\` then \`git commit -m "Community room: ${indexLine.name}"\`.
 6. Push the branch: \`git push -u origin ${branch}\`. If you cannot push to ${slug}, push to a fork of it instead (\`gh repo fork ${slug} --remote=true\` adds the fork as the remote \`fork\`; then \`git push -u fork ${branch}\`).
-7. Open the pull request against ${slug}, base main, title "Community room: ${indexLine.name}", with the body below. With gh installed: \`gh pr create --repo ${slug} --base main --head ${branch} --title "Community room: ${indexLine.name}" --body-file <the body saved to a file>\` (from a fork, \`--head <your GitHub login>:${branch}\`). Without gh, open https://github.com/${slug}/compare/main...<your GitHub login>:${branch}?expand=1 (your login is ${owner ? owner.owner : 'the repository\'s owner'} when the branch is on the repository itself) and paste the body there.
+7. Open the pull request against ${slug}, base main, title "Community room: ${indexLine.name}", with the body below. With gh installed: \`gh pr create --repo ${slug} --base main --head ${branch} --title "Community room: ${indexLine.name}" --body-file <the body saved to a file>\` (from a fork, \`--head <your GitHub login>:${branch}\`). Without gh, open https://github.com/${slug}/compare/main...<your GitHub login>:${branch}?expand=1 and paste the body there. On my own fork, the same pull request against the fork's main, merged, puts the room on my page at the next Pages deploy (https://<your GitHub login>.github.io/${owner?.repo ?? '<repo>'}/index.html?room=${id}); do that first when I ask for my page.
 8. Tell me the pull request's address.
 
 The body of the pull request:
