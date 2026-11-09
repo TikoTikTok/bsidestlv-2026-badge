@@ -9,10 +9,12 @@
 import { Pad, flipFor } from './pad.js';
 import { hasHid, requestBadgeHid, readVaultHid, writeVaultHid, BeaconDecoder, BEACON, CMD, hex, unhex, KEY_LEN, LABEL_LEN } from './vault.js';
 import { initLooks } from './looks.js';
+import { mountPrompt, cue } from './prompt.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 let device = null;          // the HIDDevice, or an injected model
+let connectCue = () => {};  // the hand on Connect, until a badge has answered
 let vault = null;           // the last parse
 let revealed = false;
 
@@ -35,6 +37,7 @@ function show(v) {
   $('#writeBtn').disabled = false;
   $('#eraseBtn').disabled = !v.provisioned;
   $('#readBtn').disabled = false;
+  connectCue();
   setStatus('#vaultStatus', v.provisioned ? `badge ${v.serialHex} · ${v.label || 'keyed'}` : `badge ${v.serialHex} · no key yet`, 'win');
   setStatus('#writeStatus', v.provisioned ? 'this badge has a key: hold SELECT on it to replace or erase' : 'blank badge: it takes its first key as it is');
 }
@@ -134,6 +137,12 @@ setInterval(() => {
 $('#hidState').textContent = hasHid() ? 'WebHID available' : 'no WebHID here - reading needs Chrome or Edge on a computer; the beacon works';
 $('#hidState').classList.toggle('on', hasHid());
 initLooks();   // the look picker in the header
+
+// where the press goes (src/prompt.js): SELECT + Y held for the beacon, SELECT
+// held through a write to a keyed badge, and the hand on Connect until a badge answers
+mountPrompt($('#beaconPrompt'), { beats: [['SELECT', 'Y']], hold: 2000, frame: 'cap', caption: 'hold both, about two seconds' });
+mountPrompt($('#selectPrompt'), { beats: ['SELECT'], hold: 1500, frame: 'cap', caption: 'hold SELECT while you press Write or Erase' });
+connectCue = cue($('#connectBtn'));
 
 window.__vault = {
   pad, decoder,

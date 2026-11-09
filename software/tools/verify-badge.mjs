@@ -3,8 +3,10 @@
 // surface and decodes its stick-axis beacon at browser sampling rates, the
 // wire formats match the firmware's host test (test_vault.c) byte for byte,
 // src/seal.js round-trips a stage under a badge key and refuses the wrong
-// one, src/pad.js only lets the badge in outside a dev host, and src/gate.js
-// knows when the badge has gone (the watch behind the reconnect dialog).
+// one, src/pad.js only lets the badge in outside a dev host, src/gate.js
+// knows when the badge has gone (the watch behind the reconnect dialog), and
+// the picture of the badge the pages point with (src/prompt.js) is the board's
+// (src/badge-shape.js, generated) with its timeline in order.
 //
 //   node software/tools/verify-badge.mjs
 
@@ -14,7 +16,13 @@ import { seal, unseal, isSealed } from '../../src/seal.js';
 import { Pad, isDevHost, sourcesFor, isBadgeId, BADGE_PRODUCT, BUTTONS, FLIP, flipButton, isUpsideDown, flipFor, readGamepad, autoFlipped } from '../../src/pad.js';
 import { Tilt, tilt, upVector, deviceAngle, pageTurn, screenTurn, FLIP_AT, BACK_AT, FLAT } from '../../src/tilt.js';
 import { BadgeWatch } from '../../src/gate.js';
+import { expandBeat, schedule, frameBox, TIMING, KEYWORDS, PIVOT } from '../../src/prompt.js';
+import { OUTLINE, KEYS, USB, LED, CAP, BOX } from '../../src/badge-shape.js';
 import { FakeBadge } from './fake-badge.mjs';
+import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 let failed = 0;
 const fail = (msg) => { failed++; console.error(`  FAIL ${msg}`); };
@@ -553,5 +561,71 @@ console.log('gate: when the badge has gone');
   ok(new BadgeWatch().graceMs === 300, 'the default grace');
 }
 
+// ------------------------------------------------------- press this ----
+// src/prompt.js draws the badge from src/badge-shape.js, which
+// gen-badge-art.mjs writes from the board; here the file is proven in step
+// with the board (where the board is: the obfuscation check runs this file
+// against a copy of the site alone), the layout is the player's, and the
+// prompt's timeline is as the page promises.
+
+console.log('prompt: the badge as the player holds it, and the timeline');
+{
+  const here = dirname(fileURLToPath(import.meta.url));
+  const gen = resolve(here, 'gen-badge-art.mjs'), pcb = resolve(here, '../../hardware/badge/PhoneController.kicad_pcb');
+  if (existsSync(gen) && existsSync(pcb)) {
+    const r = spawnSync(process.execPath, [gen, '--check'], { encoding: 'utf8' });
+    ok(r.status === 0, `src/badge-shape.js in step with the board: ${(r.stderr || r.stdout).trim()}`);
+  } else console.log('  (no board here: the generated shape is taken as it is)');
+  for (const b of BUTTONS) ok(KEYS[b], `shape: ${b} has a place on the board`);
+  ok(KEYS.BOOT && KEYS.RESET && KEYS.BOOT.x < KEYS.LEFT.x, 'shape: BootSel and reset are the tiny buttons at the cap\'s left edge');
+  ok(KEYS.LEFT.x < KEYS.UP.x && KEYS.UP.x < KEYS.RIGHT.x && KEYS.UP.y < KEYS.DOWN.y && KEYS.UP.x === KEYS.DOWN.x, 'shape: the d-pad reads LEFT, UP over DOWN, RIGHT');
+  ok(KEYS.Y.x < KEYS.X.x && KEYS.X.x < KEYS.A.x && KEYS.X.y < KEYS.B.y && KEYS.X.x === KEYS.B.x, 'shape: the diamond is X up, A right, B down, Y left');
+  ok(KEYS.RIGHT.x < KEYS.Y.x, 'shape: the d-pad is under the left thumb, the diamond under the right');
+  ok(KEYS.START.x < KEYS.SELECT.x && KEYS.START.y > KEYS.B.y && KEYS.START.y === KEYS.SELECT.y, 'shape: START left of SELECT, in a row below the thumbs');
+  ok(KEYS.SR.x < KEYS.SL.x && KEYS.SR.y < KEYS.UP.y && KEYS.SR.y === KEYS.SL.y, 'shape: the shoulders are at the top, SR on the left and SL on the right - the board\'s nets, which the firmware follows');
+  ok(USB.y < KEYS.SR.y && Math.abs(USB.x - (KEYS.SL.x + KEYS.SR.x) / 2) < 4, 'shape: the stalk, and so the plug, points up from the middle');
+  ok(LED.x > KEYS.RIGHT.x && LED.x < KEYS.Y.x, 'shape: the LED sits between the thumbs');
+  ok(/^M-?\d/.test(OUTLINE) && OUTLINE.endsWith('Z') && (OUTLINE.match(/L/g) ?? []).length > 150, 'shape: the outline is one closed path of a few hundred points');
+  ok(BOX.x0 < CAP.x0 && BOX.x1 > CAP.x1 && BOX.y0 < CAP.y0 && BOX.y1 > CAP.y1, 'shape: the cap lies inside the outline\'s box');
+  ok(Math.abs(PIVOT.x - (KEYS.UP.x + KEYS.X.x) / 2) < 0.1 && Math.abs(PIVOT.y - KEYS.LEFT.y) < 0.1, 'prompt: the board turns about the point between the thumbs');
+
+  ok(expandBeat('ANY').length === BUTTONS.length && KEYWORDS.ANY.every(b => BUTTONS.includes(b)), 'expandBeat: ANY is every pad button');
+  ok(expandBeat('DPAD').join() === 'UP,DOWN,LEFT,RIGHT', 'expandBeat: DPAD is the four directions');
+  ok(expandBeat(['SELECT', 'START']).join() === 'SELECT,START' && expandBeat('BOOT')[0] === 'BOOT' && expandBeat(['DPAD', 'A']).length === 5, 'expandBeat: chords, the tiny buttons, a keyword inside a chord');
+  throws(() => expandBeat('L2'), /no such button/, 'expandBeat: a button the badge has not got');
+  throws(() => schedule({ beats: [] }), /at least one/, 'schedule: an empty prompt');
+
+  const s = schedule({ beats: [['SELECT', 'START']], hold: 2000 });
+  const ons = s.events.filter(e => e.on);
+  ok(ons.length === 2 && ons[0].on.join() === 'SELECT' && ons[1].on.join() === 'START' && ons[1].at - ons[0].at === TIMING.shift, 'schedule: in a chord SELECT goes down first, the shift key');
+  ok(ons[1].hold === 2000 && !ons[0].hold, 'schedule: the hold is on the last beat\'s keys');
+  const off = s.events.find(e => e.off);
+  ok(off && off.off.join() === 'SELECT,START' && off.at === ons[1].at + 2000 + TIMING.settle, 'schedule: both let go after the hold');
+  ok(s.period > off.at && s.events.every((e, i) => !i || e.at >= s.events[i - 1].at), 'schedule: sorted by time, the loop ends after the release');
+  ok(s.events.filter(e => e.untap).length === 2 && s.events.every(e => !e.untap || e.at === s.events.find(o => o.on?.join() === e.untap.join()).at + TIMING.ripple), 'schedule: every tap\'s ripple is taken off a second later');
+
+  const any = schedule({ beats: ['ANY'] });
+  const lit = any.events.flatMap(e => e.on ?? []);
+  ok(new Set(lit).size === BUTTONS.length && any.events.find(e => e.off)?.off.length === BUTTONS.length, 'schedule: ANY lights every button and lets every button go');
+  ok(any.events.filter(e => e.on).every((e, i, a) => !i || e.at === a[i - 1].at + TIMING.wave), 'schedule: the wave is one button every tick');
+
+  const p = schedule({ beats: ['BOOT', ['SELECT', 'START']], hold: 2000, plug: true });
+  const pin = p.events.find(e => e.plug === true), pout = p.events.find(e => e.plug === false);
+  ok(pin && pout && pin.at < pout.at && pout.off?.join() === 'BOOT', 'schedule: the plug goes in while BootSel is held and comes out when it is let go');
+  ok(pout.at === p.events.find(e => e.on?.[0] === 'BOOT').at + TIMING.settle + TIMING.plugIn + TIMING.plugHold, 'schedule: BootSel is held through the plug\'s travel and a moment after');
+  ok(p.events.find(e => e.on?.[0] === 'SELECT').at > pout.at && p.events.find(e => e.hold)?.on.join() === 'START', 'schedule: the second way follows the first, with its hold');
+  ok(!schedule({ beats: [['SELECT', 'START']], plug: true }).events.some(e => 'plug' in e), 'schedule: no plug without a BOOT beat');
+
+  const two = schedule({ beats: ['START', 'X'] });
+  const t2 = two.events.filter(e => e.on);
+  ok(t2.length === 2 && t2[0].on[0] === 'START' && t2[1].on[0] === 'X' && t2[1].at === t2[0].at + TIMING.tap + TIMING.gap, 'schedule: beats in order, a tap and a gap between');
+  ok(two.period === t2[1].at + TIMING.tap + TIMING.rest, 'schedule: the loop rests after the last beat');
+
+  const cap = frameBox('cap'), full = frameBox('full');
+  ok(cap.x1 - cap.x0 < full.x1 - full.x0 && cap.y1 - cap.y0 < full.y1 - full.y0, 'frameBox: the cap is the smaller frame');
+  ok(cap.x0 < KEYS.BOOT.x && cap.x1 > KEYS.A.x && cap.y0 < KEYS.SL.y && cap.y1 > KEYS.START.y, 'frameBox: the cap frame holds every button');
+  ok(frameBox('full', { plug: true }).y0 < full.y0 && frameBox('cap', { plug: true }).y0 < USB.y, 'frameBox: room above the stalk for the plug');
+}
+
 if (failed) { console.error(`verify-badge: ${failed} failure(s)`); process.exit(1); }
-console.log('verify-badge: the vault, the beacon, sealed stages, the input policy and the badge watch all check out');
+console.log('verify-badge: the vault, the beacon, sealed stages, the input policy, the badge watch and the badge\'s picture all check out');
