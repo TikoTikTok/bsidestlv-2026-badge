@@ -1069,5 +1069,27 @@ console.log('the community\'s rooms and range levels');
   ok(true, `${listed.size} community level(s) listed`);
 }
 
+// ------------------------------------------------------------ open a level ----
+// The studio's picker: what to work on when it is not a new room - a copy of
+// a stage, one of the community's, the shelf, or a share link pasted in - from
+// Open… in the stage bar, the welcome banner, ?open=1 and a first visit.
+console.log('the studio opens an existing level to carry on');
+{
+  const html = readFileSync(resolve(root, 'maker.html'), 'utf8');
+  const js = readFileSync(resolve(root, 'src/maker.js'), 'utf8');
+  const css = readFileSync(resolve(root, 'src/maker.css'), 'utf8');
+  for (const id of ['openDialog', 'openBtn', 'guideOpen', 'openNew', 'openStages', 'openCommunity', 'openShelf', 'openLink', 'openLinkBtn', 'openClose', 'openStatus'])
+    ok(new RegExp(`id="${id}"`).test(html), `maker.html has #${id} (the level picker)`);
+  ok(/<dialog id="openDialog" class="ai open-level dev-only"/.test(html), 'the picker is a dialog of the checkout\'s studio (dev-only)');
+  ok(html.indexOf('id="guideOpen"') > html.indexOf('id="guidePicks"') && html.indexOf('id="guideOpen"') < html.indexOf('id="guideLater"'), 'the welcome banner offers an existing level under the three ways');
+  ok(/function showOpen\(\)/.test(js) && /\$\('#openBtn'\)\.addEventListener\('click', showOpen\)/.test(js) && /\$\('#guideOpen'\)\.addEventListener\('click', showOpen\)/.test(js), 'Open… and the banner\'s button open the picker');
+  ok(/for \(const \[id, name\] of SHIPPED\) openPick\(/.test(js) && /for \(const s of community\) openPick\(/.test(js) && /for \(const item of shelf\) openPick\(/.test(js) && /for \(const kind of RANGE_KINDS\) openPick\(/.test(js), 'the picker lists a new room and a new level of each range, the shipped stages, the community\'s levels and the shelf');
+  ok(/const lv = decodeShare\(\$\('#openLink'\)\.value\)/.test(js) && /tell\('load', \{ id: idOf\(lv\), from: 'link' \}\)/.test(js), 'a share link pasted in opens through decodeShare, and the build hears a load from a link');
+  ok(/const firstVisit = sharedRoom === null && loadJson\(STORE, null\) === null/.test(js) && /q\.get\('open'\) === '1' \|\| \(firstVisit && q\.get\('guide'\) !== '1'\)\) showOpen\(\)/.test(js), 'the picker opens by itself on ?open=1 and on a device\'s first visit (unless the guide was asked for)');
+  ok(/if \(guideDialog\.open\) guideDialog\.close\(\);\s*if \(!openDialog\.open\) openDialog\.showModal\(\);/.test(js), 'the picker takes the banner\'s place, never stacks on it');
+  ok(/openLevel: showOpen/.test(js), 'window.__maker.openLevel opens the picker for a scripted check');
+  for (const sel of ['.open-level {', '.open-grid {', '.open-pick {', '.guide-else {', 'html:not([data-look=classic]) .open-grid {']) ok(css.includes(sel), `src/maker.css has ${sel}`);
+}
+
 if (failed) { console.error(`verify-maker: ${failed} failure(s)`); process.exit(1); }
 console.log('verify-maker: the maker judges, writes and reads rooms as the site does');
