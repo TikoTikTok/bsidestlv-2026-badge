@@ -14,8 +14,12 @@ import { parseUf2, planSectors, describe } from './uf2.js';
 import { Picoboot, flashSectors, BOOT_FILTERS, BOOT_VID, BOOT_PID_RP2040 } from './picoboot.js';
 import { isBadgeId, BADGE_PRODUCT } from './pad.js';
 import { initLooks } from './looks.js';
+import { mountPrompt, cue } from './prompt.js';
 
 const $ = (sel) => document.querySelector(sel);
+
+// where the page is: the bootloader seen on the bus, a flash finished, the page built (see refreshCues)
+let bootSeen = false, done = false, ready = false;
 
 // What is on offer. `file` is relative to the site root; the manifest fills
 // in the build facts at load time.
@@ -65,6 +69,8 @@ function refreshUsbState(extra) {
   }
   usbState.textContent = extra ?? 'WebUSB ready';
   usbState.classList.toggle('on', !!extra);
+  bootSeen = !!extra;
+  refreshCues();
 }
 
 if (usb) {
@@ -172,6 +178,8 @@ function selectImage(image) {
   downloadBtn.hidden = false;
   setStatus(`${image.name} · ${fmtBytes(build.bytes)}` + (usb ? ' — put the badge in the bootloader and press Flash' : ''));
   flashBtn.disabled = !usb;
+  done = false;
+  refreshCues();
   // have the bytes ready before the button is pressed: requestDevice() must
   // run inside the click, and a slow fetch would spend the gesture
   fetchImage(selected).catch(e => { log(`could not load ${image.file}: ${e.message}`, 'hot'); });
@@ -206,11 +214,13 @@ $('#file').addEventListener('change', async (e) => {
     selected = { kind: 'file', name: f.name, bytes };
     setStatus(`${f.name} · ${describe(image)}` + (usb ? ' — put the badge in the bootloader and press Flash' : ''));
     flashBtn.disabled = !usb;
+    done = false;
   } catch (err) {
     selected = null;
     flashBtn.disabled = true;
     setStatus(`${f.name}: ${err.message}`, 'hot');
   }
+  refreshCues();
 });
 
 async function loadManifest() {
@@ -243,6 +253,8 @@ async function flash() {
   if (!usb && !fakeDevice) { setStatus('no WebUSB in this browser', 'hot'); return; }
   flashing = true;
   flashBtn.disabled = true;
+  done = false;
+  refreshCues();
   progressEl.hidden = false;
   progressEl.value = 0;
   let conn = null;
@@ -272,6 +284,7 @@ async function flash() {
     await conn.close();
     conn = null;
     setStatus('done — press any button on the badge', 'win');
+    done = true;
     watchForController();
   } catch (err) {
     const msg = err?.message ?? String(err);
@@ -292,6 +305,7 @@ async function flash() {
   } finally {
     flashing = false;
     flashBtn.disabled = !selected || !(usb || fakeDevice);
+    refreshCues();
   }
 }
 flashBtn.addEventListener('click', flash);
@@ -321,11 +335,44 @@ function watchForController() {
   }, 250);
 }
 
+// ------------------------------------------------------- where to press ----
+// The pictures under the steps (src/prompt.js): the badge as the player holds
+// it, the buttons the step asks for lit - BootSel held while the plug goes in,
+// then SELECT + START held two seconds; any button after the reboot. And the
+// cue: the hand on whatever the page wants pressed next - a firmware card,
+// Flash, the download when there is no WebUSB - plus a marker on the step the
+// page is on (the bootloader seen on the bus moves it to the second, a finished
+// flash to the third).
+
+let cueOff = () => {};
+function refreshCues() {
+  if (!ready) return;
+  cueOff();
+  cueOff = () => {};
+  let target = null;
+  if (!flashing) {
+    if (!selected) target = [...cards.values()].find(c => !c.radio.disabled)?.label ?? $('.file-pick');
+    else if (!flashBtn.disabled) target = flashBtn;
+    else if (!downloadBtn.hidden) target = downloadBtn;
+  }
+  if (target) cueOff = cue(target);
+  const step = done ? 3 : (bootSeen || flashing) ? 2 : 1;
+  document.querySelectorAll('#flashSteps > li').forEach((li, i) => li.classList.toggle('now', i === step - 1));
+}
+function mountPrompts() {
+  mountPrompt($('#bootPrompts'), { beats: ['BOOT', ['SELECT', 'START']], hold: 2000, plug: true, frame: 'full',
+                                   caption: 'BootSel held while the plug goes in - or SELECT + START for two seconds' });
+  mountPrompt($('#backPrompt'), { beats: ['ANY'], frame: 'cap', caption: 'then any button, so the browser lists it' });
+}
+
 // ------------------------------------------------------------------ start ----
 
 buildCards();
 initLooks();   // the look picker in the header; the page itself does not change shape
+mountPrompts();
 await loadManifest();
+ready = true;
+refreshCues();
 
 // scripted tests: drop a model of the bootloader in, select, flash
 window.__flash = {

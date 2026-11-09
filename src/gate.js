@@ -46,6 +46,7 @@
 import { isDevHost, sourcesFor, BADGE_PRODUCT } from './pad.js';
 import { hasHid, requestBadgeHid, grantedBadgesHid, readVaultHid, BeaconDecoder, BEACON, BADGE_VID, BADGE_PID } from './vault.js';
 import { tilt } from './tilt.js';
+import { mountPrompt, cue } from './prompt.js';
 
 /** 'dev' or 'site': how this page should behave, from where it is served. */
 export function gateMode(loc = location) {
@@ -175,6 +176,7 @@ function ask(pad, again = null) {
       html: `A <b>new badge</b>, or one still on the stock firmware, has no vault and no beacon yet - it shows up as a plain “Wireless Controller”. ` +
             `<a href="flash.html">Flash the firmware from this browser</a> (hold BootSel while plugging it in), then come back here and press a button on it.` });
     const who = again ? (again.label ? `“${again.label}” (${again.serialHex})` : `badge ${again.serialHex}`) : null;
+    const beaconArt = el('div', { class: 'prompts gate-art' });   // the hold, drawn (src/prompt.js)
     const dialog = el('dialog', { class: `gate${again ? ' reconnect' : ''}`, id: 'gate', 'aria-labelledby': 'gateTitle' },
       el('div', { class: 'gate-mark', 'aria-hidden': 'true' }, '◆'),
       el('h2', { id: 'gateTitle' }, again ? 'The badge is gone' : 'The badge is the key'),
@@ -192,6 +194,7 @@ function ask(pad, again = null) {
         el('div', { class: 'gate-way' },
           el('h3', {}, 'On a phone, or any browser'),
           el('p', { class: 'note', html: 'Hold <kbd>SELECT</kbd> + <kbd>Y</kbd> on the badge. It spells its vault out on the stick axes; keep holding until the bar fills, about two seconds.' }),
+          beaconArt,
           bar)),
       status,
       el('p', { class: 'gate-foot' }, 'gamepad: ', device),
@@ -200,6 +203,19 @@ function ask(pad, again = null) {
     document.body.append(dialog);
     dialog.addEventListener('cancel', (e) => e.preventDefault());   // Esc does not open the gate
     dialog.showModal();
+
+    // where the press goes: the badge with SELECT + Y held, the hand on Connect,
+    // and BootSel with the plug once the gate has seen a controller that needs the firmware
+    const art = mountPrompt(beaconArt, { beats: [['SELECT', 'Y']], hold: 2000, frame: 'cap', caption: 'hold both until the bar fills' });
+    if (hid) cue(connect);
+    let bootArt = null;
+    const flashHot = () => {
+      flashNote.classList.add('hot');
+      if (bootArt) return;
+      const host = el('div', { class: 'prompts gate-art' });
+      flashNote.append(host);
+      bootArt = mountPrompt(host, { beats: ['BOOT'], plug: true, frame: 'cap', caption: 'BootSel held while the plug goes in' });
+    };
 
     const decoder = new BeaconDecoder();
     let done = false;
@@ -218,6 +234,8 @@ function ask(pad, again = null) {
         ? `badge ${badge.serialHex} · ${badge.label || 'keyed'} · the key is in`
         : `badge ${badge.serialHex} · no key yet - the practice rooms are open, sealed stages are not`, 'win');
       bar.value = 1;
+      art.stop();
+      bootArt?.stop();
       setTimeout(() => { dialog.close(); dialog.remove(); clearInterval(watch); resolve({ badge, dev, other }); }, 900);
     };
 
@@ -240,7 +258,7 @@ function ask(pad, again = null) {
       } catch (e) {
         if (/not a badge/.test(e.message)) {
           say('that controller has no vault: a DualShock 4, or a badge still on the stock firmware - flash it first (below), then come back', 'hot');
-          flashNote.classList.add('hot');
+          flashHot();
         } else {
           say(`could not read the badge: ${e.message}`, 'hot');
         }
@@ -281,7 +299,7 @@ function ask(pad, again = null) {
         device.append(`${name} - not announcing itself as the badge: a DualShock 4, or a badge still on the stock firmware. `,
                       el('a', { href: 'flash.html' }, 'Flash it'), ' and come back.');
         device.classList.add('hot');
-        flashNote.classList.add('hot');
+        flashHot();
       }
     }, 250);
   });

@@ -35,15 +35,19 @@
       directly through <b>WebUSB</b> — no picotool, no drive to find, no Python. Chrome, Edge or any other
       Chromium browser, on Windows, macOS, Linux, ChromeOS and Android. Not Firefox, not Safari, and nothing
       on an iPhone; those get the <a href="#manual">download</a> below.</p>
-    <ol class="steps">
-      <li><b>Put the badge in the bootloader.</b> Hold <b>BootSel</b> while plugging it in — or, on the
-        quick-glitch firmware, hold <b>SELECT + START</b> for two seconds. The LED goes dark. A small drive
-        called <code>RPI-RP2</code> may pop up; leave it alone.</li>
-      <li><b>Pick a firmware</b> below and press <b>Flash</b>. The browser asks which device to use:
+    <!-- the pictures under the steps are src/prompt.js's: the badge as the player holds it, the asked-for
+         buttons lit; src/flash.js mounts them, marks the step the page is on and points at the next control -->
+    <ol class="steps" id="flashSteps">
+      <li id="stepBoot"><b>Put the badge in the bootloader.</b> Hold <b>BootSel</b> — the tiny button at the
+        edge of the cap — while plugging it in; or, on the quick-glitch firmware, hold <b>SELECT + START</b>
+        for two seconds. The LED goes dark. A small drive called <code>RPI-RP2</code> may pop up; leave it alone.
+        <div class="prompts" id="bootPrompts"></div></li>
+      <li id="stepPick"><b>Pick a firmware</b> below and press <b>Flash</b>. The browser asks which device to use:
         choose <b>RP2 Boot</b>.</li>
-      <li><b>Wait for the reboot.</b> The page erases, writes, reads back, then restarts the badge into
+      <li id="stepBack"><b>Wait for the reboot.</b> The page erases, writes, reads back, then restarts the badge into
         the new firmware. Press any button on it afterwards and the log says when the browser sees the
-        controller.</li>
+        controller.
+        <div class="prompts" id="backPrompt"></div></li>
     </ol>
   </section>
 
