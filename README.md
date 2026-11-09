@@ -303,7 +303,11 @@ bootloader over **WebUSB** — Chrome or Edge on a PC, a Mac, a Linux box or an
 Android phone, nothing to install — and writes the image the deploy built.
 It speaks PICOBOOT, the protocol `picotool` uses (`src/picoboot.js`), reads
 the flash back before rebooting, and is tested against a model of the ROM by
-`software/tools/verify-flash.mjs`.
+`software/tools/verify-flash.mjs`. The page shows where each press goes: the badge
+drawn from the board itself (`src/badge-shape.js`, generated from the KiCad file)
+with BootSel lit while a plug slides into the stalk, then SELECT + START held,
+and a pointing hand on whatever the page wants pressed next - the gate, the
+vault page and the tutorials' coach use the same pictures (`src/prompt.js`).
 
 **The vault.** The last flash sector holds the stage key the challenge site
 is sealed under. HID feature report `0xF1` — one the DualShock 4 descriptor
