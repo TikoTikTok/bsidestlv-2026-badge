@@ -295,7 +295,7 @@ await clip('maker', { url: `maker.html?look=classic&theme=${THEME}`, ...DESK, dp
     await a.clickEl('#playBtn', { ms: 450 });
     a.mark('run');
     await a.sleep(900);
-    await a.scrollTo('#playPanel', { offset: 8, ms: 500 });
+    await a.scrollTo('#run', { offset: 120, ms: 500 });     // in the classic look the room plays in the editor (the rig), #playPanel itself is hidden
     await a.sleep(300);
     await a.clickEl('#solveBtn', { ms: 400 });
     a.mark('solution');
