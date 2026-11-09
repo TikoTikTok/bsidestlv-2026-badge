@@ -8,6 +8,14 @@
 // what a step does to the page when it comes up - arm a range, pick a level,
 // a stage - is the page's `prepare` hook.
 //
+// Where the panel sits is the coach's too (styles.css, html[data-learn]): in
+// the classic look it is beside the stage - a sticky column at the right of
+// main on a wide window, a drawer over the right edge on a narrow one that the
+// line's "learn" opens and the panel's x closes - unless "unpin" (#learnPin)
+// put it back in the page. One breakpoint, WIDE, is the CSS's too; the choice
+// is kept in localStorage alice.learn and src/look-boot.js honours it before
+// paint. In the phone looks the panel is the mode bar's Learn mode.
+//
 //   const coach = mountCoach(tutor, {
 //     looks,                       // from initLooks(): the phone looks' mode bar
 //     title: 'A Caucus Race',      // the panel's heading (#learnTitle), on a page that has one
@@ -17,29 +25,65 @@
 //                                  //   itself) | 'skip' | 'goto' | 'restart' | 'use' - so a page can move the player only when they asked
 //     onRender(),                  // the checklist was redrawn: a step done or skipped, a swap
 //     learnMode: 'learn',          // the mode bar's name for the Learn panel
-//     open(),                      // the classic look's "learn": the page's way to the Learn panel (the maker's drawer); else it is scrolled to
 //   });
 //   coach.feed(ev);                // every event the page produces; renders on a completed step
 //   coach.render();
 //   coach.skip(); coach.restart(); // what the buttons do
 //   coach.use(other, { title, chapters, finish });   // another tutorial under the same coach (the maker's builds)
 //   coach.tutor                    // the one in use
+//   coach.setLearn('side' | 'page', { remember }); coach.openLearn(bool?); coach.learn   // the panel's place: { where, open, wide }
 
 import { keyGlyphs, mountPrompt } from './prompt.js';
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
-export function mountCoach(first, { looks, title = '', chapters = {}, finish, prepare = () => {}, onRender = () => {}, learnMode = 'learn', open = null } = {}) {
+/** localStorage key of the guide's place in the classic look: 'side' (the default) or 'page'. src/look-boot.js reads it before paint. */
+export const LEARN_KEY = 'alice.learn';
+/** The one breakpoint of the guide beside the stage: a column from here up, a drawer below (styles.css asks the same). */
+export const LEARN_WIDE = '(min-width: 1000px)';
+
+export function mountCoach(first, { looks, title = '', chapters = {}, finish, prepare = () => {}, onRender = () => {}, learnMode = 'learn' } = {}) {
   let tutor = first;            // the tutorial in use; use() swaps it, the buttons stay bound once
   let art = null;               // the Learn panel's badge, lit with the step's keys
   const classic = () => !looks || looks.look.id === 'classic';
+  const html = document.documentElement;
 
-  // the line's height, for what sits under it in the classic look (a panel scrolled to, the maker's drawer): --coach-h on <html>, 0 while hidden
+  // the line's height, for what sits under it in the classic look (a panel scrolled to, the drawer): --coach-h on <html>, 0 while hidden
   const line = $('#coach');
-  const measure = () => document.documentElement.style.setProperty('--coach-h', `${line.offsetHeight}px`);
+  const measure = () => html.style.setProperty('--coach-h', `${line.offsetHeight}px`);
   measure();
   if ('ResizeObserver' in window) new ResizeObserver(measure).observe(line);
+
+  // ---- the panel's place in the classic look: beside the stage (a column or a drawer) or in the page
+  const WIDE = matchMedia(LEARN_WIDE);
+  const pin = $('#learnPin');
+  /** The drawer (a narrow window): open, closed, or toggled; the coach line's "learn" says which it is. */
+  function openLearn(open = !('learnOpen' in html.dataset)) {
+    if (open && html.dataset.learn === 'side') html.dataset.learnOpen = ''; else delete html.dataset.learnOpen;
+    $('#coachOpen').setAttribute('aria-expanded', String('learnOpen' in html.dataset));
+    return 'learnOpen' in html.dataset;
+  }
+  /** Beside the stage ('side', a column or a drawer) or in the page ('page'); remembered unless told not to. */
+  function setLearn(where, { remember = true } = {}) {
+    html.dataset.learn = where === 'page' ? 'page' : 'side';
+    if (html.dataset.learn === 'page') openLearn(false);
+    if (remember) try { localStorage.setItem(LEARN_KEY, html.dataset.learn); } catch { /* storage may be off */ }
+    if (pin) { pin.textContent = html.dataset.learn === 'side' ? 'unpin' : 'pin'; pin.setAttribute('aria-pressed', String(html.dataset.learn === 'side')); }
+    return html.dataset.learn;
+  }
+  if ('learn' in html.dataset) {   // a page with the guide beside the stage (the maker's site face has none: look-boot dropped it)
+    setLearn(html.dataset.learn, { remember: false });
+    pin?.addEventListener('click', () => setLearn(html.dataset.learn === 'side' ? 'page' : 'side'));
+    $('#learnClose')?.addEventListener('click', () => openLearn(false));
+    WIDE.addEventListener('change', () => openLearn(false));   // grown into the column or shrunk out of it: the drawer starts closed
+  }
+  /** The coach line's "learn" in the classic look: the drawer on a narrow window; the column is on screen already; else the panel is in the page. */
+  function open() {
+    if (html.dataset.learn !== 'side') { $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    if (WIDE.matches) { $('#learnCoach').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
+    openLearn();
+  }
 
   function render() {
     const n = tutor.steps.length;
@@ -126,8 +170,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
   $('#learnSkip').addEventListener('click', skip);
   $('#coachOpen').addEventListener('click', () => {
     if (!classic()) looks.setMode(learnMode);
-    else if (open) open();
-    else $('#learnPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else open();
   });
   function restart() {
     tutor.restart();
@@ -150,7 +193,8 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
 
   render();
   prepare(tutor.step, { show: false, why: 'mount' });
-  return { feed, render, skip, restart, use, get tutor() { return tutor; } };
+  return { feed, render, skip, restart, use, get tutor() { return tutor; },
+           setLearn, openLearn, get learn() { return { where: html.dataset.learn ?? null, open: 'learnOpen' in html.dataset, wide: WIDE.matches }; } };
 }
 
 /** Progress in localStorage under `key`, the store a Tutor takes. */
