@@ -26,9 +26,9 @@ npx hyperframes render                              # -> out/promo.mp4
 node software/promo/gifs.mjs                        # -> ../../images/*.gif, images/badge-keys.svg
 ```
 
-`record.mjs` borrows Playwright from a sibling checkout (`PLAYWRIGHT_FROM=` a
-`package.json` next to a `node_modules/playwright`); this repository takes no
-npm dependency. Chromium runs with `--no-proxy-server` because a proxy may own
+`record.mjs` resolves Playwright from the nearest `node_modules` above it, or
+from the checkout `PLAYWRIGHT_FROM=` names (a `package.json` next to a
+`node_modules/playwright`); this repository takes no npm dependency. Chromium runs with `--no-proxy-server` because a proxy may own
 port 8080 on the development machine. A backdrop blur is switched off in the
 recording's CSS: the software rasterizer paints it at 5 fps at 2x, and the
 tint under it looks the same.
