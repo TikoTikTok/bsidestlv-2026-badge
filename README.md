@@ -99,7 +99,8 @@ there, and only there: the site's pad never has it.
 Rooms go in `stages/community/` with a line in its `index.json`;
 `npm run stage -- <file>` says what CI will say, and `verify-maker.mjs`
 gates every deploy on every listed room. A merged room is playable on the
-stages page under **Rooms**, with the lesson it may carry (a few lines that
+stages page from **Levels** - a card with the room drawn small, its par and
+what you have won in it - with the lesson it may carry (a few lines that
 tick themselves off as the player does what they say); the two demo rooms,
 *The First Lesson* and *Tick Tock*, show the format. The whole guide, format and
 process: [`software/docs/LEVEL_MAKER.md`](software/docs/LEVEL_MAKER.md).
@@ -223,8 +224,8 @@ is what the page is painted in: `bsides`, the conference's own lime on black
 `queen`, heart red and gold; `cheshire`, magenta and a teal grin; `phosphor`,
 green on black with scanlines. The look is how it sits on the screen: the
 classic look is the whole page; the three phone looks — `bench`, `handheld`,
-`scope` — show one panel at a time behind a mode bar (on the stages: Learn, Tea,
-Gauntlet, Rooms; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
+`scope` — show one panel at a time behind a mode bar (on the stages: Learn, Play,
+Levels; on the range: Learn, Watch, Glass, Lock, Dog, Wall, Bench), fold the prose
 behind *how it works*, and on the range reshape the on-screen pad — a bottom
 sheet, a handheld's body with the screen in a bezel, or a dock of soft keys
 under big numerals — and draw the guard's routine and the door's clock as

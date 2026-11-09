@@ -20,7 +20,7 @@ html[data-theme=phosphor] {
 }
 html[data-theme=phosphor] body { font-variant-numeric: tabular-nums; }
 html[data-theme=phosphor] .brand .mark { text-shadow: 0 0 10px var(--glow); }
-html[data-theme=phosphor] .panel > h2, html[data-theme=phosphor] .tile b, html[data-theme=phosphor] .hero-meta b,
+html[data-theme=phosphor] .panel > h2, html[data-theme=phosphor] .tile b, html[data-theme=phosphor] .prize.on b,
 html[data-theme=phosphor] .status.win { text-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent); }
 html[data-theme=phosphor] .btn, html[data-theme=phosphor] .tab, html[data-theme=phosphor] .mode { letter-spacing: .16em; }
 /* the tube: scanlines over everything, and its dark edges */
