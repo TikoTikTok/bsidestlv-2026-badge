@@ -711,6 +711,7 @@ async function loadById(id) {
       b.addEventListener('click', () => loadById(s.id).catch((e) => { report = { ok: false, problems: [`could not load ${s.id}: ${e.message}`] }; showReport(); }));
       $('#starters').append(b);
     }
+    if (openDialog.open) fillOpen();   // the picker came up before the index did: its community column fills now
   }).catch(() => {});
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
@@ -958,6 +959,7 @@ shippedLoad.then(() => {
 });
 const rangeStudio = { setCategory, setRangeKind, rangeLevelById, tryUrl, shipped: shippedRanges, shippedLoad, categoryOf: () => (isGlitch(level) ? 'glitch' : 'room') };
 
+const firstVisit = sharedRoom === null && loadJson(STORE, null) === null;   // nothing kept on this device yet, no link: the picker opens by itself (below)
 {
   // a link's room first (malformed or not: the lint says what is wrong with it), then the room left here last time, then a blank one
   const first = sharedRoom ?? loadJson(STORE, null);
@@ -1595,6 +1597,7 @@ const ops = {
 // (?guide=1, or "guide" typed in the chat).
 
 const guideDialog = $('#guideDialog');
+const openDialog = $('#openDialog');   // the level picker, wired at the end of the studio
 let guideShown = false;              // once a page load, unless asked again
 {
   const box = $('#guidePicks');
@@ -1725,7 +1728,64 @@ window.__maker = {
   tutorials: MAKER_TUTORIALS, pickTutorial, get tutorial() { return tutorialSummary(); },
   guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
+  openLevel: showOpen, get openDialog() { return openDialog.open; },
 };
+
+// ------------------------------------------------------------ open a level ----
+// What to work on when it is not a new room: the picker (#openDialog) lists a
+// new room and a new level of each range, the shipped stages as copies, the
+// community's levels, the shelf, and takes a share link pasted in - the same
+// ?level= the stages page's Share and the Share dialog here write - so a
+// level that lives anywhere can be carried on here. Open… in the stage bar,
+// the welcome banner's "open an existing level", ?open=1 and the first visit
+// of a device (nothing kept yet, no link) show it.
+function openPick(host, label, note, act) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'open-pick';
+  b.append(Object.assign(document.createElement('b'), { textContent: label }), Object.assign(document.createElement('small'), { textContent: note }));
+  b.addEventListener('click', async () => {
+    try { await act(); openDialog.close(); }
+    catch (e) { $('#openStatus').textContent = `could not open: ${e.message}`; $('#openStatus').className = 'status hot'; }
+  });
+  host.append(b);
+}
+function fillOpen() {
+  const fresh = $('#openNew'); fresh.replaceChildren();
+  openPick(fresh, 'A new room', 'a walled 9×7 with Alice and the door', () => { hazardPick = -1; setLevel(blank(9, 7), { why: 'new' }); });
+  for (const kind of RANGE_KINDS) openPick(fresh, `A new ${kind} level`, `for ${RANGE_NAMES[kind]} on the glitch range`, () => { hazardPick = -1; setLevel(rangeBlank(kind), { why: 'new' }); });
+  const stages = $('#openStages'); stages.replaceChildren();
+  for (const [id, name] of SHIPPED) openPick(stages, name, 'a copy of the shipped stage', () => loadById(id));
+  const comm = $('#openCommunity'); comm.replaceChildren();
+  for (const s of community) openPick(comm, s.name, `${s.kind === 'chase' ? 'timed' : RANGE_KINDS.includes(s.kind) ? `a ${s.kind} level` : 'untimed'} · by ${s.author}`, () => loadById(s.id));
+  if (!community.length) comm.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'none yet - yours could be the first' }));
+  const kept = $('#openShelf'); kept.replaceChildren();
+  for (const item of shelf) openPick(kept, item.level.name, describeShelf(item.level), () => { hazardPick = -1; setLevel(item.level, { why: 'shelf' }); if (item.par) { report = item.report; render(); } tell('shelf', { did: 'open' }); });
+  if (!shelf.length) kept.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'nothing kept yet - "Keep this room" puts one here' }));
+  $('#openStatus').textContent = ''; $('#openStatus').className = 'status';
+}
+function showOpen() {
+  fillOpen();
+  if (guideDialog.open) guideDialog.close();
+  if (!openDialog.open) openDialog.showModal();
+}
+$('#openBtn').addEventListener('click', showOpen);
+$('#guideOpen').addEventListener('click', showOpen);
+$('#openLinkBtn').addEventListener('click', () => {
+  try {
+    const lv = decodeShare($('#openLink').value);
+    hazardPick = -1; setLevel(lv, { why: 'load' }); tell('load', { id: idOf(lv), from: 'link' });
+    $('#openLink').value = ''; openDialog.close();
+    chat(`opened ${lv.name} from a link`, 'act');
+  } catch (e) { $('#openStatus').textContent = `the link: ${e.message}`; $('#openStatus').className = 'status hot'; }
+});
+$('#openLink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#openLinkBtn').click(); } });
+$('#openClose').addEventListener('click', () => openDialog.close());
+openDialog.addEventListener('click', (e) => { if (e.target === openDialog) openDialog.close(); });
+openDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('open') === '1' || (firstVisit && q.get('guide') !== '1')) showOpen();
+}
 
 // ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once
 if (sharedOk && new URLSearchParams(location.search).get('play') === '1') startPlay();

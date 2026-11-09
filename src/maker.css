@@ -311,3 +311,22 @@ html:not([data-look=classic]) .steps.three, html:not([data-look=classic]) .keys-
 html:not([data-look=classic]) .zoom { margin-left: 0; }
 html:not([data-look=classic]) .learn-picks { grid-template-columns: 1fr; }
 html:not([data-look=classic]) .guide-picks { grid-template-columns: 1fr; }
+
+/* ------------------------------------------------------- open a level -- */
+/* the picker (#openDialog): what to work on - new, a stage, the community's, the shelf, a link */
+.open-level { width: min(94vw, 820px); }
+.open-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; margin: .8rem 0; }
+.open-group h3 { margin: 0 0 .35rem; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.open-list { display: flex; flex-direction: column; gap: .35rem; max-height: 300px; overflow: auto; }
+.open-list .note { margin: 0; font-size: 10px; }
+.open-pick { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; padding: .45rem .6rem; cursor: pointer; text-align: left; font: inherit; color: var(--dim); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); }
+.open-pick b { color: var(--text); font-size: 12px; }
+.open-pick small { font-size: 10px; }
+.open-pick:hover, .open-pick:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
+.open-level .field { margin-top: .4rem; }
+.open-level .share-row { display: flex; gap: .4rem; align-items: center; margin-top: .25rem; }
+.open-level .share-row input { flex: 1; min-width: 0; }
+.guide-else { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; margin: 0 0 .9rem; padding-top: .7rem; border-top: 1px dashed var(--line); }
+.guide-else small { font-size: 11px; color: var(--dim); }
+@media (max-width: 900px) { .open-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+html:not([data-look=classic]) .open-grid { grid-template-columns: 1fr; }
