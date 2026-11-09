@@ -450,9 +450,15 @@ delay(n)      holds n ticks            ret      end</pre>
     </div>
   </section>
 
-  <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens. -->
-  <section class="panel dev-only" id="assistantPanel" data-mode="assistant">
-    <h2>The assistant <span id="bridgeState" class="tag">not connected</span></h2>
+  <!-- The assistant: the chat the bridge carries. What an assistant does to the room is listed here as it happens.
+       In the classic look it is class dock (styles.css): the foot of the guide's column on a wide window, the bottom right
+       corner of a narrow one, folded to its heading until an assistant says hello or the guide asks (html[data-dock-open],
+       openDock in src/maker.js); the heading toggles it, #chatNew counts what came in while it was folded. In the phone
+       looks it is the Chat mode. -->
+  <section class="panel dock dev-only" id="assistantPanel" data-mode="assistant">
+    <h2>The assistant <span id="bridgeState" class="tag">not connected</span>
+      <span id="chatNew" class="dock-new" hidden></span>
+      <button type="button" id="chatFold" class="dock-fold" aria-expanded="false" aria-controls="chatLog" aria-label="open the chat" title="open the chat">▴</button></h2>
     <p class="note" id="bridgeNote">With <code>npm run maker</code> serving this page, an assistant on this machine can see the room, paint it,
       prove it, play it and answer you here. Hand it the prompt under the hero (it says how to connect: the MCP tools in
       <code>.mcp.json</code>, or <code>curl</code> on <code id="bridgeUrl">/__maker/</code>); everything it does shows on the board and in this log.</p>

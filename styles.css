@@ -444,7 +444,12 @@ html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-c
   html[data-look=classic][data-learn=side] main > .panel { grid-column: 1; min-width: 0; margin: 2rem 0 0; }
   html[data-look=classic][data-learn=side] main > .side {
     grid-column: 2; grid-row: 1 / span 12; position: sticky; top: calc(var(--bar-h, 64px) + 1rem);
-    max-height: calc(100dvh - var(--bar-h, 64px) - var(--pad-h, 0px) - 2rem); overflow: auto; overscroll-behavior: contain;
+    max-height: calc(100dvh - var(--bar-h, 64px) - var(--pad-h, 0px) - var(--dock-h, 0px) - 2rem); overflow: auto; overscroll-behavior: contain;
+  }
+  /* the dock (below) is the column's foot: the same area, aligned to its end, sticky to the viewport's bottom */
+  html[data-look=classic][data-learn=side] main > .dock {
+    position: sticky; right: auto; bottom: 1rem; z-index: 2; width: auto; margin: 0; grid-column: 2; grid-row: 1 / span 12; align-self: end;
+    border-radius: var(--r); box-shadow: 0 12px 40px var(--shade);
   }
   html[data-look=classic][data-learn=side] .coach { display: none; }
 }
@@ -455,7 +460,7 @@ html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-c
 /* the drawer is the Learn panel's alone: the coach line is what opens it; another side panel (the flash page's steps) stays in the page here */
 @media (max-width: 999.98px) {
   html[data-look=classic][data-learn=side] #learnPanel {
-    position: fixed; z-index: 9; right: 0; top: calc(var(--bar-h, 64px) + var(--coach-h, 0px) + 1rem); bottom: var(--pad-h, 0px);
+    position: fixed; z-index: 9; right: 0; top: calc(var(--bar-h, 64px) + var(--coach-h, 0px) + 1rem); bottom: calc(var(--pad-h, 0px) + var(--dock-h, 0px));
     width: min(380px, 94vw); margin: 0; border-radius: var(--r) 0 0 var(--r); overflow: auto; overscroll-behavior: contain;
     box-shadow: -12px 0 40px var(--shade); transform: translateX(100%); visibility: hidden;
     transition: transform .2s ease, visibility 0s .2s;
@@ -464,6 +469,37 @@ html:not([data-look=classic]) .learn-pin, html:not([data-look=classic]) .learn-c
   html[data-look=classic][data-learn=side] .learn-close { display: inline-grid; }
 }
 @media (prefers-reduced-motion: reduce) { #learnPanel { transition: none !important; } }
+
+/* --------------------------------------------- the dock at the column's foot -- */
+/* A page's second companion - the maker's assistant chat - is class `dock`. In
+   the classic look it keeps to the bottom right of the screen, folded to its
+   heading (a chip: the title, the bridge's state, a count of what came in)
+   until html[data-dock-open], which the page sets when there is something to
+   see - an assistant said hello, the guide asked - and the heading toggles.
+   Beside the guide's column (data-learn=side on a wide window, above) it is
+   the column's foot: the same grid area as the side panel, that one aligned
+   to the start and this one to the end, sticky to the viewport's bottom, and
+   the column's max-height leaves it its room. Anywhere else in the classic
+   look (a narrow window, the guide unpinned) it is fixed over the right edge
+   like the drawer, which stops above it. --dock-h is what the dock takes at
+   the bottom of the screen - its height and the gap above it - measured by the
+   page (a ResizeObserver, like --bar-h). The phone looks need none of this:
+   the chat is a mode there, and the fold and the count never show. */
+.dock > h2 { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.dock-fold { display: none; margin-left: auto; width: 1.6rem; height: 1.6rem; padding: 0; font: inherit; font-size: 14px; line-height: 1; cursor: pointer; color: var(--dim); background: transparent; border: 1px solid var(--line); border-radius: var(--r-xs); place-items: center; }
+.dock-fold:hover { color: var(--text); border-color: var(--accent); }
+.dock-new { display: none; margin-left: auto; min-width: 1.6em; padding: .05em .45em; border-radius: 1em; background: var(--accent-2); color: var(--on-accent); font-size: 10px; font-weight: 700; letter-spacing: 0; text-align: center; }
+.dock-new:not([hidden]) ~ .dock-fold { margin-left: 0; }
+html[data-look=classic] .dock {
+  position: fixed; right: 0; bottom: var(--pad-h, 0px); z-index: 9; width: min(380px, 94vw); margin: 0; padding: .6rem .9rem .8rem;
+  border-radius: var(--r) 0 0 0; box-shadow: -12px 0 40px var(--shade);
+  display: flex; flex-direction: column; min-height: 0;
+}
+html[data-look=classic] .dock > h2 { margin: 0; cursor: pointer; user-select: none; -webkit-user-select: none; flex-wrap: nowrap; white-space: nowrap; }
+html[data-look=classic] .dock-fold { display: inline-grid; }
+html[data-look=classic] .dock-new:not([hidden]) { display: inline-block; }
+html[data-look=classic][data-dock-open] .dock { max-height: min(46dvh, 420px); }   /* at 1024x768 the column above keeps ~300 px: the current step stays whole */
+html[data-look=classic]:not([data-dock-open]) .dock > :not(h2) { display: none; }
 
 /* the controls legend under a stage's title: what each button does, always on screen */
 .keys { display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin: .4rem 0 .2rem; font-size: 11px; color: var(--dim); }
