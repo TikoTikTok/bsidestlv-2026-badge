@@ -13,7 +13,8 @@
 //     title: 'A Caucus Race',      // the panel's heading (#learnTitle), on a page that has one
 //     chapters: { 1: 'Chapter one · by hand', 2: 'Chapter two · the badge' },
 //     finish: { title, say, note },// what the coach and the panel say when every step is done
-//     prepare(step, { show }),     // a step came up; show: put its panel on screen too
+//     prepare(step, { show, why }),// a step came up; show: put its panel on screen too; why: 'mount' | 'step' (one completed
+//                                  //   itself) | 'skip' | 'goto' | 'restart' | 'use' - so a page can move the player only when they asked
 //     onRender(),                  // the checklist was redrawn: a step done or skipped, a swap
 //     learnMode: 'learn',          // the mode bar's name for the Learn panel
 //   });
@@ -82,7 +83,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
       if (i === tutor.at) li.classList.add('now');
       if (s.badge) li.classList.add('badge');
       li.title = s.say;
-      li.addEventListener('click', () => { tutor.goto(i); render(); prepare(tutor.step, { show: true }); });
+      li.addEventListener('click', () => { tutor.goto(i); render(); prepare(tutor.step, { show: true, why: 'goto' }); });
       ol.append(li);
     });
     $('#learnProgress').textContent = `${Math.min(tutor.at, n)} / ${n}`;
@@ -101,7 +102,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
     // land on the range or stage the step after it arms. On a phone, follow
     // the tutorial to the next step's panel when it moves on.
     const next = tutor.step;
-    queueMicrotask(() => prepare(next, { show: !classic() && (next?.range ?? next?.stage) !== (s.range ?? s.stage) }));
+    queueMicrotask(() => prepare(next, { show: !classic() && (next?.range ?? next?.stage) !== (s.range ?? s.stage), why: 'step' }));
     return s;
   }
 
@@ -111,7 +112,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
     $('#learnStatus').textContent = `skipped ${s.title}`;
     $('#learnStatus').className = 'status';
     render();
-    prepare(tutor.step, { show: true });
+    prepare(tutor.step, { show: true, why: 'skip' });
   }
 
   $('#coachSkip').addEventListener('click', skip);
@@ -124,7 +125,7 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
     tutor.restart();
     $('#learnStatus').textContent = '';
     render();
-    prepare(tutor.step, { show: !classic() });
+    prepare(tutor.step, { show: !classic(), why: 'restart' });
   }
   $('#learnRestart').addEventListener('click', restart);
 
@@ -136,11 +137,11 @@ export function mountCoach(first, { looks, title = '', chapters = {}, finish, pr
     if (opts.finish) finish = opts.finish;
     $('#learnStatus').textContent = '';
     render();
-    prepare(tutor.step, { show: false });
+    prepare(tutor.step, { show: false, why: 'use' });
   }
 
   render();
-  prepare(tutor.step, { show: false });
+  prepare(tutor.step, { show: false, why: 'mount' });
   return { feed, render, skip, restart, use, get tutor() { return tutor; } };
 }
 
