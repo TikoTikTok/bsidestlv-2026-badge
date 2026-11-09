@@ -191,17 +191,40 @@
 .chat li.act b { color: var(--accent-2); font-style: normal; }
 .chat:empty::after { content: 'nothing said yet'; color: var(--dim); font-size: 11px; letter-spacing: .06em; }
 /* the guide's question as a card: the step's line, the question, its options as buttons; a card answered or superseded dims */
+/* the guide's step card: the whole step - the line, the why, the board, what the assistant does, the question's buttons, Do it for me */
 .chat li.ask { border-left: 2px solid var(--accent-2); padding-left: .5rem; }
 .chat li.ask b { color: var(--accent-2); }
-.chat li.ask .ask-say { color: var(--text); }
+.chat li.ask .ask-step { color: var(--dim); font-size: 11px; letter-spacing: .04em; }
+.chat li.ask .ask-say { display: block; color: var(--text); margin-top: .15rem; }
+.chat li.ask .ask-why, .chat li.ask .ask-board, .chat li.ask .ask-does { display: block; color: var(--dim); font-size: 11px; margin-top: .2rem; }
+.chat li.ask .ask-why::before { content: 'why · '; color: var(--accent-2); }
+.chat li.ask .ask-board::before { content: 'on the board · '; color: var(--accent-2); }
+.chat li.ask .ask-work { margin-top: .25rem; color: var(--dim); font-size: 11px; }
+.chat li.ask .ask-work summary { cursor: pointer; color: var(--accent-2); }
+.chat li.ask .ask-work ul { margin: .2rem 0 0 1rem; padding: 0; }
 .ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .35rem 0 .1rem; }
 .ask-q { flex-basis: 100%; color: var(--dim); font-size: 11px; }
-.ask-pick { font-size: 11px; padding: .2rem .55rem; }
+.ask-pick, .ask-help { font-size: 11px; padding: .2rem .55rem; }
 .ask-row small { color: var(--dim); font-size: 10px; }
 .chat li.ask.stale, .chat li.ask.answered { opacity: .55; }
 .chat li.ask.answered { border-left-color: var(--accent); }
+.chat li.ask.busy { opacity: .75; }
+.chat li.ask.busy::after { content: 'working…'; display: block; color: var(--dim); font-size: 10px; font-style: italic; margin-top: .15rem; }
 .chat-text { flex: 1 1 16rem; font: 13px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .6rem; min-width: 0; }
 .chat-text:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+/* in the dock (the classic look; the dock's place is styles.css's): the log takes the room and scrolls, the note stays only
+   while the log is empty (it says how an assistant gets in), the input row is tight; the tag stops floating in the flex heading */
+html[data-look=classic] .dock .chat { flex: 1 1 auto; min-height: 0; max-height: none; margin: .4rem 0 0; }
+html[data-look=classic] .dock:has(.chat:not(:empty)) > .note { display: none; }
+html[data-look=classic] .dock > .note { margin: .4rem 0 0; font-size: 11px; }
+html[data-look=classic] .dock > .stage-bar { margin-top: .5rem; gap: .4rem; }
+html[data-look=classic] .dock .chat-text { flex: 1 1 8rem; }
+/* the guide's card in the dock: the newest sits at the top of a short log, so what wants a press comes first - the title,
+   the question and its buttons, then the step's line (in the page the line reads before the question, as a chat would) */
+html[data-look=classic] .dock .chat li.ask { display: flex; flex-direction: column; }
+html[data-look=classic] .dock .chat li.ask > b { order: -2; }
+html[data-look=classic] .dock .chat li.ask > .ask-row { order: -1; margin: .25rem 0 .35rem; }
+html[data-look=classic] .dock .tag { float: none; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* the chip stays one line: the state gives way first */
 
 .keys-dialog { width: min(640px, 92vw); }
 .keys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem 1.2rem; font-size: 12px; color: var(--dim); }
@@ -210,9 +233,33 @@
 @media (max-width: 600px) { .keys-grid, .starters, .knobs { grid-template-columns: 1fr; } }
 
 /* ------------------------------------------------------ run & debug -- */
+/* The rig (#playPanel, class rig; its place is styles.css's): in the classic look its body (#rig) is in the editor while a
+   room is played, moved there by src/maker.js, and the editor is armed: the category, the tools and the board with its
+   fields give way to the legend, the room, the badge, the controls and the log, and Check with the rest of the editor's
+   foot stays under them. The room and the badge sit side by side (the room takes what the badge leaves) down to 640 px. */
+#editPanel.armed > :is(.category, .studio-bar, .maker) { display: none; }
+#editPanel > h2 .armed-mark { margin-left: .6rem; }   /* the mark floats right of the name's tag */
+/* a narrow classic window (no guide column): the Learn drawer and the chat dock open over the right edge (styles.css, 380 px),
+   so the rig keeps to the left of them - the legend, the room, the controls in a row, then the badge beside the log, the badge's
+   note left out - and the room stays in view whichever opens; the body is one grid, .run lending it its two children. 400 px
+   wide and the room no taller than 44vh, the whole rig fits under the header and the coach line at 900 x 768 */
+@media (max-width: 999.98px) {
+  #editPanel.armed > .rig-body {
+    display: grid; grid-template-columns: minmax(180px, 200px) minmax(0, 1fr); grid-template-areas: "keys keys" "room room" "bar bar" "side log";
+    gap: .5rem 1rem; align-items: start; max-width: min(400px, calc(100vw - 380px - 4.5rem));
+  }
+  #editPanel.armed > .rig-body > .keys { grid-area: keys; margin: 0; }
+  #editPanel.armed > .rig-body > .run { display: contents; }
+  #editPanel.armed > .rig-body .run-wrap { grid-area: room; }
+  #editPanel.armed > .rig-body .run-wrap canvas { max-height: 44vh; width: auto; }
+  #editPanel.armed > .rig-body .run-side { grid-area: side; }
+  #editPanel.armed > .rig-body .sim-note { display: none; }
+  #editPanel.armed > .rig-body > .stage-bar { grid-area: bar; margin: 0; gap: .5rem .8rem; }
+  #editPanel.armed > .rig-body > .log { grid-area: log; margin: 0; max-height: 110px; }
+}
 
-.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); gap: 1.25rem; align-items: start; }
-@media (max-width: 900px) { .run { grid-template-columns: 1fr; } }
+.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 280px); gap: 1.25rem; align-items: start; }
+@media (max-width: 640px) { .run { grid-template-columns: 1fr; } }
 .run-wrap canvas { max-width: 100%; height: auto; }
 #playPanel:not(.armed) .run-wrap { opacity: .6; }
 
@@ -251,12 +298,18 @@
 /* the landing's line under the hero when a link brought a room */
 .shared-note { border-left: 3px solid var(--accent); padding-left: .7rem; }
 .shared-note b { color: var(--text); }
+.shared-note .btn { display: block; width: max-content; max-width: 100%; margin: .5rem 0 .4rem; }   /* the one thing to press, on a line of its own */
 
 /* ------------------------------------------------------------ the share -- */
-/* the Share dialog: what goes in, how the link reads, where it opens, the link, the room's JSON */
+/* the Share dialog: where it opens and at which address (the row that matters), what goes in, how the link reads, the link, the level's JSON */
 
 .share { width: min(760px, 94vw); }
-.share-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin: .7rem 0 .8rem; }
+.share-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin: .7rem 0 .8rem; }
+.share .share-sub { margin-left: 1.3rem; color: var(--dim); }
+.share .share-sub:has(:disabled) { opacity: .5; }
+.share fieldset label:has(:disabled) { opacity: .5; cursor: default; }
+#shareSite { width: 100%; margin-top: .3rem; font: 11px/1.4 var(--font); letter-spacing: 0; }
+#shareSite:disabled { opacity: .5; }
 .share fieldset { margin: 0; padding: .4rem .7rem .55rem; border: 1px solid var(--line); border-radius: var(--r-xs); background: var(--panel-2); min-width: 0; }
 .share legend { padding: 0 .3rem; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
 .share fieldset label { display: flex; align-items: center; gap: .45rem; padding: .15rem 0; font-size: 12px; color: var(--text); cursor: pointer; }
@@ -301,6 +354,10 @@
 .guide-pick:hover small { color: var(--text); }
 .guide .status { font-size: 11px; }
 @media (max-width: 720px) { .guide-picks { grid-template-columns: 1fr; } }
+
+/* The guide beside the board (the column, the drawer, "unpin") is every page's: styles.css, keyed on the place
+   <html> names. The maker adds nothing to it; on the site the studio's panel is not there and src/look-boot.js
+   drops the place from <html> (maker.html marks it the checkout's), so the landing stays one column. */
 
 /* ------------------------------------------------ in the phone looks -- */
 
