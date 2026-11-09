@@ -38,13 +38,13 @@ import { TILE, THEMES, HAZARD_CAST, loadScene, drawCell, drawRoom } from './scen
 import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.js';
 import { parse as parseChase, step as chaseStep, isGoal as chaseGoal, seenBy } from './chase.js';
 import { CHARS, BRUSHES, kindOf, isGlitch, blank, setCell, resize, lint, check, toModule, fromModule, normalize,
-         idOf, encodeShare, decodeShare, shareUrl, shareInfo, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
+         idOf, encodeShare, decodeShare, shareUrl, shareInfo, sharePage, SHARE_PARTS, lineCells, rectCells, regionCells, paintCells, mirrorCells,
          flipH, flipV, rotate, shift, analyse, difficulty, STARTERS, generateSolvable, lessonToText, lessonFromText } from './level.js';
 import { MAKER_TUTORIALS, LESSON_EVENTS, Tutor } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { connectBridge } from './bridge.js';
 import { GUIDE_MODES, modeById } from './guide.js';
-import { aiPrompt, prPrompt, prParts, prShort } from './invite.js';
+import { aiPrompt, prPrompt, prParts, prShort, repoParts, pagesUrl } from './invite.js';
 import { RANGE_KINDS, RANGE_NAMES, RANGE_FILES, RANGE_MAPS, RANGE_GLYPHS, POOL_BUTTONS, BUDGET, rangeBlank, wallListing, takeFor } from './rangecheck.js';
 import { loadStage, stageOf } from './seal.js';
 import { comboSequence, buildLevel, idealOffsetMs } from './range.js';
@@ -166,15 +166,16 @@ const sharedGlitch = !!sharedRoom && !sharedError && isGlitch(sharedRoom);   // 
 const sharedOk = !!sharedRoom && !sharedError && !sharedGlitch;
 {
   const note = $('#sharedNote');
+  const playLink = (href, text) => Object.assign(document.createElement('a'), { href, className: 'btn', textContent: text });   // the one thing to press
   if (sharedOk) {
     note.append('Someone shared a room with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
-                Object.assign(document.createElement('a'), { href: `index.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the stages page' }),
-                ', or open this same link in the studio of a checkout.');
+                playLink(`index.html?level=${encodeURIComponent(sharedToken)}`, 'Play it on the stages page'),
+                ' The badge plays it there like any room. This page only shows it; to edit it, open this same link in the studio of a checkout.');
     note.hidden = false;
   } else if (sharedGlitch) {
     note.append('Someone shared a glitch level with you: ', Object.assign(document.createElement('b'), { textContent: sharedRoom.name }), '. ',
-                Object.assign(document.createElement('a'), { href: `glitch.html?level=${encodeURIComponent(sharedToken)}`, textContent: 'Play it on the range page' }),
-                ', or open this same link in the studio of a checkout.');
+                playLink(`glitch.html?level=${encodeURIComponent(sharedToken)}`, 'Play it on the range page'),
+                ' It is the last tab of its range there. To edit it, open this same link in the studio of a checkout.');
     note.hidden = false;
   } else if (sharedToken !== null) {
     note.textContent = `The link carries a room this page could not ${sharedRoom ? 'show' : 'read'}: ${sharedError}.`;
@@ -737,6 +738,7 @@ async function loadById(id) {
       b.addEventListener('click', () => loadById(s.id).catch((e) => { report = { ok: false, problems: [`could not load ${s.id}: ${e.message}`] }; showReport(); }));
       $('#starters').append(b);
     }
+    if (openDialog.open) fillOpen();   // the picker came up before the index did: its community column fills now
   }).catch(() => {});
   sel.addEventListener('change', async () => {
     if (!sel.value) return;
@@ -984,6 +986,7 @@ shippedLoad.then(() => {
 });
 const rangeStudio = { setCategory, setRangeKind, rangeLevelById, tryUrl, shipped: shippedRanges, shippedLoad, categoryOf: () => (isGlitch(level) ? 'glitch' : 'room') };
 
+const firstVisit = sharedRoom === null && loadJson(STORE, null) === null;   // nothing kept on this device yet, no link: the picker opens by itself (below)
 {
   // a link's room first (malformed or not: the lint says what is wrong with it), then the room left here last time, then a blank one
   const first = sharedRoom ?? loadJson(STORE, null);
@@ -1338,65 +1341,114 @@ void KEYS;
 }
 
 // ----------------------------------------------------------------- the share ----
-// The room as one link (src/level.js shareUrl): nothing is uploaded, the whole
-// room travels in the address, so the same link opens it in the studio of any
-// checkout, as a playable card on the stages page (index.html?level=) and as
-// the hero of the published landing. The dialog (#shareDialog) lets the person
-// pick what goes in (the lesson, the blurb, the dressing), how the link reads
-// (compact base64url, or the JSON itself) and where it opens, shows the
-// room's JSON and follows an edit of it until the parts change, and says how
-// long the link is and when that is a problem. shareLink is the one answer:
-// the dialog, window.__maker.share and the bridge's op all go through it.
+// The level as one link (src/level.js shareUrl): nothing is uploaded, the
+// whole level travels in the address. Two choices decide the link, and the
+// first is the one that matters. WHERE it opens: "play it" (the default) is
+// the page that plays the level - index.html for a room, a card in Rooms the
+// badge plays, glitch.html for a glitch level, a tab of its range; "edit it"
+// is maker.html, the studio of a checkout, which on the published site is the
+// landing with the room in its hero (src/level.js sharePage). AT which
+// address: this page's (a checkout: localhost, so only whoever runs it can
+// open the link) or the published site's, which anyone opens - the fork's
+// page when this page is served from one, else the official site's, or
+// whatever the dialog's box says (remembered). Then what goes in (the lesson,
+// the blurb, the dressing) and how the link reads (compact base64url, or the
+// JSON itself). The dialog (#shareDialog) shows the level's JSON and follows
+// an edit of it until the parts change, and says how long the link is and
+// when that is a problem. shareLink is the one answer: the dialog,
+// window.__maker.share and the bridge's op all go through it.
 
 const shareDialog = $('#shareDialog');
-const shareUrlEl = $('#shareUrl'), shareJsonEl = $('#shareJson'), shareStatus = $('#shareStatus'), shareOpen = $('#shareOpen');
+const shareUrlEl = $('#shareUrl'), shareJsonEl = $('#shareJson'), shareStatus = $('#shareStatus'), shareOpen = $('#shareOpen'), shareSiteEl = $('#shareSite');
 let shareEdited = false, shareLast = null;      // the JSON box was edited by hand: the link follows it until the parts change
-const shareBase = (where) => new URL(where === 'stages' ? 'index.html' : 'maker.html', location.href).href;
-/** The link for `room` (the one on the board unless given) under { format, play, where, parts }: { url, token, chars, format, where, warnings }. */
-function shareLink({ format = 'b64', where = 'studio', play = false, parts = {} } = {}, room = level) {
-  if (where !== 'studio' && where !== 'stages') throw new Error(`no such place '${where}' (studio or stages)`);
-  const url = shareUrl(shareBase(where), room, { format, play: !!play, parts: parts ?? {} });
+const SITE_URL = pagesUrl(repoParts(repo)?.owner ?? 'bsidestlv', repo);     // where the site this page belongs to is published
+prefs.share = { at: 'here', site: '', ...(prefs.share ?? {}) };              // the address picked last time, and a site of one's own
+/** The published site's address as a base for a page: a scheme when none was typed, a file name dropped, a slash at the end. */
+function siteUrl(given) {
+  const s = String(given ?? prefs.share.site ?? '').trim() || SITE_URL;
+  const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `https://${s}`);
+  u.pathname = u.pathname.replace(/[^/]*\.html?$/i, '');
+  if (!u.pathname.endsWith('/')) u.pathname += '/';
+  u.search = ''; u.hash = '';
+  return u.href;
+}
+const shareBase = (page, at, site) => new URL(page, at === 'site' ? siteUrl(site) : location.href).href;
+/**
+ * The link for `room` (the level on the board unless given) under { where, at, site, format, play, parts }:
+ * { url, token, chars, format, where, at, page, warnings }. `where` is play (the default) / studio / stages / range
+ * (src/level.js sharePage; it comes back resolved), `at` here (this page's address) or site (the published site's,
+ * `site` naming another), `play` adds play=1 for the studio only, `parts` says which optional fields travel.
+ */
+function shareLink({ format = 'b64', where = 'play', at = 'here', site, play = false, parts = {} } = {}, room = level) {
+  if (at !== 'here' && at !== 'site') throw new Error(`no such address '${at}' (here: this page's, or site: the published site's)`);
+  const door = sharePage(room, where);
+  let base;
+  try { base = shareBase(door.page, at, site); } catch { throw new Error(`the site's address is not a URL: ${site ?? prefs.share.site}`); }
+  const url = shareUrl(base, room, { format, play: !!play && door.where === 'studio', parts: parts ?? {} });
   const info = shareInfo(url);
-  return { url, token: new URL(url).searchParams.get('level'), chars: info.chars, format: info.format, where, warnings: info.warnings };
+  return { url, token: new URL(url).searchParams.get('level'), chars: info.chars, format: info.format, where: door.where, at, page: door.page, warnings: info.warnings };
 }
 {
   const opts = () => ({
     format: shareDialog.querySelector('input[name="shareFormat"]:checked')?.value ?? 'b64',
-    where: shareDialog.querySelector('input[name="shareWhere"]:checked')?.value ?? 'studio',
+    where: shareDialog.querySelector('input[name="shareWhere"]:checked')?.value ?? 'play',
+    at: shareDialog.querySelector('input[name="shareAt"]:checked')?.value ?? 'here',
     play: $('#sharePlay').checked,
     parts: Object.fromEntries([...shareDialog.querySelectorAll('[data-part]')].map(i => [i.dataset.part, i.checked])),
   });
+  const DOOR = {   // the status line's first words: where the link opens
+    stages: 'opens on the stages page, where the badge plays it', range: 'opens on the range page, as the last tab of its range',
+    studio: 'opens in the studio of a checkout (the published site shows it on the landing)', debug: 'opens in Run & debug, in the studio of a checkout',
+  };
   function refresh() {
     const o = opts();
+    const glitch = isGlitch(level);
+    // the dialog's words follow the category and the choices
+    $('#shareTitle').textContent = glitch ? 'Share this level' : 'Share this room';
+    $('#shareWhat').textContent = glitch ? 'level in its address - every field of it' : 'room in its address - the map, its clock and cast, and whatever you tick below';
+    $('#sharePlayPage').textContent = glitch ? 'the range page' : 'the stages page';
+    $('#sharePlayPage').closest('label').title = glitch ? 'glitch.html: the last tab of its range, "· yours", armed' : 'index.html: a card in Rooms, "Shared · its name", armed; the badge plays it';
+    $('#sharePlay').disabled = o.where !== 'studio';
+    $('#shareHere').textContent = location.host || 'this page';
+    shareSiteEl.disabled = o.at !== 'site';
+    for (const i of shareDialog.querySelectorAll('[data-part]')) i.disabled = glitch;   // a glitch level has no lesson, blurb or dressing
     try {
       let room;
       if (shareEdited) room = decodeShare(shareJsonEl.value);
       else {
         room = normalize(level);
-        for (const p of SHARE_PARTS) if (!o.parts[p]) delete room[p];
+        if (!glitch) for (const p of SHARE_PARTS) if (!o.parts[p]) delete room[p];
         shareJsonEl.value = JSON.stringify(room, null, 2);
       }
       shareLast = shareLink({ ...o, parts: {} }, room);        // the parts are already out of `room`; an edit decides for itself
       shareUrlEl.value = shareLast.url;
       shareOpen.href = shareLast.url;
-      const bits = [`${shareLast.chars} characters`, o.format === 'json' ? 'readable JSON' : 'compact',
-                    o.where === 'stages' ? 'opens on the stages page' : o.play ? 'opens in Run & debug' : 'opens in the studio'];
+      const host = new URL(shareLast.url).host;
+      const bits = [DOOR[shareLast.where === 'studio' && o.play ? 'debug' : shareLast.where],
+                    o.at === 'site' ? `at ${host}, the published site: anyone opens it` : `at ${host}, this checkout: only whoever runs it opens it - pick the published site for anyone else`,
+                    `${shareLast.chars} characters`, o.format === 'json' ? 'readable JSON' : 'compact'];
       if (room.hazards?.length) bits.push(`${room.hazards.length} in the cast`);
       if (room.blurb) bits.push('the blurb');
       if (room.lesson?.length) bits.push(`a lesson of ${room.lesson.length}`);
       const problems = lint(room);
-      const warn = [...(problems.length ? [`the room is malformed: ${problems[0]}`] : []), ...shareLast.warnings];
+      const warn = [...(problems.length ? [`the ${glitch ? 'level' : 'room'} is malformed: ${problems[0]}`] : []), ...shareLast.warnings];
       shareStatus.textContent = [...bits, ...warn].join(' · ');
       shareStatus.className = `status${warn.length ? ' hot' : ''}`;
     } catch (e) {
       shareLast = null; shareUrlEl.value = ''; shareOpen.removeAttribute('href');
-      shareStatus.textContent = `the room: ${e.message}`; shareStatus.className = 'status hot';
+      shareStatus.textContent = `the link: ${e.message}`; shareStatus.className = 'status hot';
     }
   }
-  const told = () => tell('export', { how: 'link', format: shareLast?.format ?? 'b64', chars: shareLast?.chars ?? 0, where: shareLast?.where ?? 'studio' });
-  $('#shareBtn').addEventListener('click', () => { shareEdited = false; refresh(); shareDialog.showModal(); shareUrlEl.focus(); told(); });
-  for (const i of shareDialog.querySelectorAll('[data-part], input[name="shareFormat"], input[name="shareWhere"], #sharePlay'))
-    i.addEventListener('change', () => { if (i.dataset.part) shareEdited = false; refresh(); });
+  const told = () => tell('export', { how: 'link', format: shareLast?.format ?? 'b64', chars: shareLast?.chars ?? 0, where: shareLast?.where ?? 'play', at: shareLast?.at ?? 'here' });
+  $('#shareBtn').addEventListener('click', () => {
+    shareEdited = false;
+    shareDialog.querySelector(`input[name="shareAt"][value="${prefs.share.at === 'site' ? 'site' : 'here'}"]`).checked = true;   // the address is remembered; where it opens starts at play
+    shareSiteEl.value = prefs.share.site || SITE_URL;
+    refresh(); shareDialog.showModal(); shareUrlEl.focus(); told();
+  });
+  for (const i of shareDialog.querySelectorAll('[data-part], input[name="shareFormat"], input[name="shareWhere"], input[name="shareAt"], #sharePlay'))
+    i.addEventListener('change', () => { if (i.dataset.part) shareEdited = false; if (i.name === 'shareAt') { prefs.share.at = i.value; savePrefs(); } refresh(); });
+  shareSiteEl.addEventListener('input', () => { const v = shareSiteEl.value.trim(); prefs.share.site = v === SITE_URL ? '' : v; savePrefs(); refresh(); });
   shareJsonEl.addEventListener('input', () => { shareEdited = true; refresh(); });
   $('#shareCopy').addEventListener('click', async () => {
     if (!shareLast) return;
@@ -1558,8 +1610,8 @@ const ops = {
   },
   share: (a = {}) => {
     const r = shareLink(a);
-    tell('export', { how: 'link', format: r.format, chars: r.chars, where: r.where });
-    chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'stages' ? 'on the stages page' : 'in the studio'}`, 'act');
+    tell('export', { how: 'link', format: r.format, chars: r.chars, where: r.where, at: r.at });
+    chat(`made a link: ${r.chars} characters, ${r.format === 'json' ? 'readable' : 'compact'}, opens ${r.where === 'studio' ? 'in the studio' : `on the ${r.where} page`}, at ${r.at === 'site' ? 'the published site' : 'this checkout\'s address'}`, 'act');
     return r;
   },
   tutorial: ({ id, skip, restart } = {}) => {
@@ -1576,38 +1628,76 @@ const ops = {
     if (mode) pickGuide(mode, { from: by ?? 'assistant' });
     return { mode: guideMode, open: guideDialog.open, ways: GUIDE_MODES.map(m => m.id), tutorial: tutorialSummary() };
   },
-  // The guide's current question, as a card in the chat with its options as buttons: the person may answer here
-  // instead of in the assistant's chat, and the bridge applies the press at once (whichever side answers first wins).
-  ask: ({ mode, title, at, of, step, say, q, options = [], other, over } = {}) => {
+  // The guide's current step, as a card in the chat - the whole of it: the line, the why, the board in a line, what the
+  // assistant does on it, the question with its options as buttons, and "Do it for me" when the step has a help plan. The
+  // person may follow and answer here instead of in the assistant's chat; the bridge applies a press at once (whichever side
+  // answers first wins). An answer that keeps the step (a why, a "not yet", a stay, the help) leaves the buttons live.
+  ask: ({ mode, title, at, of, step, say, why, board, next, q, options = [], other, help, does = [], before, work, over } = {}) => {
     const m = modeById(mode);
     for (const old of chatLog.querySelectorAll('li.ask:not(.answered)')) { old.classList.add('stale'); for (const x of old.querySelectorAll('button')) x.disabled = true; }
     const li = document.createElement('li');
     li.className = 'ask';
-    li.append(Object.assign(document.createElement('b'), { textContent: m ? `${m.icon} ${m.title}` : title ?? 'guide' }), ' ');
+    const el = (tag, cls, text) => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+    const who = m ? m.title : 'guide';
+    li.append(el('b', '', m ? `${m.icon} ${m.title}` : title ?? 'guide'), ' ');
     if (over) { li.append(say ?? 'That was the way. The room stays on the board.'); chatLog.prepend(li); return { shown: true, over: true }; }
-    li.append(Object.assign(document.createElement('span'), { className: 'ask-say', textContent: `${at + 1} of ${of} · ${step}: ${say}` }));
+    li.append(el('span', 'ask-step', `step ${at + 1} of ${of} · ${step}`), el('span', 'ask-say', say ?? ''));
+    if (why) li.append(el('span', 'ask-why', why));
+    if (board) li.append(el('span', 'ask-board', String(board).replace(/^Board: /, '')));
+    if (does.length && !q) li.append(el('span', 'ask-does', `${bridge?.agents.at(-1) ?? 'the assistant'} is on it: ${does.join(', ')}${work?.length ? ', then the repository work below' : ''}`));
+    if (work?.length) {
+      const d = document.createElement('details'); d.className = 'ask-work';
+      d.append(el('summary', '', 'what the assistant does now'));
+      const ul = document.createElement('ul'); for (const w of work) ul.append(el('li', '', w)); d.append(ul);
+      li.append(d);
+    }
+    // the buttons are held while the bridge works, and stay held once the step is answered or superseded
+    const lock = (on) => { li.classList.toggle('busy', on); for (const x of li.querySelectorAll('button')) x.disabled = on || li.classList.contains('answered') || li.classList.contains('stale'); };
     if (q && options.length) {
       const row = document.createElement('div');
       row.className = 'ask-row';
-      row.append(Object.assign(document.createElement('span'), { className: 'ask-q', textContent: q }));
+      row.append(el('span', 'ask-q', q));
       for (const o of options) {
         const btn = document.createElement('button');
         btn.type = 'button'; btn.className = 'btn ghost ask-pick'; btn.textContent = o.label; if (o.hint) btn.title = o.hint;
         btn.addEventListener('click', async () => {
-          for (const x of row.querySelectorAll('button')) x.disabled = true;
-          li.classList.add('answered');
+          lock(true);
           chat(o.label, 'you');
           const r = await bridge?.answer(o.label, at);
-          if (r?.say) chat(r.say, m ? m.title : 'guide');
+          const stays = !!r && !r.over && r.at === at && ['why', 'stay', 'not yet', 'help'].includes(r.did);
+          if (!stays) li.classList.add('answered');
+          if (r?.say) chat(r.say, who);
           else if (r?.did === 'moved') chat('that step was already done', 'act');
+          lock(false);
         });
         row.append(btn);
       }
-      if (other) row.append(Object.assign(document.createElement('small'), { textContent: `or type below: ${other}` }));
+      // the hint for their own words, when it is written for them (the ones that start "or ..."); the rest are the assistant's
+      const hint = other && /^or\b/i.test(other) ? other.replace(/^or\s+/i, '').replace(/\s*[-;:]\s*(answer|pick|turn|offer|if they|their|then)\b.*$/i, '') : null;
+      li.append(row);
+      row.append(el('small', '', hint ? `or type below: ${hint}` : 'or type your own answer below'));
+    }
+    // Do it for me, unless an option offers the help or a redo already; on a step the assistant has already done (before), the help is a repeat and its words are the label
+    if (help && !options.some(o => o.then === 'help' || o.then === 'again')) {
+      const row = document.createElement('div');
+      row.className = 'ask-row ask-more';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn ghost ask-help'; btn.textContent = before ? help : 'Do it for me'; btn.title = help;
+      btn.addEventListener('click', async () => {
+        lock(true);
+        chat('Do it for me', 'you');
+        const r = await bridge?.help(at);
+        if (r?.did === 'moved') li.classList.add('answered');
+        chat(r?.say ?? help, who);
+        const failed = r?.ran?.find(x => x.error);
+        if (failed) chat(failed.error, 'act');
+        lock(false);
+      });
+      row.append(btn); if (!before) row.append(el('small', '', help));
       li.append(row);
     }
     chatLog.prepend(li);
-    return { shown: true, at, step };
+    return { shown: true, at, step, next: next ?? null, before: !!before };
   },
 };
 
@@ -1621,6 +1711,7 @@ const ops = {
 // (?guide=1, or "guide" typed in the chat).
 
 const guideDialog = $('#guideDialog');
+const openDialog = $('#openDialog');   // the level picker, wired at the end of the studio
 let guideShown = false;              // once a page load, unless asked again
 {
   const box = $('#guidePicks');
@@ -1660,6 +1751,15 @@ function pickGuide(mode, { from = 'page' } = {}) {
   bridge?.state(snapshotState());
   return { mode: guideMode, tutorial: tutorialSummary() };
 }
+/** The way the bridge already holds, taken up quietly by a page that (re)attached mid-walk: the Rabbit's build under the coach, the banner kept shut, the bridge not told again. */
+function adoptGuide(mode) {
+  const m = modeById(mode);
+  guideMode = m.id;
+  if (guideDialog.open) guideDialog.close();
+  if (m.tutorial && picked !== m.tutorial) pickTutorial(m.tutorial);
+  chat(`carrying on with ${m.icon} ${m.title} - the current step is below`, 'act');
+  bridge?.state(snapshotState());
+}
 $('#guideLater').addEventListener('click', () => { guideDialog.close(); chat('the welcome is closed; type "guide" here, or ask your assistant, to bring it back', 'act'); });
 guideDialog.addEventListener('click', (e) => { if (e.target === guideDialog) guideDialog.close(); });
 guideDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
@@ -1675,6 +1775,7 @@ bridge = connectBridge(ops, {
     bridgeState.textContent = !b.available ? 'no bridge here' : !b.connected ? 'bridge lost' : who ? `${who} connected` : 'waiting for an assistant';
     bridgeState.className = `tag${who ? ' on' : ''}`;
     $('#bridgeUrl').textContent = `${location.origin}/__maker/`;
+    if (b.guideMode && b.guideMode !== guideMode && modeById(b.guideMode)) adoptGuide(b.guideMode);   // a way is already picked on the bridge (a reload mid-walk): take it up, no banner
     if (b.connected && b.agents.length) showGuide(b.agents.at(-1));     // an assistant was here before the page: the banner still comes up
   },
   onCommand: (cmd) => { if (cmd.op !== 'get' && cmd.op !== 'snapshot' && cmd.op !== 'say' && cmd.op !== 'hello') console.debug('bridge:', cmd.op, cmd.args); },
@@ -1752,7 +1853,64 @@ window.__maker = {
   goTo, setLearn: (...a) => coach.setLearn(...a), openLearn: (...a) => coach.openLearn(...a), get learn() { return coach.learn; }, get mode() { return looks.mode; },
   guide: { show: (name, o) => showGuide(name, o), pick: pickGuide, get mode() { return guideMode; }, get open() { return guideDialog.open; }, ways: GUIDE_MODES },
   ...rangeStudio, get category() { return rangeStudio.categoryOf(); },
+  openLevel: showOpen, get openDialog() { return openDialog.open; },
 };
+
+// ------------------------------------------------------------ open a level ----
+// What to work on when it is not a new room: the picker (#openDialog) lists a
+// new room and a new level of each range, the shipped stages as copies, the
+// community's levels, the shelf, and takes a share link pasted in - the same
+// ?level= the stages page's Share and the Share dialog here write - so a
+// level that lives anywhere can be carried on here. Open… in the stage bar,
+// the welcome banner's "open an existing level", ?open=1 and the first visit
+// of a device (nothing kept yet, no link) show it.
+function openPick(host, label, note, act) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'open-pick';
+  b.append(Object.assign(document.createElement('b'), { textContent: label }), Object.assign(document.createElement('small'), { textContent: note }));
+  b.addEventListener('click', async () => {
+    try { await act(); openDialog.close(); }
+    catch (e) { $('#openStatus').textContent = `could not open: ${e.message}`; $('#openStatus').className = 'status hot'; }
+  });
+  host.append(b);
+}
+function fillOpen() {
+  const fresh = $('#openNew'); fresh.replaceChildren();
+  openPick(fresh, 'A new room', 'a walled 9×7 with Alice and the door', () => { hazardPick = -1; setLevel(blank(9, 7), { why: 'new' }); });
+  for (const kind of RANGE_KINDS) openPick(fresh, `A new ${kind} level`, `for ${RANGE_NAMES[kind]} on the glitch range`, () => { hazardPick = -1; setLevel(rangeBlank(kind), { why: 'new' }); });
+  const stages = $('#openStages'); stages.replaceChildren();
+  for (const [id, name] of SHIPPED) openPick(stages, name, 'a copy of the shipped stage', () => loadById(id));
+  const comm = $('#openCommunity'); comm.replaceChildren();
+  for (const s of community) openPick(comm, s.name, `${s.kind === 'chase' ? 'timed' : RANGE_KINDS.includes(s.kind) ? `a ${s.kind} level` : 'untimed'} · by ${s.author}`, () => loadById(s.id));
+  if (!community.length) comm.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'none yet - yours could be the first' }));
+  const kept = $('#openShelf'); kept.replaceChildren();
+  for (const item of shelf) openPick(kept, item.level.name, describeShelf(item.level), () => { hazardPick = -1; setLevel(item.level, { why: 'shelf' }); if (item.par) { report = item.report; render(); } tell('shelf', { did: 'open' }); });
+  if (!shelf.length) kept.append(Object.assign(document.createElement('p'), { className: 'note', textContent: 'nothing kept yet - "Keep this room" puts one here' }));
+  $('#openStatus').textContent = ''; $('#openStatus').className = 'status';
+}
+function showOpen() {
+  fillOpen();
+  if (guideDialog.open) guideDialog.close();
+  if (!openDialog.open) openDialog.showModal();
+}
+$('#openBtn').addEventListener('click', showOpen);
+$('#guideOpen').addEventListener('click', showOpen);
+$('#openLinkBtn').addEventListener('click', () => {
+  try {
+    const lv = decodeShare($('#openLink').value);
+    hazardPick = -1; setLevel(lv, { why: 'load' }); tell('load', { id: idOf(lv), from: 'link' });
+    $('#openLink').value = ''; openDialog.close();
+    chat(`opened ${lv.name} from a link`, 'act');
+  } catch (e) { $('#openStatus').textContent = `the link: ${e.message}`; $('#openStatus').className = 'status hot'; }
+});
+$('#openLink').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#openLinkBtn').click(); } });
+$('#openClose').addEventListener('click', () => openDialog.close());
+openDialog.addEventListener('click', (e) => { if (e.target === openDialog) openDialog.close(); });
+openDialog.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });    // the studio's keys stay out of the dialog
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('open') === '1' || (firstVisit && q.get('guide') !== '1')) showOpen();
+}
 
 // ?level=…&play=1: the link asked for Run & debug, so the room it brought is played at once
 if (sharedOk && new URLSearchParams(location.search).get('play') === '1') startPlay();

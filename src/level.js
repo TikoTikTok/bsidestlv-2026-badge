@@ -356,12 +356,15 @@ export function lessonFromText(text) {
 //          what every link made before there was a choice is)
 //   json   the JSON itself, percent-encoded by the URL: readable, longer
 //
-// The same link opens the room wherever it is pasted: maker.html?level= is
-// the studio on a checkout and the hero on the published landing,
-// index.html?level= a card on the stages page, played with the badge.
-// shareUrl builds one; shareInfo says how long it is and when that is a
-// problem; decodeShare takes either spelling, or a whole link pasted in, and
-// refuses what is not a level with a message that says why.
+// The same token opens the level wherever it is pasted; the page in front of
+// it says where. index.html?level= is a card on the stages page, played with
+// the badge - a room's "play it"; glitch.html?level= is the last tab of its
+// range - a glitch level's; maker.html?level= is the studio on a checkout and
+// the hero on the published landing - "edit it". sharePage picks the page for
+// a level and a place; shareUrl builds the link; shareInfo says how long it
+// is and when that is a problem; decodeShare takes either spelling, or a
+// whole link pasted in, and refuses what is not a level with a message that
+// says why.
 
 const b64 = (s) => (typeof btoa === 'function' ? btoa(s) : Buffer.from(s, 'binary').toString('base64'));
 const unb64 = (s) => (typeof atob === 'function' ? atob(s) : Buffer.from(s, 'base64').toString('binary'));
@@ -370,6 +373,25 @@ const unutf8 = (s) => decodeURIComponent(escape(s));
 
 /** The optional fields a link may leave out (shareUrl's `parts`). */
 export const SHARE_PARTS = ['lesson', 'blurb', 'theme'];
+/** Where a link opens: `play` is wherever the level plays (index.html for a room, glitch.html for a glitch level), `studio` is maker.html; `stages` and `range` name the two play pages outright. */
+export const SHARE_WHERE = ['play', 'studio', 'stages', 'range'];
+
+/**
+ * The page a link to `level` opens on, for `where` (SHARE_WHERE; `play` by
+ * default): { where, page } with `where` resolved - `play` becomes `stages`
+ * for a room and `range` for a glitch level - and `page` the file next to
+ * the one making the link (index.html / glitch.html / maker.html). A room
+ * sent to the range, or a glitch level to the stages, is refused with the
+ * page that does play it.
+ */
+export function sharePage(level, where = 'play') {
+  if (!SHARE_WHERE.includes(where)) throw new Error(`no such place '${where}' (play, studio, stages or range)`);
+  const glitch = isGlitch(level);
+  if (where === 'play') where = glitch ? 'range' : 'stages';
+  if (where === 'stages' && glitch) throw new Error('a glitch level plays on the range page (glitch.html), not the stages page');
+  if (where === 'range' && !glitch) throw new Error('a room plays on the stages page (index.html), not the range page');
+  return { where, page: where === 'studio' ? 'maker.html' : where === 'range' ? 'glitch.html' : 'index.html' };
+}
 /** Over this many characters some chats and QR codes cut a link; over SHARE_TOO_LONG it may not paste at all. */
 export const SHARE_LONG = 2000, SHARE_TOO_LONG = 8000;
 
