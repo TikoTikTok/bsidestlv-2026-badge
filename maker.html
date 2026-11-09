@@ -71,7 +71,8 @@
     <ol class="steps three">
       <li><b>Fork, then clone.</b> A fork of your own is where your room lands first: its GitHub Pages site plays it the moment it
         is merged. Node 20 or newer is all the clone needs, no packages, no build; <code>npm run maker</code> serves the checkout
-        and opens the studio in your browser.</li>
+        and opens the studio. An assistant opens it in its own browser pane, beside its chat, so you watch the room and answer
+        on the page; by hand, in your browser.</li>
       <li><b>Draw, check, play.</b> Paint with the pencil, line, rectangle and fill tools, or type the map. <b>Check</b> runs the real solver and says how many
         moves the room takes, and whether the gate earns its keep. <b>Run &amp; debug</b> plays it with a simulated badge, every press logged.
         <b>Surprise me</b> draws a solvable room from a seed when you want a start. With an assistant on the bridge, a welcome banner
@@ -470,9 +471,10 @@ delay(n)      holds n ticks            ret      end</pre>
 <dialog id="aiDialog" class="ai" data-kind="invite">
   <h2 id="aiTitle">Hand this to your assistant</h2>
   <p class="note" id="aiNote">Copy the prompt into Claude Code, Codex, Cursor, Copilot, Gemini or whatever runs commands on your machine.
-    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, connect, and
-    then follow the White Rabbit's guide: a welcome banner on this page lets you pick step by step, the fast lane or the
-    one-bite starter, and the assistant asks, paints and explains from there - in its chat and in the page's own.</p>
+    It tells the assistant to fork the repository for you (so the room lands on your own page), start the studio, open this
+    page in its own browser pane (Claude Code's, Cursor's, VS Code's Simple Browser; your browser only when it has none), connect,
+    and then follow the White Rabbit's guide: a welcome banner lets you pick step by step, the fast lane or the one-bite starter,
+    and from there every step is on the page - the line, the why, the buttons - while the assistant paints and narrates.</p>
   <textarea id="aiPrompt" rows="12" readonly spellcheck="false"></textarea>
   <div class="stage-bar">
     <button type="button" id="aiCopy" class="btn">Copy</button>

@@ -191,15 +191,25 @@
 .chat li.act b { color: var(--accent-2); font-style: normal; }
 .chat:empty::after { content: 'nothing said yet'; color: var(--dim); font-size: 11px; letter-spacing: .06em; }
 /* the guide's question as a card: the step's line, the question, its options as buttons; a card answered or superseded dims */
+/* the guide's step card: the whole step - the line, the why, the board, what the assistant does, the question's buttons, Do it for me */
 .chat li.ask { border-left: 2px solid var(--accent-2); padding-left: .5rem; }
 .chat li.ask b { color: var(--accent-2); }
-.chat li.ask .ask-say { color: var(--text); }
+.chat li.ask .ask-step { color: var(--dim); font-size: 11px; letter-spacing: .04em; }
+.chat li.ask .ask-say { display: block; color: var(--text); margin-top: .15rem; }
+.chat li.ask .ask-why, .chat li.ask .ask-board, .chat li.ask .ask-does { display: block; color: var(--dim); font-size: 11px; margin-top: .2rem; }
+.chat li.ask .ask-why::before { content: 'why · '; color: var(--accent-2); }
+.chat li.ask .ask-board::before { content: 'on the board · '; color: var(--accent-2); }
+.chat li.ask .ask-work { margin-top: .25rem; color: var(--dim); font-size: 11px; }
+.chat li.ask .ask-work summary { cursor: pointer; color: var(--accent-2); }
+.chat li.ask .ask-work ul { margin: .2rem 0 0 1rem; padding: 0; }
 .ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .35rem 0 .1rem; }
 .ask-q { flex-basis: 100%; color: var(--dim); font-size: 11px; }
-.ask-pick { font-size: 11px; padding: .2rem .55rem; }
+.ask-pick, .ask-help { font-size: 11px; padding: .2rem .55rem; }
 .ask-row small { color: var(--dim); font-size: 10px; }
 .chat li.ask.stale, .chat li.ask.answered { opacity: .55; }
 .chat li.ask.answered { border-left-color: var(--accent); }
+.chat li.ask.busy { opacity: .75; }
+.chat li.ask.busy::after { content: 'working…'; display: block; color: var(--dim); font-size: 10px; font-style: italic; margin-top: .15rem; }
 .chat-text { flex: 1 1 16rem; font: 13px var(--font); color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: var(--r-xs); padding: .4rem .6rem; min-width: 0; }
 .chat-text:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
 
