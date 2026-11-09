@@ -117,7 +117,7 @@ try {
   mkdirSync(join(site, 'software', 'tools'), { recursive: true });
   for (const f of ['index.html', 'glitch.html', 'flash.html', 'badge.html', 'maker.html']) cpSync(join(repo, f), join(site, f));
   for (const d of ['src', 'stages']) cpSync(join(repo, d), join(site, d), { recursive: true });
-  for (const f of ['verify-stage', 'verify-chase', 'verify-range', 'verify-flash', 'verify-badge', 'check-stage', 'fake-badge', 'fake-bootloader'])
+  for (const f of ['verify-stage', 'verify-chase', 'verify-range', 'verify-flash', 'verify-badge', 'verify-progress', 'check-stage', 'fake-badge', 'fake-bootloader'])
     cpSync(join(here, `${f}.mjs`), join(site, 'software', 'tools', `${f}.mjs`));
 
   const originals = new Map();
@@ -182,8 +182,8 @@ try {
   ok('every page carries the lure and nothing else in comments');
 
   // the verify suite against the obfuscated copy
-  for (const v of ['verify-stage', 'verify-chase', 'verify-range', 'verify-flash', 'verify-badge', 'check-stage']) {
-    const args = v === 'check-stage' ? ['stages/tea-party.js', 'stages/queens-gauntlet.js'] : [];
+  for (const v of ['verify-stage', 'verify-chase', 'verify-range', 'verify-flash', 'verify-badge', 'verify-progress', 'check-stage']) {
+    const args = v === 'check-stage' ? ['stages/tea-party.js', 'stages/queens-gauntlet.js'] : v === 'verify-progress' ? ['--module-only'] : [];
     const r = spawnSync(process.execPath, [join(site, 'software', 'tools', `${v}.mjs`), ...args], { cwd: site, encoding: 'utf8' });
     if (r.status !== 0) fail(`${v} against the obfuscated copy:\n${r.stdout}\n${r.stderr}`);
     else ok(`${v} passes against the obfuscated copy`);
