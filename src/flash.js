@@ -14,6 +14,7 @@ import { parseUf2, planSectors, describe } from './uf2.js';
 import { Picoboot, flashSectors, BOOT_FILTERS, BOOT_VID, BOOT_PID_RP2040 } from './picoboot.js';
 import { isBadgeId, BADGE_PRODUCT } from './pad.js';
 import { initLooks } from './looks.js';
+import { mountWelcome } from './welcome.js';
 import { mountPrompt, cue } from './prompt.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -369,6 +370,7 @@ function mountPrompts() {
 
 buildCards();
 initLooks();   // the look picker in the header; the page itself does not change shape
+mountWelcome();   // the welcome (src/welcome.js): once per device on the site, ?welcome=1 on a checkout
 mountPrompts();
 await loadManifest();
 ready = true;

@@ -586,6 +586,59 @@ html[data-look=classic] main > .rig { display: none; }
 }
 .toast[hidden] { display: none; }
 
+/* ----------------------------------------------------------- the welcome -- */
+/* The dialog src/welcome.js raises once on a new device (on top of the gate) and
+   from "about" in the header: the promo, the three steps, what is here, the
+   repository. It scrolls inside; the steps and the badge art sit side by side
+   on a wide window and stack on a phone. */
+.welcome {
+  width: min(94vw, 780px); max-height: 92vh; max-height: 92dvh; margin: auto; padding: 1.4rem 1.6rem 1.2rem; font: inherit;
+  overflow: auto; overscroll-behavior: contain; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 30px 80px var(--shade), 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.welcome::backdrop { background: color-mix(in srgb, var(--ink) 86%, transparent); backdrop-filter: blur(4px); }
+.welcome-x {
+  position: absolute; top: .7rem; right: .8rem; width: 28px; height: 28px; padding: 0; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--dim); font: inherit; font-size: 16px; line-height: 1;
+}
+.welcome-x:hover { color: var(--text); border-color: var(--accent); }
+.welcome-kicker { margin: 0 2.2rem 0 0; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent-2); }
+.welcome h2 { margin: .2rem 2.2rem .5rem 0; font-family: var(--font-display); font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.welcome h3 { margin: 1.2rem 0 .45rem; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.welcome .note { max-width: none; margin-bottom: .6rem; }
+.welcome a { color: var(--accent); text-decoration: none; }
+.welcome a:hover { text-decoration: underline; }
+.welcome-video { margin: .9rem 0 .2rem; }
+.welcome-video video { display: block; width: 100%; aspect-ratio: 16 / 9; background: var(--ink-2); border: 1px solid var(--line); border-radius: var(--r-s); }
+.welcome-video small { display: block; margin-top: .4rem; font-size: 10px; color: var(--dim); letter-spacing: .04em; }
+.welcome-start { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem 1.2rem; align-items: start; }
+.welcome-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: .5rem; }
+.welcome-steps li { position: relative; padding: .6rem .8rem .6rem 2.4rem; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2); font-size: 12px; color: var(--dim); line-height: 1.5; }
+.welcome-steps li::before {
+  counter-increment: step; content: counter(step); position: absolute; left: .7rem; top: .7rem; width: 1.2rem; height: 1.2rem;
+  display: grid; place-items: center; border-radius: 99px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700;
+}
+.welcome-steps b { color: var(--text); }
+.welcome-steps li > b:first-child { display: block; margin-bottom: .15rem; }
+.welcome-art { margin: 0; justify-content: center; }
+.welcome-art .prompt { width: 200px; }
+.welcome-places, .welcome-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .5rem; }
+.welcome-place, .welcome-link { display: flex; flex-direction: column; gap: .15rem; padding: .6rem .75rem; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--panel-2); color: var(--text); }
+.welcome-place:hover, .welcome-link:hover { border-color: var(--accent); text-decoration: none; }
+.welcome-place b, .welcome-link b { font-size: 12px; letter-spacing: .04em; }
+.welcome-link b { color: var(--accent); }
+.welcome-place.here { border-color: var(--accent-2); }
+.welcome-place.here b::after { content: ' · you are here'; color: var(--accent-2); font-weight: 400; }
+.welcome-place small, .welcome-link small { font-size: 10px; color: var(--dim); line-height: 1.4; }
+.welcome-licence { margin-top: 1rem; }
+.welcome-foot { justify-content: space-between; margin-top: .6rem; }
+@media (max-width: 640px) {
+  .welcome { padding: 1.1rem 1rem 1rem; }
+  .welcome h2 { font-size: 18px; }
+  .welcome-start { grid-template-columns: 1fr; }
+  .welcome-art { justify-content: flex-start; }
+}
+
 /* the Share dialog: the open level as a link, two doors */
 .share-sheet {
   width: min(92vw, 640px); margin: auto; padding: 1.3rem 1.5rem 1.1rem; font: inherit;
@@ -705,6 +758,7 @@ html[data-flip="90"] dialog, html[data-flip="270"] dialog { inset: 50% auto auto
 html[data-flip="90"] dialog { transform: rotate(90deg) translate(-50%, -50%); }
 html[data-flip="270"] dialog { transform: rotate(-90deg) translate(-50%, -50%); }
 html[data-flip="90"] .gate, html[data-flip="270"] .gate { width: min(92vh, 640px); width: min(92dvh, 640px); max-height: calc(100vw - 2em - 6px); max-height: calc(100dvw - 2em - 6px); }
+html[data-flip="90"] .welcome, html[data-flip="270"] .welcome { width: min(94vh, 780px); width: min(94dvh, 780px); max-height: calc(100vw - 2em - 6px); max-height: calc(100dvw - 2em - 6px); }
 html[data-flip="90"] .look-sheet, html[data-flip="270"] .look-sheet { width: min(100vh, 560px); width: min(100dvh, 560px); max-height: 92vw; max-height: 92dvw; }
 html[data-flip="90"] .look-sheet { left: 0; transform: rotate(90deg) translate(-50%, -100%); }
 html[data-flip="270"] .look-sheet { left: 100%; transform: rotate(-90deg) translate(-50%, -100%); }
@@ -749,6 +803,19 @@ html[data-flip="90"] .gate-ways, html[data-flip="270"] .gate-ways { grid-templat
   background: var(--panel); border: 1px solid var(--accent); border-radius: 99px; height: 26px; padding: 0 10px; cursor: pointer;
 }
 .look-chip:hover { background: var(--panel-2); }
+
+/* the GitHub mark beside the page-turn icon, in every header: the repository
+   the site is served from (src/welcome.js points it there; the page writes the
+   upstream URL). The word goes in the phone looks, the mark stays. */
+.gh-link {
+  flex: none; display: inline-flex; align-items: center; gap: .35rem; height: 26px; padding: 0 9px;
+  color: var(--dim); background: var(--panel); border: 1px solid var(--line); border-radius: 99px;
+  font-size: 10px; letter-spacing: .08em; text-transform: uppercase; text-decoration: none; white-space: nowrap;
+}
+.gh-link svg { width: 15px; height: 15px; fill: currentColor; }
+.gh-link:hover, .gh-link:focus-visible { color: var(--accent); border-color: var(--accent); }
+html:not([data-look=classic]) .gh-link { width: 26px; padding: 0; justify-content: center; }
+html:not([data-look=classic]) .gh-link span { display: none; }
 
 /* the page-turn icon beside the chip (src/looks.js fills the glyph and keeps
    the state): dim on auto, lit while the page is turned, filled on "yes",
