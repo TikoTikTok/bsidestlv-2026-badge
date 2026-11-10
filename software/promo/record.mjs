@@ -12,16 +12,25 @@
 // The screencast comes over CDP with each frame's wall-clock stamp and is
 // resampled to a steady 30 fps (Playwright's own recorder writes one output
 // frame per screencast frame, so a page that redraws every rAF plays slow).
-// Playwright is borrowed from a sibling project; Chromium gets
-// --no-proxy-server because a proxy may own 8080 on this machine.
+// Playwright is not a dependency of this repository: it is resolved from
+// here (so an install in any parent directory serves) or from the
+// package.json PLAYWRIGHT_FROM names. Chromium gets --no-proxy-server
+// because a proxy may own 8080 on the development machine.
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const require = createRequire(process.env.PLAYWRIGHT_FROM ?? import.meta.url);
-const { chromium } = require('playwright');
+const FROM = process.env.PLAYWRIGHT_FROM ?? import.meta.url;
+let chromium;
+try {
+  ({ chromium } = createRequire(FROM)('playwright'));
+} catch (e) {
+  if (e.code !== 'MODULE_NOT_FOUND') throw e;
+  console.error(`record.mjs: Playwright was not found from ${FROM}. Set PLAYWRIGHT_FROM to the package.json of a checkout that has node_modules/playwright; this repository takes no npm dependency.`);
+  process.exit(2);
+}
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8873';
