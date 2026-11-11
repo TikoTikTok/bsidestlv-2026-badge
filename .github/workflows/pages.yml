@@ -2,8 +2,9 @@
 # repository root - no build step, no bundler - so this stages the pages the
 # site actually needs and uploads them.
 #
-# Staging rather than uploading the whole repo keeps the artifact ~4MB instead
-# of ~34MB: hardware/, software/ and the reference sheets are not part of the
+# Staging rather than uploading the whole repo keeps the artifact ~13MB (of
+# which the promo the welcome embeds is ~9MB) instead of ~34MB: hardware/,
+# software/, the reference sheets and the rest of images/ are not part of the
 # site and do not need publishing.
 #
 # Two things are built on the way. The firmware: flash.html offers it to the
@@ -39,6 +40,8 @@ on:
       - 'stages/**'
       - 'assets/**'
       - 'rabbit-hole/**'
+      - 'images/promo.mp4'
+      - 'images/promo-poster.jpg'
       - 'software/controller/**'
       - '.github/workflows/pages.yml'
       - '.github/workflows/build-uf2.yml'
@@ -84,8 +87,10 @@ jobs:
 
       - name: Stage the site
         run: |
-          mkdir _site
+          mkdir -p _site/images
           cp -r index.html glitch.html flash.html badge.html maker.html robots.txt styles.css src stages assets rabbit-hole .nojekyll _site/
+          # the promo the welcome embeds (src/welcome.js) and its poster; the rest of images/ is the README's and stays out
+          cp images/promo.mp4 images/promo-poster.jpg _site/images/
 
       # In place, in the staging directory only: the repository is never
       # rewritten. Every output is parsed again here so a deploy never ships a

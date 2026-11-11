@@ -8,7 +8,11 @@ next room.
 
 The challenge is live at **https://bsidestlv.github.io/bsidestlv-2026-badge/**:
 the stages, the glitch range, the flasher, the badge's vault and the level
-maker, published from `main` by the Pages workflow below.
+maker, published from `main` by the Pages workflow below. A first visit opens
+with a welcome - the promo below, the three steps from the badge in the hand
+to Alice moving, what each page is, and the doors to this repository; *about*
+in any page's header brings it back, and the GitHub mark beside the ◐ chip is
+the way here from every page.
 
 <p align="center">
   <a href="images/promo.mp4"><img src="images/promo.gif" alt="The promo: the badge, the gate, the stages, the glitch range, the maker" width="720"></a><br>
@@ -32,7 +36,7 @@ software/          everything that builds the above, but is not served (MIT)
   promo/             the promo video and the README's GIFs, recorded off the real pages
   references/        the source sheets the art was cut from
   docs/              the game design, the badge gate, the level maker, what a model does to a site
-images/            the photos and animations this README shows - not published
+images/            the photos and animations this README shows - not published, but for the promo and its poster, which the welcome embeds
 ```
 
 <p align="center">

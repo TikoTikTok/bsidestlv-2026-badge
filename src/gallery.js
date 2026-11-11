@@ -20,6 +20,7 @@ import { parse as parseChase } from './chase.js';
 import { TILE, THEMES, loadScene, drawRoom } from './scene.js';
 import { Pad, flipFor } from './pad.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
+import { mountWelcome } from './welcome.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
 import { Tutor, STAGES_TUTORIAL } from './tutor.js';
@@ -47,6 +48,8 @@ const gatePromise = openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), 
 // the look picker and the mode bar (src/looks.js), up before the gate so a
 // phone can pick its look while the badge is still being asked for
 const looksReady = initLooks();
+// the welcome (src/welcome.js): on the site once per device, on top of the gate; a checkout opens it on ?welcome=1
+mountWelcome();
 
 // The tutorial, A Caucus Race: every edge and everything the open level does
 // is fed to it. The coach is mounted once the levels exist (end of the file).

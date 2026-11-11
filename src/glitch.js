@@ -14,6 +14,7 @@ import { Wall, frameOf as wallFrameOf, withDefaults as wallDefaults } from './wa
 import { Tutor, TUTORIAL } from './tutor.js';
 import { mountCoach, tutorStore } from './coach.js';
 import { openGate, gateMode, gateSources, showRefusal } from './gate.js';
+import { mountWelcome } from './welcome.js';
 import { loadStage } from './seal.js';
 import { initLooks } from './looks.js';
 import { tilt } from './tilt.js';
@@ -133,7 +134,9 @@ const looks = await initLooks({
 // keeps watching: when the badge goes it mutes the pad and calls the hooks
 // (filled in at the end of this file) around the pause.
 const hooks = {};
-const badge = await openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
+const gateWait = openGate({ pad, mode, onPause: (why) => hooks.pause?.(why), onResume: () => hooks.resume?.() });
+mountWelcome();   // the welcome (src/welcome.js): on the site once per device, on top of the gate; a checkout opens it on ?welcome=1
+const badge = await gateWait;
 const [RABBIT_WATCH, LOOKING_GLASS, CATERPILLAR_LOCK, DORMOUSE_WATCHDOG, HUMPTY_WALL] = await Promise.all([
   loadStage('rabbit-watch', badge?.key), loadStage('looking-glass', badge?.key), loadStage('caterpillar-lock', badge?.key),
   loadStage('dormouse-watchdog', badge?.key), loadStage('humpty-wall', badge?.key)])

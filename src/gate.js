@@ -202,6 +202,10 @@ function ask(pad, again = null) {
     if (!again) dialog.append(flashNote);   // a badge that has come back once had the firmware already
     document.body.append(dialog);
     dialog.addEventListener('cancel', (e) => e.preventDefault());   // Esc does not open the gate
+    // ... and when the browser closes it anyway it comes straight back: Chrome skips the cancel event and closes a dialog
+    // outright on Escape while the page has had no user gesture (and takes every dialog opened without one down together,
+    // the welcome over this one included); a gate closed before the pass would strand the page, nothing resolving
+    dialog.addEventListener('close', () => { if (!done && dialog.isConnected) dialog.showModal(); });
     dialog.showModal();
 
     // where the press goes: the badge with SELECT + Y held, the hand on Connect,

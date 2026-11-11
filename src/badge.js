@@ -9,6 +9,7 @@
 import { Pad, flipFor } from './pad.js';
 import { hasHid, requestBadgeHid, readVaultHid, writeVaultHid, BeaconDecoder, BEACON, CMD, hex, unhex, KEY_LEN, LABEL_LEN } from './vault.js';
 import { initLooks } from './looks.js';
+import { mountWelcome } from './welcome.js';
 import { mountPrompt, cue } from './prompt.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -137,6 +138,7 @@ setInterval(() => {
 $('#hidState').textContent = hasHid() ? 'WebHID available' : 'no WebHID here - reading needs Chrome or Edge on a computer; the beacon works';
 $('#hidState').classList.toggle('on', hasHid());
 initLooks();   // the look picker in the header
+mountWelcome();   // the welcome (src/welcome.js): once per device on the site, ?welcome=1 on a checkout
 
 // where the press goes (src/prompt.js): SELECT + Y held for the beacon, SELECT
 // held through a write to a keyed badge, and the hand on Connect until a badge answers

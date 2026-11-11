@@ -33,6 +33,8 @@
 import { Pad, sourcesFor, KEYS, BUTTONS } from './pad.js';
 import { gateMode } from './gate.js';
 import { initLooks } from './looks.js';
+import { mountWelcome } from './welcome.js';
+import { repoUrlFor } from './repo.js';
 import { tilt } from './tilt.js';
 import { TILE, THEMES, HAZARD_CAST, loadScene, drawCell, drawRoom } from './scene.js';
 import { parse as parseTea, step as teaStep, isGoal as teaGoal } from './puzzle.js';
@@ -73,17 +75,13 @@ const looksReady = initLooks({ onLook: (l) => lookChanged?.(l), onMode(m) { if (
 
 // ------------------------------------------------------------ the repository ----
 // The site is served from <owner>.github.io/<repo>/, so the repository the
-// visitor should clone is in the address. A checkout, or any other host,
-// points at the project's own.
+// visitor should clone is in the address (src/repo.js). A checkout, or any
+// other host, points at the project's own. The welcome (src/welcome.js) is
+// every page's: here it points the header's GitHub link the same way and
+// opens on the site's first visit, or on ?welcome=1.
 
-const UPSTREAM = 'https://github.com/bsidestlv/bsidestlv-2026-badge';
-export function repoUrlFor(loc = location) {
-  const m = /^([a-z0-9-]+)\.github\.io$/i.exec(loc.hostname);
-  const seg = loc.pathname.split('/').filter(Boolean)[0];
-  if (m && seg && !/\.html$/.test(seg)) return `https://github.com/${m[1]}/${seg}`;
-  return UPSTREAM;
-}
 const repo = repoUrlFor();
+mountWelcome({ repo });
 $('#repoClone').textContent = repo;
 $('#docsLink').href = `${repo}/blob/main/software/docs/LEVEL_MAKER.md`;
 
